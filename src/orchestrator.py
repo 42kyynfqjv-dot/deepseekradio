@@ -397,10 +397,13 @@ def run_show(daypart, config, schedule, live: bool):
             _sstate_save(st)
     # persist any new lore the writer established (max 2 new jokes per show
     # so no single bit can flood the lore pool)
+    # the arc show's conspiracies must NEVER enter shared lore — they resurface
+    # as callbacks/running jokes in daytime shows and conspiracy-code them
+    arc_quarantine = bool(daypart.get("arc"))
     lore.remember(state,
-                  jokes=(outline.get("new_jokes") or [])[:2],
+                  jokes=([] if arc_quarantine else (outline.get("new_jokes") or [])[:2]),
                   guest=outline.get("guest"),
-                  callbacks=outline.get("callbacks_used"))
+                  callbacks=([] if arc_quarantine else outline.get("callbacks_used")))
     lore.save(state)
     print(f"\n  cost so far this run: {METER.summary()}")
 

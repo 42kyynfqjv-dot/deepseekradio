@@ -96,9 +96,13 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
     monologue_line = ("- THIS BEAT IS A MONOLOGUE: one voice runs long; the caps "
                       "below do not apply to them." if beat.get("monologue") else "")
     register_line = ("" if daypart.get("arc") else
-                     "- NOT the conspiracy show: no paranormal, prophecy, hidden "
-                     "patterns, cover-ups, or 'it KNOWS something' material — the "
-                     "comedy here is petty human friction over mundane things.")
+                     "- NOT the conspiracy show, NOT a mystical one: no paranormal, "
+                     "prophecy, hidden patterns, cover-ups, auras, spirits, "
+                     "energies, omens, or anything where an object, plant, or "
+                     "animal senses/knows/predicts things — even as a bit. The "
+                     "comedy here is petty human friction over mundane things. If "
+                     "the beat or context contains such material, play it DOWN, "
+                     "never build on it.")
     pol = daypart.get("caller_policy") or {}
     policy_line = ""
     if pol:
