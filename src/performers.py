@@ -51,8 +51,10 @@ LORE: {lore.digest(lore_state, limit=6)}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - Plain spoken words ONLY: no markdown, asterisks, stage directions, or emoji.
-- NEVER describe sounds or actions ("the gavel bangs", "dramatic sting") — if a
-  bit calls for a sound, the character reacts to it in words instead.
+- The station has NO sound effects, stings, or jingles. Never describe a sound,
+  never imitate one (no onomatopoeia: no bang, ding, whoosh), and never react to
+  or joke about imaginary sounds. If a bit implies a sound, skip it and carry the
+  moment with words alone.
 - Punctuation limited to . , ? ! and apostrophes.
 - Give each distinct caller/guest a NAME as the speaker (e.g. "Caller Doreen",
   not just "Caller") so they get their own voice.

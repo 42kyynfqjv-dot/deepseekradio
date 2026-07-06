@@ -57,6 +57,9 @@ RECURRING SEGMENTS TO HIT:
 Write 12-16 beats total: cover each recurring segment at least once, then add
 fresh angles on them, one or two fake ad breaks (recurring sponsors from the
 bible), and callbacks. The outline must fill a long block of continuous air.
+This outline is ONE STRETCH of a show that runs for hours: never write an
+outro, wrap-up, or sign-off beat, and no grand cold-open either — every beat
+is mid-show. The show never ends; it just keeps rolling.
 
 {guest_line}
 
