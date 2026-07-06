@@ -29,7 +29,8 @@ def _load_personas(cast: list[str]) -> str:
 
 
 def write_outline(daypart: dict, models: dict, lore_state: dict,
-                  weekday: str, first_of_window: bool = True) -> dict:
+                  weekday: str, first_of_window: bool = True,
+                  continue_theory: str | None = None) -> dict:
     """Return an outline dict: {show, beats:[{segment, premise, beat}], guest?}."""
     bible = _BIBLE.read_text()
     personas = _load_personas(daypart["cast"])
@@ -79,6 +80,11 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
     )
     arc = daypart.get("arc")
     arc_line = f"\nSHOW ARC (structure the ENTIRE outline this way):\n{arc}\n" if arc else ""
+    if continue_theory:
+        arc_line += (f"\nIMPORTANT: the show was interrupted mid-theory. Tonight's "
+                     f"theory is ALREADY: {continue_theory} — do NOT start a new "
+                     "one. Resume it at the depth it had reached and keep "
+                     "descending/widening from there.\n")
     user = f"""Write the outline for this show. Today is {weekday}.
 
 SHOW: {daypart['show']}
@@ -113,6 +119,7 @@ Return STRICT JSON:
 {{
   "show": "{daypart['show']}",
   "guest": "<guest name or null>",
+  "theory": "<for arc shows: one line naming this outline's single theory; else null>",
   "beats": [
     {{"segment": "<segment name>",
       "premise": "<one-line setup>",

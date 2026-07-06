@@ -50,6 +50,9 @@ def chat(model_cfg: dict, messages: list[dict], retries: int = 3) -> str:
         "temperature": model_cfg.get("temperature", 1.0),
         "max_tokens": model_cfg.get("max_tokens", 1200),
     }
+    for k in ("frequency_penalty", "presence_penalty", "repetition_penalty"):
+        if k in model_cfg:
+            payload[k] = model_cfg[k]
 
     last = None
     for attempt in range(retries):

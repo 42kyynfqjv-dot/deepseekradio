@@ -369,6 +369,11 @@ def run_show(daypart, config, schedule, live: bool):
             print(f"\n--- {beat.get('segment')} ---")
             _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
 
+    if daypart.get("arc"):
+        st = _sstate()
+        if (st.get("hole") or {}).get("dp") == daypart["id"]:
+            st["hole"]["finished"] = True
+            _sstate_save(st)
     # persist any new lore the writer established (max 2 new jokes per show
     # so no single bit can flood the lore pool)
     lore.remember(state,
