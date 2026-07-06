@@ -267,18 +267,35 @@ def run_show(daypart, config, schedule, live: bool):
     # each outline beat becomes N chained parts of one continuous scene
     beats = []
     for b in outline.get("beats", []):
+        arc_show = bool(daypart.get("arc"))
         for pi in range(parts):
             bb = dict(b)
             bb["_part"] = pi
             bb["_guest"] = outline.get("guest")
             if pi > 0:
-                bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
-                              f"part {pi+1} of {parts}: same characters and callers still "
-                              "present. Develop the conversation naturally — follow-ups, "
-                              "small turns, warmth. Keep the absurdity at the level it "
-                              "already reached; do NOT escalate further. The host stays "
-                              "grounded and sincere no matter how odd the caller gets"
-                              + ("" if pi < parts - 1 else ". You may gently land the bit now"))
+                bb["grounding"] = ""  # props don't repeat across parts
+                if arc_show:
+                    job = ("COMPLICATE it: introduce exactly one new wrinkle, "
+                           "detail, or implication that moves the idea FORWARD"
+                           if pi < parts - 1 else
+                           "DRIVE to this beat's payoff — the layer lands, "
+                           "fully formed, ready for the next layer")
+                    bb["beat"] = (f"{b.get('beat')} (CONTINUE part {pi+1} of "
+                                  f"{parts} of this same beat — and ADVANCE it. "
+                                  f"Your job in this part: {job}. NEVER re-describe "
+                                  "or re-open the scene; never reuse imagery, "
+                                  "props, or phrases from the lines already "
+                                  "spoken — reference them in passing at most, "
+                                  "then move FORWARD.)")
+                else:
+                    bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
+                                  f"part {pi+1} of {parts}: same characters and callers still "
+                                  "present. Develop the conversation naturally — follow-ups, "
+                                  "small turns, warmth. Keep the absurdity at the level it "
+                                  "already reached; do NOT escalate further. Never re-describe "
+                                  "the scene or repeat imagery already used. The host stays "
+                                  "grounded and sincere no matter how odd the caller gets"
+                                  + ("" if pi < parts - 1 else ". You may gently land the bit now"))
             beats.append(bb)
 
     day_key = f"{_now():%Y-%m-%d}"
