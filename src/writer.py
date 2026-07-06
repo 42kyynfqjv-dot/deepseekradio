@@ -35,7 +35,9 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
     personas = _load_personas(daypart["cast"])
     segments = "\n".join(f"- {s}" for s in daypart.get("segments", []))
     guest_pool = (_PERSONAS / "guests.md").read_text() if (_PERSONAS / "guests.md").exists() else ""
-    wants_guest = daypart.get("guest") or weekday == "Wednesday"
+    policy = str(daypart.get("guest", "never")).lower()
+    wants_guest = (policy in ("always", "true") or
+                   (policy == "wednesday" and weekday == "Wednesday"))
     guest_line = (("This show features a GUEST. Choose one from the GUEST POOL below "
                    f"(not already in {lore_state.get('guests_seen', [])[-6:]}), name them "
                    "exactly as the pool does, and weave them into 2-3 beats.\n\nGUEST POOL:\n"

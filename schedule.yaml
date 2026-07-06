@@ -32,6 +32,7 @@ dayparts:
     show: "The Complaints Department"
     window: ["13:00", "16:00"]
     cast: [complaints_desk]   # rotating employee-of-the-day (see persona file)
+    guest: wednesday          # guest-day wildcard mans the phones
     energy: "customer-service line manned by someone wildly unqualified"
     segments:
       - "Grievance of the Hour — an absurd listener complaint, mishandled"
@@ -42,6 +43,7 @@ dayparts:
     show: "The Handover"
     window: ["16:00", "19:00"]
     cast: [hank, kai]
+    guest: wednesday          # a wildcard occasionally crashes drive time
     energy: "drive-time generational warfare; old-school radio vs. content-brain"
     segments:
       - "How It's Done — Hank demonstrates 'real radio'; Kai livestreams it ironically"
@@ -53,7 +55,7 @@ dayparts:
     show: "Culture Vulture"
     window: ["19:00", "22:00"]
     cast: [cosima]            # host; a guest from the pool joins each night
-    guest: true
+    guest: always
     energy: "warm faux-NPR arts hour; interview-driven"
     segments:
       - "Tonight's Guest — introduce a wildcard guest from the pool"
