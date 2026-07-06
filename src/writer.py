@@ -77,10 +77,12 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
         "into dialogue. Be funny, specific, and set up clear punchline targets. "
         "Honor the content guardrail absolutely.\n\n" + bible
     )
+    arc = daypart.get("arc")
+    arc_line = f"\nSHOW ARC (structure the ENTIRE outline this way):\n{arc}\n" if arc else ""
     user = f"""Write the outline for this show. Today is {weekday}.
 
 SHOW: {daypart['show']}
-ENERGY: {daypart['energy']}
+ENERGY: {daypart['energy']}{arc_line}
 CAST:
 {personas}
 
