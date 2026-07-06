@@ -117,7 +117,8 @@ def _emit(lines: list[dict], label: str, config: dict, live: bool, fx=None):
     if live and lines:
         from .tts import synth_segment
         out = buffer.next_path(label)
-        synth_segment(lines, out, config, fx=fx)
+        if synth_segment(lines, out, config, fx=fx) is None:
+            return
         print(f"  ♪ {out.name}  (buffer: {buffer.buffered_seconds()/60:.1f} min)")
 
 

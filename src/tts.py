@@ -38,9 +38,40 @@ _kokoro = None
 _filters = {}
 
 
+def _patch_phonemizer():
+    """phonemizer's module-level phonemize() builds a NEW espeak backend per
+    call, and every backend init copies libespeak-ng.so (~10MB) into a fresh
+    tmpdir that is only cleaned at process exit. At ~100 lines/hour that
+    filled the 1.9G tmpfs twice in one night and silenced the station.
+    Cache one backend per language for the life of the process."""
+    import phonemizer
+    from phonemizer.backend import EspeakBackend
+
+    backends = {}
+
+    def cached_phonemize(text, language="en-us", preserve_punctuation=True,
+                         with_stress=True, **kw):
+        b = backends.get(language)
+        if b is None:
+            b = EspeakBackend(language,
+                              preserve_punctuation=preserve_punctuation,
+                              with_stress=with_stress)
+            backends[language] = b
+        out = b.phonemize([text] if isinstance(text, str) else list(text), strip=True)
+        return out[0] if isinstance(text, str) and out else out
+
+    phonemizer.phonemize = cached_phonemize
+    try:  # the tokenizer holds its own module ref
+        import kokoro_onnx.tokenizer as _tok
+        _tok.phonemizer.phonemize = cached_phonemize
+    except Exception:
+        pass
+
+
 def _engine(sample_rate: int):
     global _kokoro
     if _kokoro is None:
+        _patch_phonemizer()
         from kokoro_onnx import Kokoro  # lazy: only needed in --live
         _kokoro = Kokoro("kokoro/kokoro.onnx", "kokoro/voices.bin")
     return _kokoro
@@ -125,7 +156,8 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict,
             samples, _ = kokoro.create(text, voice=voice,
                                        speed=speed * random.uniform(0.98, 1.03),
                                        lang="en-us")
-        except Exception:
+        except Exception as e:
+            print(f"  !! tts line failed ({type(e).__name__}: {e})")
             continue  # one unspeakable line must not void the segment
         samples = np.asarray(samples, dtype=np.float64)
         if phone:
@@ -143,7 +175,11 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict,
             gap = int(sr * random.uniform(base * 0.7, base * 1.4))
             chunks.append(_room_tone(gap, sr))
 
-    audio = np.concatenate(chunks) if chunks else _room_tone(sr, sr)
+    if not chunks:
+        # a segment with zero synthesized lines is a husk — never queue it
+        print("  !! synthesis produced NOTHING for this segment — dropped")
+        return None
+    audio = np.concatenate(chunks)
     audio = audio + _room_tone(len(audio), sr, db=-63.0)   # continuous floor
     # raised-cosine edges on the whole segment so joins never click
     edge = int(sr * 0.03)

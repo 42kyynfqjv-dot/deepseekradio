@@ -1,0 +1,5 @@
+[Unit]
+Description=Sweep leaked phonemizer tmpdirs (belt for the cached-backend suspenders)
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c "find /tmp -maxdepth 3 -type d -name \"tmp??????*\" -mmin +15 -exec rm -rf {} + 2>/dev/null || true"

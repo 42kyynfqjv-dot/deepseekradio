@@ -1,0 +1,7 @@
+[Unit]
+Description=Sweep leaked tmpdirs every 10 min
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+[Install]
+WantedBy=timers.target
