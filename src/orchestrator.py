@@ -281,7 +281,10 @@ def run_show(daypart, config, schedule, live: bool):
                               + ("" if pi < parts - 1 else ". You may gently land the bit now"))
             beats.append(bb)
 
-    used_names = set()
+    day_key = f"{_now():%Y-%m-%d}"
+    if st.get("callers_day") != day_key:
+        st["callers_day"], st["callers_today"] = day_key, []
+    used_names = set(st.get("callers_today", []))
 
     def _context(i, prev_lines):
         """True continuity: outline recap + the actual last lines spoken,
@@ -291,6 +294,9 @@ def run_show(daypart, config, schedule, live: bool):
                           for ln in prev_lines[-6:])
         ctx = recap + ("LAST LINES SPOKEN ON AIR (continue directly from these):\n"
                        + tail if tail else "")
+        if used_names:
+            ctx += ("\nCaller names already used today anywhere on the station "
+                    "(do NOT reuse any): " + ", ".join(sorted(used_names)))
         if i > 0 and beats[i].get("_part", 0) == 0:
             if (daypart.get("guest_role") in ("host", "persistent")
                     and beats[i].get("_guest")):
@@ -301,9 +307,6 @@ def run_show(daypart, config, schedule, live: bool):
                 ctx += ("\nSCENE BREAK: the previous caller/guest hung up and is "
                         "GONE — do not mention them. Open on the NEW beat with a "
                         "new caller if the beat needs one.")
-            if used_names:
-                ctx += ("\nCaller names already used tonight (do NOT reuse): "
-                        + ", ".join(sorted(used_names)))
         return ctx.strip()
 
     # prefetch: next beat's dialogue generates while current beat synthesizes
@@ -328,10 +331,17 @@ def run_show(daypart, config, schedule, live: bool):
                 break
             _throttle(config, live)
             lines = fut.result()
+            new_names = False
             for ln in lines:  # track caller names for the no-reuse blacklist
                 spk = str(ln.get("speaker", ""))
-                if ln.get("phone"):
-                    used_names.add(spk.split()[0] if spk else spk)
+                if ln.get("phone") and spk:
+                    first = spk.split()[0]
+                    if first not in used_names:
+                        used_names.add(first)
+                        new_names = True
+            if new_names:  # persist across restarts, capped, day-scoped
+                st["callers_today"] = sorted(used_names)[-40:]
+                _sstate_save(st)
             if i + 1 < len(beats):
                 fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
                                   state, _context(i + 1, lines))
