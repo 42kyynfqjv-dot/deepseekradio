@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly best-of at 05:20 station time
+
+[Timer]
+OnCalendar=*-*-* 05:20:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Best Of · The Frequency</title>
+<style>
+  :root{
+    --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
+    --amber:#ffb454; --red:#ff4757; --cyan:#4ecdc4; --text:#e8e6f0;
+    --dim:#9a97ad; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --display:'Avenir Next Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6}
+  main{max-width:760px;margin:0 auto;padding:32px 20px 60px}
+  a{color:var(--cyan);text-decoration:none}
+  .back{font-family:var(--mono);font-size:.75rem;letter-spacing:.15em;color:var(--dim)}
+  h1{font-family:var(--display);font-size:clamp(2rem,7vw,3.4rem);font-weight:800;margin:10px 0 2px}
+  h1 em{color:var(--amber);font-style:normal}
+  .sub{color:var(--dim);font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;margin-bottom:28px}
+  h2{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;color:var(--amber);margin:34px 0 10px}
+  .clip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+  .clip .t{font-family:var(--display);font-weight:700;font-size:1.15rem;margin-bottom:8px}
+  .clip p{font-size:.9rem;margin:3px 0}
+  .clip b{color:var(--cyan);font-weight:600;font-family:var(--mono);font-size:.8rem}
+  footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:.7rem;letter-spacing:.15em;padding:40px 0 30px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; THE FREQUENCY · 108.1</a>
+  <h1>BEST <em>OF</em></h1>
+  <p class="sub">YESTERDAY'S FINEST MOMENTS · CURATED NIGHTLY · TRANSCRIPTS MAY CONTAIN OPINIONS ABOUT FICUS</p>
+  <div id="days">Loading the archive…</div>
+  <footer>WFRQ · IF YOU HEARD IT, IT HAPPENED · SATIRE, ALL OF IT</footer>
+</main>
+<script>
+fetch('/data/bestof.json').then(r=>r.json()).then(d=>{
+  document.getElementById('days').innerHTML=(d.days||[]).map(day=>
+    `<h2>${day.date.toUpperCase()}</h2>`+day.highlights.map(h=>
+      `<div class="clip"><div class="t">${h.title}</div>${
+        h.lines.map(l=>{const i=l.indexOf(':');
+          return `<p><b>${l.slice(0,i)}</b>${l.slice(i+1)}</p>`}).join('')
+      }</div>`).join('')
+  ).join('')||'First highlights land tomorrow morning.';
+}).catch(()=>{document.getElementById('days').textContent='First highlights land tomorrow morning.'});
+</script>
+</body>
+</html>

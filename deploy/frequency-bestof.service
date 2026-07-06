@@ -1,0 +1,9 @@
+[Unit]
+Description=The Frequency — nightly best-of highlights for the website
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kaos/app
+EnvironmentFile=/opt/kaos/app/.env
+Environment=TZ=America/New_York
+ExecStart=/opt/kaos/.venv/bin/python scripts/bestof.py

@@ -125,6 +125,11 @@ feed() {
         ffmpeg -v quiet -i "$FILLER" -t 1.5 -f s16le -ar 24000 -ac 1 - </dev/null
       fi
       [ -n "$sh" ] && LAST_SHOW="$sh"
+      # publish what's actually airing (show + segment) for the website
+      seg=$(basename "$f" .wav | sed "s/^[0-9]*_//; s/-/ /g")
+      printf '{"airing":"%s","ts":%s}\n' "$seg" "$(date +%s)" \
+        > /var/www/bestairadio/data/now.json.tmp 2>/dev/null \
+        && mv /var/www/bestairadio/data/now.json.tmp /var/www/bestairadio/data/now.json 2>/dev/null
       play_file "$f"
       mv "$f" "$BUF/played/"
       # keep only the last 50 played segments

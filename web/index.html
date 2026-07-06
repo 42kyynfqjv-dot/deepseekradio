@@ -261,7 +261,7 @@
 
 <footer>
   <div class="callsign">WFRQ · 108.1 FM · THE FREQUENCY</div>
-  <div>broadcasting from somewhere we probably shouldn't be · satire, around the clock · <a href="#player">listen live</a></div>
+  <div>broadcasting from somewhere we probably shouldn't be · satire, around the clock · <a href="#player">listen live</a> · <a href="/bestof.html">best of</a> · <a href="/center-ice.html">center ice</a></div>
 </footer>
 
 <div class="mini" id="mini">
@@ -348,6 +348,12 @@ function render(){
   const nxt = SCHEDULE[(liveIdx + 1) % SCHEDULE.length];
   document.getElementById("np-show").textContent = liveShow.name;
   document.getElementById("np-hook").textContent = liveShow.hook;
+  // live segment title straight from the player (best-effort garnish)
+  fetch("/data/now.json").then(r=>r.json()).then(n=>{
+    if(n.airing && Date.now()/1000 - n.ts < 600)
+      document.getElementById("np-hook").textContent =
+        "on air: " + n.airing.replace(/\b\w/g, c=>c.toUpperCase());
+  }).catch(()=>{});
   document.getElementById("np-next").textContent =
     `UP NEXT · ${fmtViewer(nxt.start)} — ${nxt.name}. ${nxt.hook.split(".")[0]}.`;
   document.getElementById("hero-hook").textContent = liveShow.hook;
