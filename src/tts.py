@@ -16,6 +16,31 @@ import wave
 from pathlib import Path
 
 
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve "
+         "thirteen fourteen fifteen sixteen seventeen eighteen nineteen").split()
+_TENS = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty",
+         6: "sixty", 7: "seventy", 8: "eighty", 9: "ninety"}
+
+
+def _two_words(n: int) -> str:
+    if n < 20:
+        return _ONES[n]
+    t, o = divmod(n, 10)
+    return _TENS[t] + (f" {_ONES[o]}" if o else "")
+
+
+def _spoken_year(m: re.Match) -> str:
+    """espeak reads '1998' as 'nineteen hundred and ninety-eight' — say years
+    the way people do: nineteen ninety-eight, twenty twenty-six, two thousand."""
+    y = int(m.group())
+    hi, lo = divmod(y, 100)
+    if lo == 0:
+        return "two thousand" if hi == 20 else f"{_two_words(hi)} hundred"
+    if hi == 20 and lo < 10:
+        return f"two thousand {_ONES[lo]}"
+    return f"{_two_words(hi)} {'oh ' + _ONES[lo] if lo < 10 else _two_words(lo)}"
+
+
 def clean_for_speech(text: str) -> str:
     """Strip typography the models write but a voice should never read aloud."""
     t = text
@@ -23,6 +48,7 @@ def clean_for_speech(text: str) -> str:
     t = re.sub(r"\[[^\]]*\]|\([^)]*\)", " ", t)     # bracketed directions
     t = re.sub(r"(\d)\s*%", r"\1 percent", t)       # symbols -> words
     t = re.sub(r"\$(\d[\d,.]*)", r"\1 dollars", t)
+    t = re.sub(r"(?<![\d-])(1[89]\d{2}|20\d{2})(?!\d)", _spoken_year, t)  # years
     t = t.replace("&", " and ")
     t = re.sub(r"[*_~`#]+", "", t)                  # leftover markdown
     t = t.replace("…", ". ").replace("...", ". ")  # ellipsis = full-stop beat
