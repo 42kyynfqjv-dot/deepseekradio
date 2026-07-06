@@ -348,11 +348,16 @@ def run_show(daypart, config, schedule, live: bool):
                         "new caller if the beat needs one.")
         return ctx.strip()
 
+    def _tail_texts(prev_lines):
+        """The lines the next beat is told to continue from — and must never
+        restate ('And now traffic' airing twice in a row)."""
+        return [l.get("text", "") for l in prev_lines[-8:]]
+
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines),
-                          [l.get("text", "") for l in opener_lines]) if beats else None
+                          _tail_texts(opener_lines)) if beats else None
         threw = False
         for i, beat in enumerate(beats):
             # near the window's end: throw to the next show instead of
@@ -361,8 +366,10 @@ def run_show(daypart, config, schedule, live: bool):
                 nxt = _next_daypart(schedule, daypart)
                 print(f"\n--- Handoff -> {nxt['show']} ---")
                 daypart["_target_lines"] = 6
+                prev = lines if i else opener_lines
                 lines = perform_beat(_throw_beat(daypart, nxt), daypart,
-                                     models, state, _context(i, lines if i else opener_lines))
+                                     models, state, _context(i, prev),
+                                     _tail_texts(prev))
                 _emit(lines, f"{daypart['id']}-handoff", config, live, fx=fx)
                 break
             # never generate past the daypart boundary — the next show owns it
@@ -384,7 +391,8 @@ def run_show(daypart, config, schedule, live: bool):
                 _sstate_save(st)
             if i + 1 < len(beats):
                 fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
-                                  state, _context(i + 1, lines))
+                                  state, _context(i + 1, lines),
+                                  _tail_texts(lines))
             print(f"\n--- {beat.get('segment')} ---")
             _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
             if lines:  # keep the tail fresh so any restart resumes mid-thought

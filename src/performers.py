@@ -198,17 +198,21 @@ Return STRICT JSON:
 
 
 def _echo_guard(lines: list[dict], avoid: list) -> list[dict]:
-    """Models restate the tail they're told to continue from; restarts then
-    air the same material twice. Drop any line ~identical to aired text."""
-    if not avoid:
-        return lines
+    """Models restate the tail they're told to continue from ("And now
+    traffic" airs twice in a row). Drop any line ~identical to aired text,
+    and dedupe near-identical repeats within the batch itself."""
     from difflib import SequenceMatcher
+
+    def _dupe(a: str, b: str) -> bool:
+        return SequenceMatcher(None, a.lower(), b.lower()).ratio() > 0.75
+
     out = []
     for ln in lines:
         txt = ln.get("text", "")
-        if any(SequenceMatcher(None, txt.lower(), a.lower()).ratio() > 0.75
-               for a in avoid if a):
+        if any(_dupe(txt, a) for a in avoid if a):
             continue
+        if out and _dupe(txt, out[-1].get("text", "")):
+            continue  # same thought twice back-to-back inside one beat
         out.append(ln)
     return out
 
