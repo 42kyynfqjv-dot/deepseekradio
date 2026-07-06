@@ -6,6 +6,7 @@
 set -u
 BUF="${BUF:-/opt/kaos/app/audio_buffer}"
 FILLER="${FILLER:-/opt/kaos/filler.wav}"
+RESERVE="${RESERVE:-/opt/kaos/reserve}"
 MOUNT="${MOUNT:-live}"
 : "${ICECAST_PW:?set ICECAST_PW (see /opt/kaos/stream.env)}"
 
@@ -20,7 +21,14 @@ feed() {
       # keep only the last 50 played segments
       ls -t "$BUF"/played/*.wav 2>/dev/null | tail -n +51 | xargs -r rm -f
     else
-      ffmpeg -v quiet -i "$FILLER" -f s16le -ar 24000 -ac 1 - </dev/null
+      # buffer empty: play a station liner (round-robin) before resorting to noise
+      r=$(ls "$RESERVE"/*.wav 2>/dev/null | shuf -n1)
+      if [ -n "$r" ]; then
+        ffmpeg -v quiet -i "$r" -f s16le -ar 24000 -ac 1 - </dev/null
+      else
+        ffmpeg -v quiet -i "$FILLER" -f s16le -ar 24000 -ac 1 - </dev/null
+      fi
+      sleep 1
     fi
   done
 }
