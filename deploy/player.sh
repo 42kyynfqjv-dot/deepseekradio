@@ -30,6 +30,8 @@ feed() {
       r=$(head -1 "$QUEUE"); sed -i 1d "$QUEUE"
       if [ -n "$r" ] && [ -f "$r" ]; then
         ffmpeg -v quiet -i "$r" -f s16le -ar 24000 -ac 1 - </dev/null
+        # breathing room so reserve pieces never slam back to back
+        dd if=/dev/zero bs=48000 count=3 2>/dev/null
       else
         ffmpeg -v quiet -i "$FILLER" -f s16le -ar 24000 -ac 1 - </dev/null
       fi
