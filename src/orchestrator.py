@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time as dtime
 from pathlib import Path
 
@@ -100,14 +101,24 @@ def run_show(daypart, config, live: bool):
     if outline.get("guest"):
         print(f"  GUEST: {outline['guest']}\n")
 
-    rolling = ""
-    for beat in outline.get("beats", []):
-        _throttle(config, live)
-        print(f"\n--- {beat.get('segment')} ---")
-        lines = perform_beat(beat, daypart, models, state, rolling)
-        _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live)
-        # cheap rolling summary: last beat keeps continuity tight
-        rolling = f"{beat.get('segment')}: {beat.get('beat')}"
+    daypart["_target_lines"] = config["generation"].get("lines_per_beat", 22)
+    beats = outline.get("beats", [])
+
+    def _rolling(i):  # continuity summary = previous beat's outline entry
+        return "" if i == 0 else f"{beats[i-1].get('segment')}: {beats[i-1].get('beat')}"
+
+    # prefetch: next beat's dialogue generates while current beat synthesizes
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(perform_beat, beats[0], daypart, models, state,
+                          _rolling(0)) if beats else None
+        for i, beat in enumerate(beats):
+            _throttle(config, live)
+            lines = fut.result()
+            if i + 1 < len(beats):
+                fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
+                                  state, _rolling(i + 1))
+            print(f"\n--- {beat.get('segment')} ---")
+            _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live)
 
     # persist any new lore the writer established
     lore.remember(state,

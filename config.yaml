@@ -17,7 +17,7 @@ models:
     price_in: 0.09
     price_out: 0.10
     temperature: 1.0
-    max_tokens: 1200
+    max_tokens: 2400
 
   # Cheaper fallbacks:
   # performer.id: mistralai/mistral-small-24b-instruct-2501  (0.05/0.08, ~$3.4/mo)
@@ -30,6 +30,8 @@ generation:
   context_tokens: 4500
   # Words per minute of speech, for pacing + cost estimates.
   words_per_minute: 145
+  # Spoken lines per beat (bigger = more audio per LLM call = steadier buffer).
+  lines_per_beat: 22
   # Keep the buffer this many minutes ahead of playback.
   buffer_target_minutes: 45
 

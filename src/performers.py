@@ -51,6 +51,8 @@ LORE: {lore.digest(lore_state, limit=6)}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - Plain spoken words ONLY: no markdown, asterisks, stage directions, or emoji.
+- NEVER describe sounds or actions ("the gavel bangs", "dramatic sting") — if a
+  bit calls for a sound, the character reacts to it in words instead.
 - Punctuation limited to . , ? ! and apostrophes.
 - Give each distinct caller/guest a NAME as the speaker (e.g. "Caller Doreen",
   not just "Caller") so they get their own voice.
@@ -64,12 +66,17 @@ Return STRICT JSON:
     return _attach_voices(lines, daypart)
 
 
+_NONSPEAKER = re.compile(r"sfx|sound|effect|narrator|stage|music|jingle|\bfx\b", re.I)
+
+
 def _parse_lines(raw: str) -> list[dict]:
     txt = raw.strip()
     if txt.startswith("```"):
         txt = txt.split("```", 2)[1].lstrip("json").strip()
     try:
-        return json.loads(txt).get("lines", [])
+        lines = json.loads(txt).get("lines", [])
+        return [ln for ln in lines
+                if not _NONSPEAKER.search(str(ln.get("speaker", "")))]
     except Exception:
         # Degrade: treat each non-empty line as narration by the first speaker.
         return [{"speaker": "Host", "text": ln.strip()}
