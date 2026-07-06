@@ -257,20 +257,43 @@ const btn = document.getElementById("playbtn");
 const player = document.getElementById("player");
 const hint = document.getElementById("hint");
 const SRC = "https://stream.bestairadio.com/live";  // direct, not CF-proxied
-let on = false;
+let on = false, retries = 0, retryTimer = null;
+
+function connect(){
+  audio.src = SRC + "?t=" + Date.now();   // bust any stale connection
+  return audio.play();
+}
+function setUI(playing, msg){
+  btn.textContent = playing ? "❚❚" : "▶";
+  player.classList.toggle("playing", playing);
+  hint.textContent = msg;
+}
+function reconnect(){
+  if(!on || retryTimer) return;
+  const delay = Math.min(2000 * 2 ** retries, 30000);
+  retries++;
+  setUI(false, "⟳ reconnecting to the frequency…");
+  retryTimer = setTimeout(()=>{
+    retryTimer = null;
+    connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
+             .catch(reconnect);
+  }, delay);
+}
+// a live stream that errors, stalls, or "ends" isn't over — it hiccuped
+["error","ended","stalled","abort"].forEach(ev=>audio.addEventListener(ev, reconnect));
+audio.addEventListener("pause", ()=>{ if(on && !audio.ended) reconnect(); });
+audio.addEventListener("playing", ()=>{ if(on){ retries = 0; setUI(true, "live · the frequency is yours"); } });
+
 btn.addEventListener("click", ()=>{
   if(!on){
-    audio.src = SRC + "?t=" + Date.now();   // bust any stale connection
-    audio.play().then(()=>{
-      on = true; btn.textContent = "❚❚"; player.classList.add("playing");
-      hint.textContent = "live · the frequency is yours";
-    }).catch(()=>{
-      hint.textContent = "⚠ stream offline — the frequency sleeps. check back soon.";
-    });
+    on = true; retries = 0;
+    connect().then(()=>setUI(true, "live · the frequency is yours"))
+             .catch(reconnect);
   }else{
+    on = false;
+    clearTimeout(retryTimer); retryTimer = null;
     audio.pause(); audio.src = "";
-    on = false; btn.textContent = "▶"; player.classList.remove("playing");
-    hint.textContent = "▶ press play · live 24/7 · bestairadio.com";
+    setUI(false, "▶ press play · live 24/7 · bestairadio.com");
   }
 });
 </script>
