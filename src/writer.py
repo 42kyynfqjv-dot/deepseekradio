@@ -54,6 +54,10 @@ CAST:
 RECURRING SEGMENTS TO HIT:
 {segments}
 
+Write 12-16 beats total: cover each recurring segment at least once, then add
+fresh angles on them, one or two fake ad breaks (recurring sponsors from the
+bible), and callbacks. The outline must fill a long block of continuous air.
+
 {guest_line}
 
 STATION LORE (call back to these where natural):
