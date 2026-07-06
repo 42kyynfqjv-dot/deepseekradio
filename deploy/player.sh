@@ -39,15 +39,12 @@ show_of() {
 }
 
 bed_for() {
-  # segment filenames encode the show id: 000000123_night-shift-....wav
-  # pick a random variant of the mood so beds never wear a groove
-  local mood
+  # music under dialogue only where music belongs: the ambient dawn hour.
+  # talk shows air clean — beds under conversation read as noise, not polish.
   case "$(basename "$1")" in
-    *morning-scramble*) mood=morning ;;
-    *night-shift*|*static-hour*|*dawn-patrol*) mood=night ;;
-    *) mood=day ;;
+    *dawn-patrol*) ls "$BEDS/night"*.wav 2>/dev/null | shuf -n1 ;;
+    *) echo "" ;;
   esac
-  ls "$BEDS/${mood}"*.wav 2>/dev/null | shuf -n1
 }
 
 play_file() {
@@ -56,7 +53,7 @@ play_file() {
   bed=$(bed_for "$f")
   if [ -f "$bed" ]; then
     ffmpeg -v quiet -i "$f" -stream_loop -1 -i "$bed" -filter_complex \
-      "[1:a]volume=0.5[bq];[bq][0:a]sidechaincompress=threshold=0.015:ratio=10:attack=40:release=900:makeup=1[duck];[0:a][duck]amix=inputs=2:duration=first:normalize=0[out]" \
+      "[1:a]volume=0.3[bq];[bq][0:a]sidechaincompress=threshold=0.015:ratio=10:attack=40:release=900:makeup=1[duck];[0:a][duck]amix=inputs=2:duration=first:normalize=0[out]" \
       -map "[out]" -f s16le -ar 24000 -ac 1 - </dev/null
   else
     ffmpeg -v quiet -i "$f" -f s16le -ar 24000 -ac 1 - </dev/null
@@ -96,6 +93,15 @@ feed() {
       if play_spot; then date +%s > "$LAST_SPOT_FILE"; fi
     fi
     f=$(ls "$BUF"/incoming/*.wav 2>/dev/null | sort | head -1)
+    if [ -z "$f" ]; then
+      # brief drought: breathe room tone and wait up to ~45s for the next
+      # segment before surrendering the air to the reserve rotation
+      for i in $(seq 1 30); do
+        ffmpeg -v quiet -i "$FILLER" -t 1.5 -f s16le -ar 24000 -ac 1 - </dev/null
+        f=$(ls "$BUF"/incoming/*.wav 2>/dev/null | sort | head -1)
+        [ -n "$f" ] && break
+      done
+    fi
     if [ -n "$f" ]; then
       # produced handover at show boundaries: bumper + a breath
       sh=$(show_of "$f")
