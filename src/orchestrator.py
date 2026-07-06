@@ -239,11 +239,14 @@ def run_show(daypart, config, schedule, live: bool):
             daypart["_target_lines"] = 10
             bridge = {"segment": "Bridge",
                       "premise": "carrying the moment while the show gathers itself",
-                      "beat": "continue naturally from the last thing said — same "
-                              "topic, one small development, in this show's own "
-                              "register. No callers, no greetings, no wrap."}
+                      "beat": "continue from AFTER the last thing said — the NEXT "
+                              "thought, one small development forward, in this "
+                              "show's own register. Do NOT restate, rephrase, or "
+                              "summarize any line already spoken. No callers, no "
+                              "greetings, no wrap."}
             _emit(perform_beat(bridge, daypart, models, state,
-                               _tail_context(opener_lines)),
+                               _tail_context(opener_lines),
+                               avoid_lines=[l.get("text", "") for l in opener_lines]),
                   f"{daypart['id']}-bridge", config, live, fx=fx)
         except Exception as e:
             print(f"  (bridge skipped: {e})")
@@ -329,7 +332,8 @@ def run_show(daypart, config, schedule, live: bool):
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
-                          _context(0, opener_lines)) if beats else None
+                          _context(0, opener_lines),
+                          [l.get("text", "") for l in opener_lines]) if beats else None
         threw = False
         for i, beat in enumerate(beats):
             # near the window's end: throw to the next show instead of

@@ -65,8 +65,9 @@ def _time_context() -> str:
 
 
 def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
-                 rolling_summary: str) -> list[dict]:
-    """Generate the dialogue lines for a single beat."""
+                 rolling_summary: str, avoid_lines: list | None = None) -> list[dict]:
+    """Generate the dialogue lines for a single beat. `avoid_lines` are
+    already-aired texts; near-duplicates of them are dropped (echo guard)."""
     bible = _BIBLE.read_text()
     cast_text = "\n\n".join(_persona(n)[1] for n in daypart["cast"])
 
@@ -182,8 +183,25 @@ Return STRICT JSON:
     lines = _parse_lines(raw)
     if "polish" in models and lines:
         lines = _polish(lines, daypart, models, beat)
+    lines = _echo_guard(lines, avoid_lines or [])
     lines = _attach_voices(lines, daypart, guest=beat.get("_guest"))
     return _enforce_caller_policy(lines, daypart)
+
+
+def _echo_guard(lines: list[dict], avoid: list) -> list[dict]:
+    """Models restate the tail they're told to continue from; restarts then
+    air the same material twice. Drop any line ~identical to aired text."""
+    if not avoid:
+        return lines
+    from difflib import SequenceMatcher
+    out = []
+    for ln in lines:
+        txt = ln.get("text", "")
+        if any(SequenceMatcher(None, txt.lower(), a.lower()).ratio() > 0.75
+               for a in avoid if a):
+            continue
+        out.append(ln)
+    return out
 
 
 _SELF_ID = re.compile(r"\b(hi|hey|hello|this is|calling|caller|first.?time|"
@@ -212,6 +230,12 @@ def _enforce_caller_policy(lines, daypart):
     host_voice = next(((ln.get("voice"), ln.get("speed", 1.0), ln.get("speaker"))
                        for ln in lines if not ln.get("phone")), None)
     out, seen, counts = [], [], {}
+    # a take-line with no caller in the beat is an invitation to a ghost
+    if not any(ln.get("phone") for ln in lines):
+        lines = [ln for ln in lines
+                 if not re.search(r"\b(go ahead|you're on|caller)\b",
+                                  ln.get("text", ""), re.I)
+                 or ln.get("phone")]
     for ln in lines:
         if not ln.get("phone"):
             out.append(ln)
@@ -239,7 +263,9 @@ def _enforce_caller_policy(lines, daypart):
             # and one-sided dialogue is how the host stops making sense
             if host_voice:
                 v, s, hname = host_voice
-                first = (spk or "caller").split()[0].title()
+                words = [w for w in (spk or "caller").split()
+                         if w.lower() not in ("the", "a", "an", "caller")]
+                first = (words[0] if words else "caller").title()
                 tmpl = _CLOSE_LINES[_stable_hash(spk) % len(_CLOSE_LINES)]
                 out.append({"speaker": hname, "voice": v, "speed": s,
                             "text": tmpl.format(name=first)})
