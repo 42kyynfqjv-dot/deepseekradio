@@ -96,7 +96,8 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   host de-escalates. The host never invents impossible facts. (If a persona
   explicitly defines a different caller dynamic, the persona wins.)
 - No speaker gets more than 2 consecutive lines, and host lines stay short
-  (under ~25 words). Radio is turn-taking, not monologue.
+  (under ~25 words). Radio is turn-taking, not monologue. (Exception: if a
+  persona explicitly defines a monologue register, the persona wins.)
 - Let scenes BREATHE: a caller or guest stays on the line for a long,
   winding conversation — follow-ups, tangents. Never rush to the next caller.
 - You are ALREADY ON AIR, mid-show, mid-flow. Do NOT re-introduce the show, the
@@ -166,13 +167,18 @@ def _polish(lines: list[dict], daypart: dict, models: dict) -> list[dict]:
     """Script-doctor: a cheap, low-temp mechanical edit pass. Deterministic
     backstop for the prompt rules — never adds jokes, only removes tells."""
     cast_names = [_persona(n)[0] for n in daypart["cast"]]
+    monologue_show = any("OWN THIS HOUR" in _persona(n)[1] or "monologue" in _persona(n)[1]
+                         for n in daypart["cast"])
     user = (
         "You are a radio script editor. Edit ONLY mechanically — do not add "
         "jokes, do not change anyone's style. Apply exactly these rules:\n"
         "1. Delete narrated sound effects, stage directions, onomatopoeia.\n"
         "2. Delete precise clock times.\n"
-        "3. If a speaker has more than 2 consecutive lines, merge or trim to 2.\n"
-        "4. If the scene has more than one impossible/absurd element, keep the "
+        + ("3. Leave host monologues intact — this show's format is "
+           "monologue-driven; only trim CALLER runs longer than 3 lines.\n"
+           if monologue_show else
+           "3. If a speaker has more than 2 consecutive lines, merge or trim to 2.\n")
+        + "4. If the scene has more than one impossible/absurd element, keep the "
         "first and cut the rest.\n"
         "5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
         "and any line that introduces the show or comments on the show itself.\n"
