@@ -17,5 +17,12 @@ for dp in sched["dayparts"]:
         print(dp["show"]); break
 PY
 )
-curl -s -m 8 -u "admin:${ICECAST_ADMIN_PW}" \
-  "http://127.0.0.1:8000/admin/metadata?mount=/live&mode=updinfo&song=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "The Frequency - ${SHOW}")" > /dev/null
+# only push when the title CHANGES: every updinfo makes icecast inject an ICY
+# metadata block mid-stream, and AppleCoreMedia players stall/reload on it
+TITLE="The Frequency - ${SHOW}"
+LAST_FILE=/run/frequency-nowplaying.last
+if [ "$(cat "$LAST_FILE" 2>/dev/null)" != "$TITLE" ]; then
+  curl -s -m 8 -u "admin:${ICECAST_ADMIN_PW}" \
+    "http://127.0.0.1:8000/admin/metadata?mount=/live&mode=updinfo&song=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$TITLE")" > /dev/null
+  printf "%s" "$TITLE" > "$LAST_FILE"
+fi
