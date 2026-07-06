@@ -79,6 +79,8 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
         "Honor the content guardrail absolutely.\n\n" + bible
     )
     arc = daypart.get("arc")
+    if arc and daypart.get("_arc_extra"):
+        arc = f"{arc}\n{daypart['_arc_extra']}"
     arc_line = (f"\nSHOW ARC (structure the ENTIRE outline this way):\n{arc}\n" if arc else
                 "\nREGISTER GUARD: this is NOT the conspiracy show and NOT a "
                 "mystical one. Banned registers: conspiracies (hidden forces, "

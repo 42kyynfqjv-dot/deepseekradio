@@ -1,0 +1,285 @@
+"""Center Ice league engine — a full 32-team league, deterministically simulated.
+
+Code decides everything factual: the league slate, every score, streaks,
+standings, tonight's broadcast game. The writer only NARRATES what it is
+handed, so scores never drift and the standings are real across months.
+
+Structure mirrors the real thing: 2 conferences x 2 divisions x 8 teams,
+82-game seasons. We broadcast the two tracked franchises (Wednesday and
+Saturday); the other 30 teams play their own games every night and their
+results exist — the booth can check in on any of them.
+
+Every result is seeded by (season, date, matchup), so restarts regenerate
+identical games. State lives in season.json.
+"""
+from __future__ import annotations
+
+import json
+import random
+from datetime import date as _date, timedelta
+from pathlib import Path
+
+_PATH = Path("season.json")
+
+# conference -> division -> teams. Ours are mtl (Boreal/East) + nyg (Gridiron/East).
+LEAGUE = {
+    "Eastern": {
+        "Boreal": [
+            ("mtl", "Montreal Apologies"), ("tbr", "Thunder Bay Regrets"),
+            ("hfx", "Halifax Fog Advisories"), ("trr", "Trois-Rivieres Third Rivers"),
+            ("gan", "Gander Layovers"), ("bur", "Burlington Passive Aggression"),
+            ("pmc", "Providence Mild Concern"), ("stj", "Saint John Tide Charts"),
+        ],
+        "Gridiron": [
+            ("nyg", "New York Gridlock"), ("yon", "Yonkers Honkers"),
+            ("uti", "Utica Umbrellas"), ("sch", "Schenectady Sirens"),
+            ("alb", "Albany Administrative Delays"), ("scr", "Scranton Small Talk"),
+            ("bal", "Baltimore Polite Disagreements"), ("rich", "Richmond Long Stories"),
+        ],
+    },
+    "Western": {
+        "Prairie": [
+            ("ssk", "Saskatoon Static"), ("wpg", "Winnipeg Wind Chill"),
+            ("mjm", "Moose Jaw Moose (singular)"), ("reg", "Regina Reasonable Doubts"),
+            ("bra", "Brandon Second Opinions"), ("far", "Fargo Firm Handshakes"),
+            ("bis", "Bismarck Broken Thermostats"), ("dul", "Duluth Dial Tones"),
+        ],
+        "Pacific": [
+            ("vic", "Victoria Passive Voices"), ("kam", "Kamloops Loose Gravel"),
+            ("spo", "Spokane Spare Keys"), ("eug", "Eugene Unsolicited Advice"),
+            ("bak", "Bakersfield Long Yawns"), ("fre", "Fresno Filing Errors"),
+            ("tuc", "Tucson Dry Heats"), ("boi", "Boise Beige Alerts"),
+        ],
+    },
+}
+
+TRACKED = {
+    "mtl": {"arena": "the Pardon Centre",
+            "flavor": "sorry about the forecheck; historically good, "
+                      "emotionally burdened"},
+    "nyg": {"arena": "Standstill Garden",
+            "flavor": "aggressive, perpetually delayed, honks at the referee"},
+}
+
+SEASON_GAMES = 82
+_RIVALRY_EVERY = 7   # every Nth broadcast is Apologies vs Gridlock
+
+_ALL = {k: n for conf in LEAGUE.values() for div in conf.values() for k, n in div}
+_DIV_OF = {k: dname for conf in LEAGUE.values()
+           for dname, div in conf.items() for k, _ in div}
+
+
+def _strength(key: str, season: int) -> float:
+    """Hidden per-season team quality in [0.30, 0.70] — stable all season."""
+    return 0.30 + random.Random(f"strength:{season}:{key}").random() * 0.40
+
+
+def _load() -> dict:
+    try:
+        if _PATH.exists():
+            st = json.loads(_PATH.read_text())
+            if "league" in st:
+                return st
+    except Exception:
+        pass
+    return {"season": 1, "game_no": 0, "sim_through": "",
+            "league": {k: {"w": 0, "l": 0, "otl": 0, "streak": 0, "gp": 0}
+                       for k in _ALL},
+            "recent_opponents": [], "last_result": "",
+            "games": {}, "slates": {}}
+
+
+def _save(st: dict) -> None:
+    tmp = _PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st, indent=2))
+    tmp.replace(_PATH)
+
+
+def _apply(st: dict, hk: str, ak: str, hg: int, ag: int, ot: bool) -> None:
+    for key, won in ((hk, hg > ag), (ak, ag > hg)):
+        t = st["league"][key]
+        t["gp"] += 1
+        if won:
+            t["w"] += 1
+            t["streak"] = max(1, t["streak"] + 1)
+        elif ot:
+            t["otl"] += 1
+            t["streak"] = min(-1, t["streak"] - 1)
+        else:
+            t["l"] += 1
+            t["streak"] = min(-1, t["streak"] - 1)
+
+
+def _score(rng: random.Random, ph: float) -> tuple[int, int, bool]:
+    hg = rng.choice([1, 2, 2, 3, 3, 3, 4, 4, 5])
+    ag = rng.choice([1, 2, 2, 3, 3, 4, 4, 5])
+    if hg == ag:
+        if rng.random() < ph:
+            hg += 1
+        else:
+            ag += 1
+    ot = abs(hg - ag) == 1 and rng.random() < 0.3
+    return hg, ag, ot
+
+
+def _sim_day(st: dict, day: str) -> None:
+    """Simulate the league slate for one date (our teams excluded — their
+    games only happen through tonight())."""
+    if day in st["slates"]:
+        return
+    rng = random.Random(f"slate:{st['season']}:{day}")
+    # tracked teams play OFF-AIR league games too (a real team plays ~3.5 a
+    # week; we only broadcast two) — but never on broadcast nights (Wed/Sat)
+    broadcast_night = _date.fromisoformat(day).weekday() in (2, 5)
+    pool = [k for k in _ALL
+            if st["league"][k]["gp"] < SEASON_GAMES
+            and not (broadcast_night and k in TRACKED)]
+    rng.shuffle(pool)
+    results = []
+    # ~10 league games a night: every team plays roughly every other night
+    for hk, ak in zip(pool[0::2], pool[1::2]):
+        if len(results) >= 10:
+            break
+        ph = 0.5 + (_strength(hk, st["season"]) - _strength(ak, st["season"])) + 0.05
+        hg, ag, ot = _score(rng, min(max(ph, 0.15), 0.85))
+        _apply(st, hk, ak, hg, ag, ot)
+        results.append([hk, ak, hg, ag, ot])
+    st["slates"][day] = results
+    # keep the slate archive bounded
+    if len(st["slates"]) > 30:
+        for old in sorted(st["slates"])[:-30]:
+            del st["slates"][old]
+
+
+def _sim_through(st: dict, day: str) -> None:
+    """Catch the league up to `day` (idempotent, deterministic)."""
+    start = st["sim_through"] or day
+    d = _date.fromisoformat(start)
+    end = _date.fromisoformat(day)
+    while d <= end:
+        _sim_day(st, d.isoformat())
+        d += timedelta(days=1)
+    if day > st["sim_through"]:
+        st["sim_through"] = day
+
+
+def tonight(air_date: str) -> dict:
+    """The broadcast game for this date. Idempotent: same date -> same game."""
+    st = _load()
+    _sim_through(st, air_date)
+    if air_date in st["games"]:
+        _save(st)
+        return st["games"][air_date]
+
+    rng = random.Random(f"center-ice:{st['season']}:{air_date}")
+    game_no = st["game_no"] + 1
+    rivalry = game_no % _RIVALRY_EVERY == 0
+    ours = "mtl" if game_no % 2 else "nyg"
+
+    if rivalry:
+        hk, ak = ("mtl", "nyg") if game_no % 2 else ("nyg", "mtl")
+    else:
+        hk = ours
+        division_mates = [k for k in _ALL if k not in TRACKED]
+        pool = [k for k in division_mates
+                if _ALL[k] not in st["recent_opponents"][-4:]]
+        # home games mostly vs the division, like a real schedule
+        div_pool = [k for k in pool if _DIV_OF[k] == _DIV_OF[hk]]
+        ak = rng.choice(div_pool if div_pool and rng.random() < 0.6 else pool)
+
+    ph = 0.5 + (_strength(hk, st["season"]) - _strength(ak, st["season"])) + 0.05
+    hg, ag, ot = _score(rng, min(max(ph, 0.15), 0.85))
+
+    game = {"game_no": game_no, "date": air_date, "rivalry": rivalry,
+            "season": st["season"],
+            "home": _ALL[hk], "away": _ALL[ak], "home_key": hk, "away_key": ak,
+            "arena": TRACKED.get(hk, {}).get("arena", "the road"),
+            "final": [hg, ag], "ot": ot, "recorded": False}
+    st["games"][air_date] = game
+    st["game_no"] = game_no
+    if len(st["games"]) > 90:
+        for old in sorted(st["games"])[:-90]:
+            del st["games"][old]
+    if not rivalry:
+        st["recent_opponents"] = (st["recent_opponents"] + [_ALL[ak]])[-8:]
+    _save(st)
+    return game
+
+
+def record(air_date: str) -> str | None:
+    """Fold tonight's result into the standings (idempotent). Returns a
+    one-line result for station lore. Rolls the season over at 82 games."""
+    st = _load()
+    game = st["games"].get(air_date)
+    if not game or game.get("recorded"):
+        return None
+    hg, ag = game["final"]
+    _apply(st, game["home_key"], game["away_key"], hg, ag, game["ot"])
+    winner = game["home"] if hg > ag else game["away"]
+    loser = game["away"] if hg > ag else game["home"]
+    line = (f"Center Ice: the {winner} beat the {loser} "
+            f"{max(hg, ag)}-{min(hg, ag)}{' in overtime' if game['ot'] else ''}")
+    game["recorded"] = True
+    st["last_result"] = line
+    if any(st["league"][k]["gp"] >= SEASON_GAMES for k in TRACKED):
+        st["season"] += 1
+        st["game_no"] = 0
+        st["sim_through"] = ""
+        st["slates"] = {}
+        st["league"] = {k: {"w": 0, "l": 0, "otl": 0, "streak": 0, "gp": 0}
+                        for k in _ALL}
+        line += f" — and that's the season; season {st['season']} starts next game"
+    _save(st)
+    return line
+
+
+def _pts(t: dict) -> int:
+    return 2 * t["w"] + t["otl"]
+
+
+def _table(st: dict, div: str, top: int = 8) -> str:
+    keys = [k for k, d in _DIV_OF.items() if d == div]
+    keys.sort(key=lambda k: (-_pts(st["league"][k]), st["league"][k]["l"]))
+    return ", ".join(f"{i+1}. {_ALL[k]} {_pts(st['league'][k])}pts"
+                     for i, k in enumerate(keys[:top]))
+
+
+def brief(game: dict) -> str:
+    """The factual sheet the writer must narrate — not negotiate with."""
+    st = _load()
+    hg, ag = game["final"]
+    hk = game["home_key"]
+    our_divs = {_DIV_OF[k] for k in TRACKED}
+    standings = " | ".join(f"{d}: {_table(st, d, 4)}" for d in sorted(our_divs))
+    around = ""
+    slate = st["slates"].get(game["date"], [])
+    if slate:
+        around = ("AROUND THE LEAGUE TONIGHT (for scoreboard check-ins, all "
+                  "FINAL and factual): " +
+                  "; ".join(f"{_ALL[a]} {agg} at {_ALL[h]} {hgg}"
+                            f"{' (OT)' if o else ''}"
+                            for h, a, hgg, agg, o in slate[:6]) + ".")
+    streaks = []
+    for k in TRACKED:
+        s = st["league"][k]["streak"]
+        if abs(s) >= 3:
+            streaks.append(f"the {_ALL[k]} are on a {abs(s)}-game "
+                           f"{'winning' if s > 0 else 'losing'} streak")
+    t = st["league"][hk]
+    return (
+        f"TONIGHT'S GAME (game {game['game_no']} of the {SEASON_GAMES}-game "
+        f"season {game['season']}"
+        f"{', RIVALRY NIGHT' if game['rivalry'] else ''}): "
+        f"the {game['away']} at the {game['home']} ({t['w']}-{t['l']}-{t['otl']}), "
+        f"live from {game['arena']}.\n"
+        f"THE FINAL SCORE IS PREDETERMINED AND NON-NEGOTIABLE: "
+        f"{game['home']} {hg}, {game['away']} {ag}"
+        f"{' — decided in OVERTIME' if game['ot'] else ''}. Structure the whole "
+        "broadcast so the game genuinely arrives at exactly this score; goals "
+        "may only happen where a beat says they happen, and the running score "
+        "in every beat must be consistent with reaching this final.\n"
+        f"DIVISION STANDINGS: {standings}.\n"
+        + (f"STREAK WATCH: {'; '.join(streaks)}.\n" if streaks else "")
+        + (f"LAST BROADCAST: {st['last_result']}.\n" if st["last_result"] else "")
+        + around
+    )

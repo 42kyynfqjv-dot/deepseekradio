@@ -240,6 +240,15 @@ def run_show(daypart, config, schedule, live: bool):
     except Exception as e:  # news must never kill the show
         print(f"  (news skipped: {e})")
 
+    # Center Ice: deterministic code decides the game, the writer narrates it
+    game_date = None
+    if daypart.get("id") == "center_ice":
+        from . import season
+        game_date = f"{clock.air_now():%Y-%m-%d}"
+        daypart["_arc_extra"] = season.brief(season.tonight(game_date))
+    else:
+        daypart.pop("_arc_extra", None)
+
     st = _sstate()
     opened_key = f"{daypart['id']}:{clock.air_now():%Y-%m-%d}"
     first_of_window = st.get("opened") != opened_key
@@ -447,6 +456,11 @@ def run_show(daypart, config, schedule, live: bool):
         if (st.get("hole") or {}).get("dp") == daypart["id"]:
             st["hole"]["finished"] = True
             _sstate_save(st)
+    if game_date:  # fold tonight's result into the standings + station lore
+        from . import season
+        result = season.record(game_date)
+        if result:
+            lore.remember(state, callbacks=[result])
     # persist any new lore the writer established (max 2 new jokes per show
     # so no single bit can flood the lore pool)
     # quarantined shows (the Watcher) must NEVER seed shared lore — their

@@ -14,19 +14,19 @@ dayparts:
     cast: [bucky, sal]
     news: false               # you don't cut away from a live game
     arc: >
-      This outline is ONE COMPLETE HOCKEY GAME broadcast live: the Municipal
-      Otters (the home team, perennially mediocre, beloved) versus ONE invented
-      visiting team (new every game — absurd but plausible town + mascot).
-      Structure the beats as a broadcast: warm pregame, first period, first
-      intermission (booth chatter or a 'guest'), second period, second
-      intermission, third period, and a postgame wrap naming three stars.
-      Track the SCORE and PERIOD explicitly in every beat description and
-      keep them consistent — the score only moves when a beat says a goal
-      happens. Games are close; the ending is decided in the final beats
-      (overtime allowed). Play is described with total professionalism while
-      the events themselves are gently absurd: penalties for excessive
-      apologizing, a zamboni subplot, a puck that goes missing. Never violent,
-      never gambling, no injuries.
+      This outline is ONE COMPLETE HOCKEY GAME broadcast live. A factual game
+      sheet follows this arc — teams, arena, standings, streaks, and the
+      EXACT final score. Narrate precisely that game; never invent a
+      different result. Structure the beats as a real broadcast: warm
+      pregame (records, storylines, tonight's opponent), first period, first
+      intermission (booth chatter or a rink-side 'interview'), second period,
+      second intermission, third period (and overtime only if the sheet says
+      so), and a postgame wrap naming three stars. State the RUNNING SCORE
+      and PERIOD explicitly in every beat description and keep them
+      consistent with the sheet's final. Play is described with total
+      professionalism while the events themselves are gently absurd:
+      penalties for excessive apologizing, a zamboni subplot, a puck that
+      goes missing. Never violent, never gambling, no injuries.
     energy: "live sports broadcast; professional urgency about an absurd league"
     segments:
       - "Pregame — lines, storylines, Sal's first unverifiable statistic"
