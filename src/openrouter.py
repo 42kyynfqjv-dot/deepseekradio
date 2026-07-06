@@ -60,7 +60,10 @@ def chat(model_cfg: dict, messages: list[dict], retries: int = 3) -> str:
             METER.add(data.get("usage", {}),
                       model_cfg.get("price_in", 0.0),
                       model_cfg.get("price_out", 0.0))
-            return data["choices"][0]["message"]["content"].strip()
+            content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+            if not content or not content.strip():
+                raise ValueError("empty completion")  # provider glitch: retry
+            return content.strip()
         except Exception as e:  # noqa: BLE001 — retry any transient failure
             last = e
             time.sleep(2 * (attempt + 1))
