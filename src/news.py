@@ -42,9 +42,11 @@ def write_bulletin(headlines: list[str], models: dict, bible: str) -> str:
         "You write Frequency News, the absurd top-of-the-hour 90-second news bulletin "
         "for The Frequency. Take REAL headlines and twist each one sideways — keep the "
         "kernel of the real story but report it like the station's unhinged news "
-        "desk would. Clean, PG, never mock real tragedies or real private "
-        "people; skip any headline about death, war, or disaster and invent a "
-        "harmless local story instead.\n\n" + bible
+        "desk would. Clean, PG. HARD RULES: never name any real person — "
+        "anonymize to a role ('a senator', 'a pop star', 'a tech CEO'); never "
+        "mock real tragedies; skip entirely any headline about death, war, "
+        "disaster, or political violence and invent a harmless local story "
+        "instead.\n\n" + bible
     )
     user = ("Today's real headlines:\n" +
             "\n".join(f"- {h}" for h in headlines) +

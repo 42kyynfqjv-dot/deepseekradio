@@ -59,7 +59,7 @@ PREMISE: {beat.get('premise')}
 BEAT TO PLAY: {beat.get('beat')}
 
 STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
-LORE: {lore.digest(lore_state, limit=6)}
+LORE (reference sparingly, at most once): {lore.digest_sample(lore_state)}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - Let scenes BREATHE: a caller or guest stays on the line for a long,
@@ -82,8 +82,9 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - NEVER state a precise clock time ("it's 11:47") — segments can air up to an
   hour after writing. Speak of time loosely: "late night", "this hour",
   "almost morning".
-- Give each distinct caller/guest a NAME as the speaker (e.g. "Caller Doreen",
-  not just "Caller") so they get their own voice.
+- Give each distinct caller/guest a first-name as the speaker label (never a
+  bare "Caller"). Pick ordinary, DIFFERENT names — a fresh name for every new
+  caller, never reusing a name from these instructions or from earlier context.
 Return STRICT JSON:
 {{"lines": [{{"speaker": "<name>", "text": "<what they say out loud>"}}]}}"""
 
@@ -106,10 +107,17 @@ def _parse_lines(raw: str) -> list[dict]:
         return [ln for ln in lines
                 if not _NONSPEAKER.search(str(ln.get("speaker", "")))]
     except Exception:
-        # Degrade: treat each non-empty line as narration by the first speaker.
-        return [{"speaker": "Host", "text": ln.strip()}
-                for ln in raw.splitlines() if ln.strip()]
+        # Never read malformed JSON aloud on air — skip the beat instead.
+        return []
 
+
+# every voice kokoro v1.0 actually ships — anything else must not reach create()
+_VALID_VOICES = {"af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica",
+                 "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah",
+                 "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir",
+                 "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa",
+                 "bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel",
+                 "bm_fable", "bm_george", "bm_lewis"}
 
 # spare voices for callers/guests — none used by the main cast
 _EXTRA_VOICES = ["af_heart", "am_eric", "bf_emma", "am_liam", "af_jessica",
@@ -132,6 +140,8 @@ def _attach_voices(lines: list[dict], daypart: dict) -> list[dict]:
     for ln in lines:
         spk = str(ln.get("speaker", "")).lower()
         cast_v = next((voices[k] for k in voices if k in spk), None)
+        if cast_v not in _VALID_VOICES:
+            cast_v = None  # e.g. complaints desk "rotates" — fall through to pool
         if cast_v:
             ln["voice"] = cast_v
             ln["speed"] = speeds.get(cast_v, 1.0)

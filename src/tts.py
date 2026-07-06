@@ -37,35 +37,45 @@ def _engine(sample_rate: int):
 
 def synth_segment(lines: list[dict], out_path: Path, cfg: dict) -> Path:
     """Render a list of {speaker, voice, text} lines into one WAV file."""
+    import os
     import random
 
     import numpy as np
 
     sr = cfg["tts"]["sample_rate"]
     kokoro = _engine(sr)
-    chunks = []
-    prev_speaker = None
+    # pre-clean: only lines with actual speakable content survive
+    spoken = []
     for ln in lines:
         text = clean_for_speech(ln.get("text", "").strip())
-        if not text:
-            continue
-        voice = ln.get("voice", cfg["tts"]["default_voice"])
-        # character pace with slight per-line jitter so delivery isn't metronomic
-        speed = ln.get("speed", 1.0) * random.uniform(0.98, 1.03)
-        samples, _ = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
+        if text and re.search(r"[A-Za-z0-9]", text):
+            spoken.append((ln.get("voice", cfg["tts"]["default_voice"]),
+                           ln.get("speed", 1.0), ln.get("speaker"), text))
+    chunks = []
+    for i, (voice, speed, spk, text) in enumerate(spoken):
+        try:
+            # character pace with slight per-line jitter so delivery isn't metronomic
+            samples, _ = kokoro.create(text, voice=voice,
+                                       speed=speed * random.uniform(0.98, 1.03),
+                                       lang="en-us")
+        except Exception:
+            continue  # one unspeakable line must not void the segment
         chunks.append(samples)
-        # conversational rhythm: quick continuation, longer on speaker change
-        spk = ln.get("speaker")
-        base = 0.5 if spk != prev_speaker else 0.22
-        chunks.append(np.zeros(int(sr * random.uniform(base * 0.7, base * 1.4))))
-        prev_speaker = spk
+        # conversational rhythm: gap reflects the UPCOMING transition
+        if i + 1 < len(spoken):
+            base = 0.5 if spoken[i + 1][2] != spk else 0.22
+            chunks.append(np.zeros(int(sr * random.uniform(base * 0.7, base * 1.4))))
 
     audio = np.concatenate(chunks) if chunks else np.zeros(sr)
+    audio = np.clip(audio, -1.0, 1.0)          # saturate, never wrap
     audio = (audio * 32767).astype("<i2")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with wave.open(str(out_path), "wb") as w:
+    # temp + atomic rename so the streamer can never play a half-written file
+    tmp = out_path.with_name(out_path.name + ".part")
+    with wave.open(str(tmp), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(sr)
         w.writeframes(audio.tobytes())
+    os.replace(tmp, out_path)
     return out_path

@@ -66,6 +66,9 @@ is mid-show. The show never ends; it just keeps rolling.
 STATION LORE (call back to these where natural):
 {lore.digest(lore_state)}
 
+PREMISES ALREADY AIRED RECENTLY — do NOT reuse or lightly reskin any of these:
+{chr(10).join('- ' + p for p in lore_state.get('recent_premises', [])[-30:]) or '(none yet)'}
+
 Return STRICT JSON:
 {{
   "show": "{daypart['show']}",
@@ -91,7 +94,15 @@ def _parse_json(raw: str, daypart: dict) -> dict:
     if txt.startswith("```"):
         txt = txt.split("```", 2)[1].lstrip("json").strip()
     try:
-        return json.loads(txt)
+        out = json.loads(txt)
+        beats = out.get("beats")
+        if (isinstance(beats, list) and beats and
+                all(isinstance(b, dict) and b.get("beat") for b in beats)):
+            out["beats"] = [{"segment": str(b.get("segment", "segment")),
+                             "premise": str(b.get("premise", "")),
+                             "beat": str(b.get("beat"))} for b in beats]
+            return out
+        raise ValueError("bad outline shape")
     except Exception:
         # Degrade gracefully: one beat per configured segment.
         return {

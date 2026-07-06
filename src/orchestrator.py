@@ -155,7 +155,9 @@ def run_show(daypart, config, live: bool):
     lore.remember(state,
                   jokes=outline.get("new_jokes"),
                   guest=outline.get("guest"),
-                  callbacks=outline.get("callbacks_used"))
+                  callbacks=outline.get("callbacks_used"),
+                  premises=[b.get("premise") for b in outline.get("beats", [])
+                            if b.get("premise")])
     lore.save(state)
     print(f"\n  cost so far this run: {METER.summary()}")
 
