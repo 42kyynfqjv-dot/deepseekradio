@@ -1,0 +1,89 @@
+# The 24-hour daypart clock. Each block names the show, the cast (persona files),
+# and its recurring segments. The orchestrator loads the block whose time window
+# contains "now", asks the writer for an outline, then runs the performers.
+#
+# Times are local station time, 24h. Blocks must cover the full day.
+
+dayparts:
+  - id: morning_meltdown
+    show: "The Morning Meltdown"
+    window: ["06:00", "10:00"]
+    cast: [chip, brenda]
+    energy: "loud, fast morning-zoo; ego vs. competence"
+    segments:
+      - "Traffic on the Nines — Chip reports traffic for roads that make no sense"
+      - "Wake-Up Call — 'calling a listener' to wake them; always goes sideways"
+      - "Chip's Hot Take — a confidently wrong opinion; Brenda demolishes it"
+      - "The Meltdown Minute — top of the hour, someone loses it over something petty"
+      - "Grudging Credit — Chip almost admits Brenda is good, then undercuts it"
+
+  - id: refined_palate
+    show: "Refined Palate"
+    window: ["10:00", "13:00"]
+    cast: [reginald, cosima]
+    energy: "pretentious critics reviewing things that need no review"
+    segments:
+      - "Today's Subject — they review an ordinary object (a doorknob, Tuesday, silence)"
+      - "Out of Seven Moons — the rating, argued to the death"
+      - "Listener Dispute — a 'caller' disagrees; they are destroyed politely"
+
+  - id: complaints_department
+    show: "The Complaints Department"
+    window: ["13:00", "16:00"]
+    cast: [complaints_desk]   # rotating employee-of-the-day (see persona file)
+    energy: "customer-service line manned by someone wildly unqualified"
+    segments:
+      - "Grievance of the Hour — an absurd listener complaint, mishandled"
+      - "Escalation — the complaint is escalated to someone who does not exist"
+      - "Resolution — resolved incorrectly, everyone somehow satisfied"
+
+  - id: the_handover
+    show: "The Handover"
+    window: ["16:00", "19:00"]
+    cast: [hank, kai]
+    energy: "drive-time generational warfare; old-school radio vs. content-brain"
+    segments:
+      - "How It's Done — Hank demonstrates 'real radio'; Kai livestreams it ironically"
+      - "The Clip — Kai turns a boring segment into 'content'; Hank is horrified"
+      - "Caller Line — a listener picks a side in the generational war"
+      - "The Handoff — Hank reluctantly admits Kai got one thing right"
+
+  - id: culture_vulture
+    show: "Culture Vulture"
+    window: ["19:00", "22:00"]
+    cast: [cosima]            # host; a guest from the pool joins each night
+    guest: true
+    energy: "warm faux-NPR arts hour; interview-driven"
+    segments:
+      - "Tonight's Guest — introduce a wildcard guest from the pool"
+      - "The Interview — earnest questions, absurd answers"
+      - "Live From The Studio — the guest 'performs' their craft"
+
+  - id: night_shift
+    show: "The Night Shift"
+    window: ["22:00", "01:00"]
+    cast: [vivian]
+    energy: "cozy late-night companion for insomniacs; warm, clean, philosophical"
+    segments:
+      - "Can't Sleep? — takes 'calls' about small 3am worries"
+      - "Dream Court — interprets a caller's absurd dream with legal authority"
+      - "The Quiet Part — a genuinely calming wind-down beat"
+
+  - id: static_hour
+    show: "The Static Hour"
+    window: ["01:00", "05:00"]
+    cast: [watcher]
+    energy: "overnight conspiracy call-in; spooky-silly, points OUTWARD not at the station"
+    segments:
+      - "Tonight's Theory — an absurd outside-world conspiracy (birds, Tuesday, the moon)"
+      - "The Callers — paranoid listeners add 'evidence'"
+      - "The Numbers — a cryptic, harmless sign-off bit"
+
+  - id: dawn_patrol
+    show: "Dawn Patrol"
+    window: ["05:00", "06:00"]
+    cast: [dawn]
+    energy: "ambient palate-cleanser; station idents, quote of the day, resets the day"
+    segments:
+      - "Station Ident — call sign, the frequency, a soft welcome to the day"
+      - "Quote of the Day — one line, delivered once, no bit"

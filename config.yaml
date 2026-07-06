@@ -1,0 +1,50 @@
+# KAOS-FM configuration — models, budgets, tuning knobs.
+# Prices are current OpenRouter $/M tokens (for the cost estimator only).
+
+models:
+  # Head writer: smart, runs rarely (once per show). Writes the bit outlines.
+  writer:
+    id: deepseek/deepseek-v4-pro
+    price_in: 0.435
+    price_out: 0.87
+    temperature: 0.9
+    max_tokens: 2500
+
+  # Performers: cheap, run constantly. Turn beats into in-character dialogue.
+  performer:
+    id: mistralai/mistral-small-24b-instruct-2501
+    price_in: 0.05
+    price_out: 0.08
+    temperature: 1.0
+    max_tokens: 1200
+
+  # Cheaper fallback if you want to drop the LLM bill under $1/mo:
+  # performer.id: inclusionai/ling-2.6-flash   (0.01 / 0.03)
+  # Or more polish (~$4.8/mo):
+  # performer.id: qwen/qwen3-235b-a22b-2507    (0.09 / 0.10)
+
+generation:
+  # How much dialogue to produce per performer call (minutes of audio).
+  segment_minutes: 5
+  # Rolling context fed back to performers (tokens). 4k = richer continuity.
+  context_tokens: 4000
+  # Words per minute of speech, for pacing + cost estimates.
+  words_per_minute: 145
+  # Keep the buffer this many minutes ahead of playback.
+  buffer_target_minutes: 45
+
+tts:
+  engine: kokoro
+  sample_rate: 24000
+  # voice per character is set in personas/*.md (front-matter `voice:`)
+  default_voice: am_adam
+
+stream:
+  icecast_host: 127.0.0.1
+  icecast_port: 8000
+  mount: /kaos.mp3
+  bitrate: 96
+
+content:
+  # Hard guardrail every persona inherits. See station/bible.md.
+  family_friendly: true

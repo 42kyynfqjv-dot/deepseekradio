@@ -1,0 +1,17 @@
+[Unit]
+Description=KAOS-FM 24/7 AI radio station
+After=network-online.target icecast2.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kaos/kaos
+EnvironmentFile=/home/kaos/kaos/.env
+ExecStart=/home/kaos/kaos/.venv/bin/python -m src.orchestrator --live
+Restart=always
+RestartSec=10
+# keep Kokoro from starving the box; pin niceness low priority
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

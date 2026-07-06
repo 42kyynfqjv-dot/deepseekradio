@@ -1,0 +1,5 @@
+requests>=2.31
+pyyaml>=6.0
+# TTS (installed on the box; see deploy/README.md)
+# kokoro-onnx>=0.4.0
+# soundfile>=0.12

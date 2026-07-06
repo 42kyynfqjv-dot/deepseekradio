@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+# generated audio + runtime state
+audio_buffer/
+*.wav
+*.mp3
+lore_state.json
+kokoro/*.onnx
+kokoro/*.bin
+*.log
