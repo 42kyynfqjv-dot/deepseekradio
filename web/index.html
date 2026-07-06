@@ -154,7 +154,7 @@
 
   <section id="schedule">
     <h2><span class="hash">#</span> The Daily Frequency</h2>
-    <p class="sub">Eight shows. Twenty-four hours. Zero humans. All times <b id="tz-label">station time</b>.</p>
+    <p class="sub">Eight shows. Twenty-four hours. Zero humans. Times shown in <b id="tz-label">your timezone</b>.</p>
     <div class="sched" id="sched"></div>
   </section>
 
@@ -205,19 +205,29 @@ const SCHEDULE = [
   {start:5,  end:6,  name:"Dawn Patrol",             cast:"Dawn",                        desc:"One quiet hour to reset the frequency."},
 ];
 
-function fmtStation(h){
-  h = h % 24;
+const STATION_TZ = "America/New_York";
+function stationHour(){
+  return parseInt(new Intl.DateTimeFormat("en-US",
+    {timeZone: STATION_TZ, hour: "numeric", hour12: false}).format(new Date()), 10) % 24;
+}
+function tzShift(){
+  let d = new Date().getHours() - stationHour();
+  if (d > 12) d -= 24; if (d < -12) d += 24;
+  return d;
+}
+function fmtViewer(stationH){
+  const h = ((stationH + tzShift()) % 24 + 24) % 24;
   const ampm = h < 12 ? "AM" : "PM";
   const hr = h % 12 === 0 ? 12 : h % 12;
   return `${hr}:00 ${ampm}`;
 }
 function currentShow(){
-  const h = new Date().getUTCHours();
+  const h = stationHour();
   return SCHEDULE.find(s => s.start<=h && h<(s.end%25===s.end?s.end:24) ) ||
          SCHEDULE.find(s => s.end>24 && (h>=s.start || h<s.end-24)) || SCHEDULE[0];
 }
 function render(){
-  const h = new Date().getUTCHours();
+  const h = stationHour();
   const grid = document.getElementById("sched");
   grid.innerHTML = "";
   let liveShow = null;
@@ -227,7 +237,7 @@ function render(){
     if(live) liveShow = s;
     const el = document.createElement("div");
     el.className = "slot"+(live?" now":"");
-    el.innerHTML = `<div class="time">${fmtStation(s.start)} – ${fmtStation(s.end)}</div>
+    el.innerHTML = `<div class="time">${fmtViewer(s.start)} – ${fmtViewer(s.end)}</div>
       <div><div class="name">${s.name}</div><div class="desc">${s.cast} — ${s.desc}</div></div>
       <span class="live">● LIVE</span>`;
     grid.appendChild(el);
@@ -236,7 +246,8 @@ function render(){
     document.getElementById("np-show").textContent = liveShow.name;
     document.getElementById("np-cast").textContent = liveShow.cast;
   }
-  document.getElementById("tz-label").textContent = "station time";
+  document.getElementById("tz-label").textContent =
+    Intl.DateTimeFormat().resolvedOptions().timeZone.replace("_", " ");
 }
 render(); setInterval(render, 60_000);
 
