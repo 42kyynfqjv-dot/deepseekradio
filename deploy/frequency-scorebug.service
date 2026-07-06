@@ -1,0 +1,10 @@
+[Unit]
+Description=The Frequency — republish league.json in listener (air) time
+
+[Service]
+Type=oneshot
+User=kaos
+WorkingDirectory=/opt/kaos/app
+# air-gating is pure epoch time (no TZ dependency); publishes league.json
+# filtered to what has actually aired, so the scorebug never spoils the game
+ExecStart=/opt/kaos/.venv/bin/python -m src.season publish

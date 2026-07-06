@@ -1,0 +1,10 @@
+[Unit]
+Description=Scorebug republish every 30s (air-gated: never spoils the game)
+
+[Timer]
+OnBootSec=45
+OnUnitActiveSec=30
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

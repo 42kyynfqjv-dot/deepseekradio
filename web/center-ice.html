@@ -74,30 +74,46 @@
   <footer>WFRQ · CENTER ICE · EVERY GAME IS FINAL, INCLUDING THE ONES THAT HAVEN'T HAPPENED</footer>
 </main>
 <script>
-fetch('/data/league.json').then(r=>r.json()).then(d=>{
+let liveTimer=null;
+function goalRows(ev){
+  const rows=[];
+  for(const g of (ev.goals||[]))
+    rows.push(`<div class="goal"><b>GOAL</b> ${g.team} — ${g.scorer}${g.assist?' (a: '+g.assist+')':''}${g.strength==='PP'?' PP':g.strength==='SH'?' SH':g.strength==='EN'?' EN':''}, P${g.period} ${g.clock}</div>`);
+  if(ev.injury) rows.push(`<div><b>INJ</b> ${ev.injury.player} (${ev.injury.team}) — ${ev.injury.note}</div>`);
+  return rows;
+}
+function render(d){
   const bug=document.getElementById('bug');
   if(d.broadcast){
     bug.hidden=false;
     const b=d.broadcast;
-    document.getElementById('bugtag').textContent=(b.played?'LAST BROADCAST · ':'NEXT BROADCAST · ')+b.date+' · '+b.arena.toUpperCase();
     document.getElementById('home').textContent=b.home;
     document.getElementById('away').textContent=b.away;
-    if(b.played){
+    if(b.live){
+      document.getElementById('bugtag').textContent='LIVE NOW · '+b.arena.toUpperCase();
+      document.getElementById('hscore').textContent=b.live.score[0];
+      document.getElementById('ascore').textContent=b.live.score[1];
+      document.getElementById('fin').textContent=(b.live.period==='OT'?'OVERTIME':'PERIOD '+b.live.period)+' · '+b.live.clock;
+      const rows=goalRows(b.events||{});
+      rows.push('<div>Scorebug ticks in listener time — the stream is the truth.</div>');
+      document.getElementById('events').innerHTML=rows.join('');
+    }else if(b.played){
+      document.getElementById('bugtag').textContent='LAST BROADCAST · '+b.date+' · '+b.arena.toUpperCase();
       document.getElementById('hscore').textContent=b.final[0];
       document.getElementById('ascore').textContent=b.final[1];
-      document.getElementById('fin').textContent=b.ot?'FINAL / OT':'FINAL';
-      const ev=b.events, rows=[];
-      for(const g of ev.goals)
-        rows.push(`<div class="goal"><b>GOAL</b> ${g.team} — ${g.scorer}${g.assist?' (a: '+g.assist+')':''}${g.strength==='PP'?' PP':''}, P${g.period} ${g.clock}</div>`);
-      if(ev.injury) rows.push(`<div><b>INJ</b> ${ev.injury.player} (${ev.injury.team}) — ${ev.injury.note}</div>`);
-      rows.push(`<div>Shots ${b.home} ${ev.shots[0]} · ${b.away} ${ev.shots[1]} — three stars: ${ev.three_stars.join(', ')}</div>`);
+      document.getElementById('fin').textContent=b.so?'FINAL / SO':b.ot?'FINAL / OT':'FINAL';
+      const ev=b.events||{goals:[]}, rows=goalRows(ev);
+      if(ev.shots) rows.push(`<div>Shots ${b.home} ${ev.shots[0]} · ${b.away} ${ev.shots[1]}${ev.three_stars&&ev.three_stars.length?' — three stars: '+ev.three_stars.join(', '):''}</div>`);
       document.getElementById('events').innerHTML=rows.join('');
     }else{
+      document.getElementById('bugtag').textContent='NEXT BROADCAST · '+b.date+' · '+b.arena.toUpperCase();
       document.getElementById('hscore').textContent='–';
       document.getElementById('ascore').textContent='–';
       document.getElementById('fin').textContent='PUCK DROP 8PM';
-      document.getElementById('events').innerHTML='<div>Listen live on The Frequency.</div>';
+      document.getElementById('events').innerHTML='<div>Listen live on The Frequency. The game does not exist until it is played.</div>';
     }
+    if(b.live&&!liveTimer) liveTimer=setInterval(load,30000);
+    if(!b.live&&liveTimer){clearInterval(liveTimer);liveTimer=null;}
   }
   const tb=document.getElementById('tables');
   tb.innerHTML=Object.entries(d.divisions).map(([name,rows])=>`
@@ -108,7 +124,12 @@ fetch('/data/league.json').then(r=>r.json()).then(d=>{
   document.getElementById('around').innerHTML=(d.around||[]).map(g=>
     `<div>${g.away} <b>${g.score[1]}</b> at ${g.home} <b>${g.score[0]}</b>${g.ot?' (OT)':''}</div>`
   ).join('')||'<div>League resumes tonight.</div>';
-}).catch(()=>{document.getElementById('tables').textContent='Season data loading — check back after tonight\'s slate.'});
+}
+function load(){
+  fetch('/data/league.json',{cache:'no-store'}).then(r=>r.json()).then(render)
+    .catch(()=>{document.getElementById('tables').textContent='Season data loading — check back after tonight\'s slate.'});
+}
+load();
 </script>
 </body>
 </html>

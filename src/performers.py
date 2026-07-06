@@ -211,6 +211,9 @@ def _echo_guard(lines: list[dict], avoid: list) -> list[dict]:
 
     out = []
     for ln in lines:
+        if ln.get("_enforced"):     # code-authored fact lines are never echoes
+            out.append(ln)
+            continue
         txt = ln.get("text", "")
         if any(_dupe(txt, a) for a in avoid if a):
             continue
@@ -335,7 +338,11 @@ def _polish(lines: list[dict], daypart: dict, models: dict,
         "You are a radio script editor. Edit ONLY mechanically — do not add "
         "jokes, do not change anyone's style. Apply exactly these rules:\n"
         "1. Delete narrated sound effects, stage directions, onomatopoeia.\n"
-        "2. Delete precise clock times.\n"
+        + ("2. Delete precise clock times OF DAY; GAME clocks in the sports "
+           "broadcast ('14:32 of the second period') are correct — keep them "
+           "and never alter scores, scorers, or game facts.\n"
+           if daypart.get("id") == "center_ice" else
+           "2. Delete precise clock times.\n")
         + ("3. Leave host monologues intact — this format runs long on "
            "purpose; only trim CALLER runs longer than 3 lines.\n"
            if monologue_show else

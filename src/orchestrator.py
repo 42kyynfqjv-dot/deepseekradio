@@ -199,6 +199,8 @@ def _tail_context(lines):
 
 
 def run_show(daypart, config, schedule, live: bool):
+    if daypart.get("id") == "center_ice":   # live sports is its own machine
+        return run_center_ice(daypart, config, schedule, live)
     models = config["models"]
     state = lore.load()
     weekday = clock.air_now().strftime("%A")  # the day it will AIR
@@ -240,15 +242,7 @@ def run_show(daypart, config, schedule, live: bool):
     except Exception as e:  # news must never kill the show
         print(f"  (news skipped: {e})")
 
-    # Center Ice: deterministic code decides the game, the writer narrates it
-    game_date = None
-    if daypart.get("id") == "center_ice":
-        from . import season
-        game_date = f"{clock.air_now():%Y-%m-%d}"
-        daypart["_arc_extra"] = season.brief(season.tonight(game_date))
-        season.export()
-    else:
-        daypart.pop("_arc_extra", None)
+    daypart.pop("_arc_extra", None)
 
     st = _sstate()
     # serialized station arcs advance once per air-day (story editor pass)
@@ -467,12 +461,6 @@ def run_show(daypart, config, schedule, live: bool):
         if (st.get("hole") or {}).get("dp") == daypart["id"]:
             st["hole"]["finished"] = True
             _sstate_save(st)
-    if game_date:  # fold tonight's result into the standings + station lore
-        from . import season
-        result = season.record(game_date)
-        if result:
-            lore.remember(state, callbacks=[result])
-        season.export()
     # persist any new lore the writer established (max 2 new jokes per show
     # so no single bit can flood the lore pool)
     # quarantined shows (the Watcher) must NEVER seed shared lore — their
@@ -484,6 +472,425 @@ def run_show(daypart, config, schedule, live: bool):
                   guest=outline.get("guest"),
                   callbacks=([] if arc_quarantine else outline.get("callbacks_used")))
     lore.save(state)
+    print(f"\n  cost so far this run: {METER.summary()}")
+
+
+def _cast_meta(daypart, idx=0):
+    """(speaker/voice/speed) for a cast member — for code-authored lines."""
+    from .performers import _persona
+    display, text = _persona(daypart["cast"][idx])
+    m = re.search(r"^voice:\s*(.+)$", text, re.M)
+    ms = re.search(r"^speed:\s*(.+)$", text, re.M)
+    return {"speaker": display,
+            "voice": m.group(1).strip() if m else "am_adam",
+            "speed": float(ms.group(1)) if ms else 1.0}
+
+
+def run_center_ice(daypart, config, schedule, live: bool):
+    """Center Ice, fully live: the engine rolls the game in lockstep with
+    generation (advance on THIS thread; the prefetch pool only ever writes
+    dialogue for already-rolled facts), every emitted line is fact-checked
+    against the code-owned board, and the game ALWAYS reaches a recorded
+    final — the try/finally and the season tick's reconciliation sweep make
+    that true through crashes, restarts, and short windows."""
+    from . import livegame, season
+    from .scoreguard import build_facts, enforce_scoreboard
+
+    models = config["models"]
+    state = lore.load()
+    date = f"{clock.air_now():%Y-%m-%d}"
+    weekday = clock.air_now().strftime("%A")
+    game = season.tonight_live(date)
+    hn, an = game["home"], game["away"]
+    print(f"\n{'='*70}\n  {daypart['show']} LIVE — the {an} at the {hn}, "
+          f"{weekday} {date}\n{'='*70}")
+    try:
+        eng = livegame.LiveGame(game)
+    except RuntimeError as e:
+        print(f"  !! center ice locked out: {e}")
+        time.sleep(30)
+        return
+    pbp = _cast_meta(daypart, 0)
+    allow = season.context_pairs(game)
+    lines_target = int(daypart.get("lines_per_beat", 22))
+    parts_per = max(1, int(daypart.get("parts_per_beat", 2)))
+    slot_cost = parts_per * 2.1 + 0.5        # air-min per chunk incl. breaks
+    aired: list = eng.narrated_events()      # events already written to air
+
+    def _ev_text(e):
+        team = hn if e["team"] == "home" else an
+        if e["type"] == "goal":
+            a = f" (assist {e['assist']})" if e.get("assist") else " (unassisted)"
+            tag = {"PP": " on the POWER PLAY", "SH": " SHORTHANDED",
+                   "EN": " into an EMPTY NET"}.get(e["strength"], "")
+            return (f"GOAL {team}: {e['scorer']}{a}{tag} at {e['clock']} — "
+                    f"the board becomes {hn} {e['board'][0]}, {an} {e['board'][1]}")
+        if e["type"] == "penalty":
+            return (f"PENALTY {team}: {e['player']}, 2 minutes, {e['call']}, "
+                    f"at {e['clock']}")
+        if e["type"] == "injury":
+            return (f"INJURY {team}: {e['player']} leaves the game, listed "
+                    f"{e['note']} — keep it light and PG, hockey euphemism")
+        if e["type"] == "pull":
+            return f"{team} PULL THE GOALIE — empty net, extra attacker on"
+        if e["type"] == "return":
+            return f"{team} goalie is back in the net"
+        if e["type"] == "so":
+            return (f"SHOOTOUT round {e['round']}: {e['player']} ({team}) "
+                    f"{'SCORES' if e['scored'] else 'is STOPPED'}")
+        return ""
+
+    def _facts(part_events, board_in, *, mode="live", period=None, lo=None,
+               hi=None, pp=False, en=False, final=None, shots=None):
+        chunk = ({"board_in": list(board_in), "events": part_events,
+                  "pp_span": pp, "en_span": en} if mode == "live" else None)
+        return build_facts(game, list(aired), chunk, mode=mode, pbp=pbp,
+                           allow_pairs=allow, final=final, shots=shots,
+                           period=period, clock_lo=lo, clock_hi=hi)
+
+    def _beat(seg, premise, text, facts, *, label, lines=None, events=(),
+              mark=(), brk=False, part=0):
+        return {"beat": {"segment": seg, "premise": premise, "beat": text,
+                         "grounding": "", "callback": None, "no_bit": False,
+                         "monologue": False, "_part": part},
+                "facts": facts, "label": label,
+                "lines": lines or lines_target,
+                "events": list(events), "mark": list(mark), "brk": brk}
+
+    def _board_txt(b):
+        return f"{hn} {b[0]}, {an} {b[1]}"
+
+    def _chunk_beats(ch, brk_after=False):
+        """One rolled chunk -> parts_per scene parts, each auditing its own
+        slice of events (so an unnarrated goal is injected exactly once).
+        A GENERATOR: each part's fact table is built only when it's up, so
+        its tallies include every earlier part's goals."""
+        f0, t0 = ch["from"], ch["to"]
+        period = livegame._period_of(f0)
+        pname = {1: "first period", 2: "second period",
+                 3: "third period"}.get(period, "overtime")
+        timed = [e for e in ch["events"] if "secs" in e]
+        so_evs = [e for e in ch["events"] if e["type"] == "so"]
+        base = livegame.REG_SECS if period == "OT" else (period - 1) * livegame.PERIOD_SECS
+        bounds = [f0 + (t0 - f0) * i / parts_per for i in range(parts_per + 1)]
+        board = list(ch["board_in"])
+        for pi in range(parts_per):
+            lo_s, hi_s = bounds[pi], bounds[pi + 1]
+            sl = [e for e in timed
+                  if lo_s <= e["secs"] < hi_s or (pi == parts_per - 1
+                                                  and e["secs"] >= hi_s)]
+            if pi == parts_per - 1:
+                sl += so_evs
+            goals = [e for e in sl if e["type"] == "goal"]
+            end_board = list(goals[-1]["board"]) if goals else list(board)
+            if so_evs and pi == parts_per - 1:
+                end_board = list(ch["board"])
+            lo_rel = max(0, int(lo_s) - base)
+            hi_rel = min(int(hi_s) - base,
+                         livegame.OT_SECS if period == "OT" else livegame.PERIOD_SECS)
+            evtx = "\n".join(_ev_text(e) for e in sl) or (
+                "No goals, no penalties in this stretch — carry it on saves, "
+                "chances, posts, and the booth.")
+            cont = ("" if pi == 0 else
+                    f" (CONTINUE the same live broadcast, part {pi+1} of "
+                    f"{parts_per} — same flow, never re-describe or reset the "
+                    "scene, never repeat a call already made.)")
+            text = (
+                f"LIVE play-by-play, the {pname}, covering roughly "
+                f"{lo_rel//60}:{lo_rel%60:02d}-{hi_rel//60}:{hi_rel%60:02d} "
+                f"elapsed.{cont}\nSCOREBOARD entering this stretch "
+                f"(authoritative, never contradict): {_board_txt(board)}.\n"
+                f"EVENTS IN THIS STRETCH (call ALL of them, in order, as they "
+                f"happen — add saves, rushes, and near-misses between them, "
+                f"but NO other goals, penalties, or injuries):\n{evtx}\n"
+                f"The stretch ends with the board {_board_txt(end_board)}. "
+                "You do NOT know anything past this stretch.")
+            marks = [ch["chunk"]] if pi == parts_per - 1 else []
+            yield _beat(
+                f"{pname.title()}" if period != "OT" else "Overtime",
+                f"live game, {pname}", text,
+                _facts(sl, board, period=(None if so_evs and pi == parts_per - 1
+                                          else period),
+                       lo=f"{lo_rel//60}:{lo_rel%60:02d}",
+                       hi=f"{hi_rel//60}:{hi_rel%60:02d}",
+                       pp=ch["pp_span"], en=ch["en_span"]),
+                label=str(ch["chunk"]).lower(), events=sl, mark=marks,
+                brk=(brk_after and pi == parts_per - 1), part=pi)
+            board = end_board
+
+    def _air_left():
+        return _minutes_left(daypart, clock.air_now())
+
+    def _owns_air():
+        return _current_daypart(schedule, clock.air_now()) is daypart
+
+    wpool = ThreadPoolExecutor(max_workers=1)
+
+    def plan():
+        """Yields beat descriptors one at a time — runs on the MAIN thread
+        between beats, which is where every engine roll happens."""
+        did_game = eng.final is None
+        # phase 0: pregame (fresh), rejoin (mid-game restart), or neither.
+        # gate on the OPENED marker (not _order) so a restart after the pregame
+        # aired but before the first chunk rolled never replays the open.
+        if eng.final is None and not eng.opened and not eng._order:
+            pre = season.pregame_brief(game)
+            f = _facts([], [0, 0], mode="neutral")
+            for pi in range(parts_per):
+                cont = ("Open the broadcast: set the matchup, the records, "
+                        "the goalies, the officials, tonight's storylines. "
+                        "Warm professional sports energy."
+                        if pi == 0 else
+                        f"(CONTINUE the pregame, part {pi+1} of {parts_per} — "
+                        "develop the storylines and the booth color subplot, "
+                        "never re-open the show.)")
+                yield _beat("Pregame", "pregame at the rink",
+                            f"{pre}\n{cont}", f, label="pregame", part=pi,
+                            brk=(pi == parts_per - 1))
+        elif eng.final is None:
+            backlog = eng.unnarrated()
+            evs = [e for c in backlog for e in c["events"]]
+            s = eng.state()
+            board_in = (list(backlog[0]["board_in"]) if backlog
+                        else list(s["board"]))
+            evtx = ("\n".join(_ev_text(e) for e in evs) if evs else
+                    "(nothing new since the last call)")
+            f = _facts(evs, board_in,
+                       pp=any(c["pp_span"] for c in backlog),
+                       en=any(c["en_span"] for c in backlog))
+            pos = ("overtime" if s["period"] == "OT"
+                   else f"period {s['period']}")
+            yield _beat(
+                "Rejoin", "back to live coverage",
+                "REJOIN THE LIVE BROADCAST mid-game (brief technical hiccup — "
+                "do NOT dwell on it, one wry line at most). SCOREBOARD "
+                f"(authoritative): {_board_txt(s['board'])}, {s['clock']} "
+                f"elapsed of {pos}. FIRST catch the listener up on what just "
+                f"happened:\n{evtx}\nThen settle back into live coverage.",
+                f, label="rejoin", lines=14, events=evs,
+                mark=[c["chunk"] for c in backlog])
+
+        # phase 1: the game, rolled chunk by chunk at the pace the air allows
+        chunk_no = {}
+        while eng.final is None:
+            s = eng.state()
+            air_left = _air_left()
+            rem_min = (livegame.REG_SECS - min(s["secs"],
+                                               livegame.REG_SECS)) / 60.0
+            slots = max(1, int((air_left - 10) // slot_cost))
+            cramped = (not _owns_air() or air_left < 14
+                       or (s["secs"] < livegame.REG_SECS
+                           and rem_min / slots > 10))
+            if cramped:
+                ch = eng.finish_now()
+                evs = ch["events"]
+                fin = eng.final
+                text = (
+                    "UP AGAINST THE CLOCK — compress the rest of this game "
+                    "into one urgent, honest stretch of play-by-play. Call "
+                    "every event below in order, quickly:\n"
+                    + ("\n".join(_ev_text(e) for e in evs) if evs else
+                       "(no further scoring)") + "\n"
+                    f"THE FINAL HORN SOUNDS: {hn} {fin['h']}, {an} {fin['a']}"
+                    f"{' in overtime' if fin['ot'] else ''}"
+                    f"{' in a shootout' if fin['so'] else ''}.")
+                yield _beat("To the Horn", "racing the clock", text,
+                            _facts(evs, ch["board_in"], pp=ch["pp_span"],
+                                   en=ch["en_span"]),
+                            label="scramble", lines=16, events=evs,
+                            mark=[ch["chunk"]])
+                break
+            if s["secs"] >= livegame.REG_SECS:      # tied after regulation
+                ch = eng.advance("OT", livegame.REG_SECS + livegame.OT_SECS)
+                for b in _chunk_beats(ch):
+                    yield b
+                continue
+            period = s["secs"] // livegame.PERIOD_SECS + 1
+            period_end = period * livegame.PERIOD_SECS
+            chunk_min = min(max(rem_min / slots, 4.0), 10.0)
+            to = min(period_end, s["secs"] + int(chunk_min * 60))
+            n = chunk_no.get(period, 0) + 1
+            chunk_no[period] = n
+            ch = eng.advance(f"P{period}C{n}", to)
+            ends_period = ch["to"] >= period_end and period < 3
+            for b in _chunk_beats(ch, brk_after=(n == 2 or ends_period)):
+                yield b
+            if ends_period and eng.final is None:
+                bd = eng.state()["board"]
+                f = _facts([], bd, mode="neutral")
+                for pi in range(parts_per):
+                    what = (("booth chatter and one rink-side voice; the "
+                             f"subplot develops: {game['subplot']}")
+                            if period == 1 else
+                            ("Sal delivers one magnificent unverifiable "
+                             "statistic; a quick look around the league"))
+                    cont = ("" if pi == 0 else
+                            f" (CONTINUE the intermission, part {pi+1} of "
+                            f"{parts_per}, same scene.)")
+                    yield _beat(
+                        f"Intermission {period}", "intermission",
+                        f"INTERMISSION {period}. SCOREBOARD (authoritative, "
+                        f"the game is PAUSED at exactly this): {_board_txt(bd)}. "
+                        f"{what}.{cont} You do NOT know anything about the "
+                        "rest of the game.",
+                        f, label=f"int{period}", part=pi)
+
+        # the horn: fold the result NOW (site display is air-gated), then wrap
+        fin = eng.final
+        res = season.record_live(date)
+        if res:
+            lore.remember(state, callbacks=[res])
+            lore.save(state)
+            print(f"  {res}")
+        if did_game:
+            dp2 = dict(daypart)
+            dp2["arc"] = season.postgame_brief(game, fin)
+            dp2["segments"] = ["Callers React — delighted, devastated, weirdly neutral",
+                               "The Re-Argument — the booth relitigates one moment",
+                               "Standings Talk — what tonight means",
+                               "Looking Ahead — next broadcast"]
+            outline_fut = wpool.submit(write_outline, dp2, models, state,
+                                       weekday, False)
+            how = (" IN OVERTIME" if fin["ot"] else
+                   " IN A SHOOTOUT" if fin["so"] else "")
+            pf = _facts([], None, mode="postgame",
+                        final=[fin["h"], fin["a"]], shots=fin["shots"])
+            yield _beat(
+                "Final Horn", "the final horn",
+                f"THE FINAL HORN. FINAL (authoritative): {hn} {fin['h']}, "
+                f"{an} {fin['a']}{how}. Shots: {hn} {fin['shots'][0]}, {an} "
+                f"{fin['shots'][1]}. Three stars: {', '.join(fin['stars'])}. "
+                f"Wrap the game and the subplot ({game['subplot']}), what it "
+                "means for the standings — then tease that the phone lines "
+                "are opening.", pf, label="wrap", brk=True)
+            try:
+                outline = outline_fut.result(timeout=240)
+            except Exception as e:
+                print(f"  (postgame outline failed: {e})")
+                outline = {"beats": [{"segment": s2, "premise": s2, "beat": s2}
+                                     for s2 in dp2["segments"]]}
+        else:  # re-entry after the game already ended: straight to the phones
+            dp2 = dict(daypart)
+            dp2["arc"] = season.postgame_brief(game, fin)
+            dp2["segments"] = ["Callers React", "Standings Talk", "Looking Ahead"]
+            outline_fut = wpool.submit(write_outline, dp2, models, state,
+                                       weekday, False)
+            pf0 = _facts([], None, mode="postgame",
+                         final=[fin["h"], fin["a"]], shots=fin["shots"])
+            # a code-built bridge covers the writer's 1-3 min latency
+            yield _beat("Phones", "the lines stay lit",
+                        "The postgame call-in continues. FINAL (authoritative, "
+                        f"never contradict): {hn} {fin['h']}, {an} {fin['a']}. "
+                        "One caller, one strong opinion, the booth pushes back.",
+                        pf0, label="callin-bridge", lines=14)
+            try:
+                outline = outline_fut.result(timeout=240)
+            except Exception as e:
+                print(f"  (postgame outline failed: {e})")
+                outline = {"beats": [{"segment": s2, "premise": s2, "beat": s2}
+                                     for s2 in dp2["segments"]]}
+        outline["beats"] = [b for b in outline.get("beats", [])
+                            if not _BANNED_SEGMENT.search(str(b.get("segment", "")))]
+        lore.remember(state, premises=[b.get("premise") for b in
+                                       outline["beats"] if b.get("premise")])
+        lore.save(state)
+        pf = _facts([], None, mode="postgame",
+                    final=[fin["h"], fin["a"]], shots=fin["shots"])
+        threw_break = False
+        for bi, b in enumerate(outline.get("beats", [])):
+            for pi in range(parts_per):
+                if _air_left() < 9 or not _owns_air():
+                    break
+                bb = dict(b)
+                bb["_part"] = pi
+                if pi > 0:
+                    bb["beat"] = (f"{b.get('beat')} (CONTINUE this same scene, "
+                                  f"part {pi+1} of {parts_per} — same callers, "
+                                  "same argument, one layer deeper.)")
+                yield {"beat": bb, "facts": pf, "label": f"callin{bi}",
+                       "lines": lines_target, "events": [], "mark": [],
+                       "brk": (not threw_break and bi == 1 and
+                               pi == parts_per - 1 and _air_left() > 14)}
+                if bi == 1 and pi == parts_per - 1:
+                    threw_break = True
+            if _air_left() < 9 or not _owns_air():
+                break
+
+        # handoff
+        nxt = _next_daypart(schedule, daypart)
+        print(f"\n--- Handoff -> {nxt['show']} ---")
+        hb = _throw_beat(daypart, nxt)
+        yield {"beat": hb, "facts": pf, "label": "handoff", "lines": 6,
+               "events": [], "mark": [], "brk": False}
+
+    # --- driver: roll on this thread, write dialogue in the pool, guard, emit
+    last_lines: list = []
+    completed = False
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            def _submit(bi):
+                dp = dict(daypart)
+                dp["_target_lines"] = bi["lines"]
+                # sports register, not the mundane/anti-conspiracy guard that
+                # arc-less dayparts get — the scoreguard, not the prompt, owns
+                # factual truth here
+                dp["arc"] = "live sports broadcast"
+                return pool.submit(perform_beat, bi["beat"], dp, models, state,
+                                   _tail_context(last_lines),
+                                   [ln.get("text", "") for ln in last_lines[-8:]])
+            gen = plan()
+            bi = next(gen, None)
+            fut = _submit(bi) if bi else None
+            while bi:
+                _throttle(config, live)
+                raw = fut.result()
+                lines = enforce_scoreboard(raw, bi["facts"]) if bi["facts"] else raw
+                aired.extend(bi["events"])
+                if lines:
+                    last_lines = lines
+                nxt = next(gen, None)       # main thread: engine rolls here
+                fut = _submit(nxt) if nxt else None
+                print(f"\n--- {bi['beat'].get('segment')} ---")
+                _emit(lines, f"center-ice-{bi['label']}", config, live)
+                if lines:
+                    _save_tail(daypart, lines)
+                for cid in bi["mark"]:
+                    eng.mark_narrated(cid)
+                # air-time markers: the open has aired (no restart replay), and
+                # the final horn has been ANNOUNCED (scorebug may reveal it)
+                if bi["label"] == "pregame":
+                    eng.mark_opened()
+                if bi["label"] in ("wrap", "scramble"):
+                    eng.mark_final_narrated()
+                if bi["brk"] and live:
+                    _break_marker(daypart)
+                bi = nxt
+        completed = True
+    finally:
+        try:
+            wpool.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
+        try:
+            window_gone = (not _owns_air()) or _air_left() < 11
+            if eng.final is None and (completed or window_gone):
+                print("  !! finishing the game to the horn (window closed)")
+                eng.finish_now()
+            elif eng.final is None:
+                # a transient mid-game failure with air left: leave the log
+                # non-final so the next run rejoins and continues — never
+                # collapse a live game to a fabricated final
+                print("  (center ice interrupted mid-game — will resume)")
+            if eng.final is not None:
+                res = season.record_live(date)
+                if res:
+                    lore.remember(state, callbacks=[res])
+                    lore.save(state)
+                    print(f"  {res}")
+            season.export()
+        except Exception as e:
+            print(f"  !! center-ice finalize failed: {e}")
+        eng.close()
     print(f"\n  cost so far this run: {METER.summary()}")
 
 

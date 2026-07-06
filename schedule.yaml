@@ -13,26 +13,21 @@ dayparts:
     window: ["20:00", "22:00"]
     cast: [bucky, sal]
     news: false               # you don't cut away from a live game
-    arc: >
-      This outline is ONE COMPLETE HOCKEY GAME broadcast live. A factual game
-      sheet follows this arc — teams, arena, standings, streaks, and the
-      EXACT final score. Narrate precisely that game; never invent a
-      different result. Structure the beats as a real broadcast: warm
-      pregame (records, storylines, tonight's opponent), first period, first
-      intermission (booth chatter or a rink-side 'interview'), second period,
-      second intermission, third period (and overtime only if the sheet says
-      so), and a postgame wrap naming three stars. State the RUNNING SCORE
-      and PERIOD explicitly in every beat description and keep them
-      consistent with the sheet's final. Play is described with total
-      professionalism while the events themselves are gently absurd:
-      penalties for excessive apologizing, a zamboni subplot, a puck that
-      goes missing. Never violent, never gambling, no injuries.
+    # The game is FULLY LIVE: src/livegame.py rolls it with fresh entropy in
+    # lockstep with generation — no outline, no predetermined final. The
+    # orchestrator's run_center_ice() owns the whole show: code-built beats
+    # for pregame/periods/intermissions, a scoreguard on every line, and a
+    # writer-outlined call-in show after the horn. Ad breaks are structural
+    # (hockey-real spots), not the every-4-parts cadence.
+    parts_per_beat: 2         # 16 beats x 2 parts fits the 2h window w/ OT room
+    lines_per_beat: 22
+    ad_cadence: structural
     energy: "live sports broadcast; professional urgency about an absurd league"
     segments:
       - "Pregame — lines, storylines, Sal's first unverifiable statistic"
       - "The Periods — live play-by-play; goals, penalties, momentum"
       - "Intermission — booth chatter, a rink-side 'interview'"
-      - "Postgame — final score, three stars, what it means for the standings"
+      - "Postgame — final horn, three stars, then the call-in show"
 
   - id: morning_scramble
     show: "The Morning Scramble"
