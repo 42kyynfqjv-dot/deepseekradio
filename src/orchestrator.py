@@ -150,6 +150,12 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     _sstate_save(st)
 
 
+def _tail_context(lines):
+    tail = "\n".join(f"{ln.get('speaker')}: {ln.get('text')}" for ln in lines[-6:])
+    return ("LAST LINES SPOKEN ON AIR (continue directly from these):\n" + tail
+            if tail else "")
+
+
 def run_show(daypart, config, schedule, live: bool):
     models = config["models"]
     state = lore.load()
@@ -181,11 +187,26 @@ def run_show(daypart, config, schedule, live: bool):
         print(f"  (news skipped: {e})")
 
     st = _sstate()
-    window_key = f"{daypart['id']}:{_now():%Y-%m-%d-%H}"
     opened_key = f"{daypart['id']}:{_now():%Y-%m-%d}"
     first_of_window = st.get("opened") != opened_key
-    outline = write_outline(daypart, models, state, weekday,
-                            first_of_window=first_of_window)
+    # bridge the outline latency: while the writer thinks (~1-3 min), a second
+    # short beat generates and airs so a cold start never goes quiet
+    with ThreadPoolExecutor(max_workers=1) as wpool:
+        outline_fut = wpool.submit(write_outline, daypart, models, state,
+                                   weekday, first_of_window)
+        try:
+            daypart["_target_lines"] = 10
+            bridge = {"segment": "Bridge",
+                      "premise": "carrying the moment while the show gathers itself",
+                      "beat": "continue naturally from the last thing said — same "
+                              "topic, one small development, in this show's own "
+                              "register. No callers, no greetings, no wrap."}
+            _emit(perform_beat(bridge, daypart, models, state,
+                               _tail_context(opener_lines)),
+                  f"{daypart['id']}-bridge", config, live, fx=fx)
+        except Exception as e:
+            print(f"  (bridge skipped: {e})")
+        outline = outline_fut.result()
     st["opened"] = opened_key
     _sstate_save(st)
     if outline.get("guest"):

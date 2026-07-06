@@ -94,9 +94,9 @@ feed() {
     fi
     f=$(ls "$BUF"/incoming/*.wav 2>/dev/null | sort | head -1)
     if [ -z "$f" ]; then
-      # brief drought: breathe room tone and wait up to ~45s for the next
-      # segment before surrendering the air to the reserve rotation
-      for i in $(seq 1 30); do
+      # brief drought: a short breath of room tone, then AUDIBLE reserve
+      # content — long near-silence is dead air, the one unforgivable sin
+      for i in $(seq 1 4); do
         ffmpeg -v quiet -i "$FILLER" -t 1.5 -f s16le -ar 24000 -ac 1 - </dev/null
         f=$(ls "$BUF"/incoming/*.wav 2>/dev/null | sort | head -1)
         [ -n "$f" ] && break
