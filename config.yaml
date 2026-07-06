@@ -32,6 +32,9 @@ generation:
   words_per_minute: 145
   # Spoken lines per beat (bigger = more audio per LLM call = steadier buffer).
   lines_per_beat: 22
+  # Each beat plays out as N chained parts of one continuous scene (~2 min each):
+  # callers stay on the line, bits escalate, segments run 5-6+ minutes.
+  parts_per_beat: 3
   # Keep the buffer this many minutes ahead of playback.
   buffer_target_minutes: 45
 

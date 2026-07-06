@@ -114,7 +114,18 @@ def run_show(daypart, config, live: bool):
         print(f"  GUEST: {outline['guest']}\n")
 
     daypart["_target_lines"] = config["generation"].get("lines_per_beat", 22)
-    beats = outline.get("beats", [])
+    parts = config["generation"].get("parts_per_beat", 3)
+    # each outline beat becomes N chained parts of one continuous scene
+    beats = []
+    for b in outline.get("beats", []):
+        for pi in range(parts):
+            bb = dict(b)
+            if pi > 0:
+                bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
+                              f"part {pi+1} of {parts}: same characters and callers still "
+                              "present, go deeper, escalate — do not resolve or move on"
+                              + ("" if pi < parts - 1 else "; you may land the punchline now"))
+            beats.append(bb)
 
     def _context(i, prev_lines):
         """True continuity: outline recap + the actual last lines spoken."""

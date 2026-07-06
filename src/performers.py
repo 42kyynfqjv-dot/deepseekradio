@@ -62,6 +62,9 @@ STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
 LORE: {lore.digest(lore_state, limit=6)}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
+- Let scenes BREATHE: a caller or guest stays on the line for a long,
+  winding conversation — follow-up questions, tangents, escalation. Never
+  rush to the next caller or wrap a bit early; the slow build IS the show.
 - You are ALREADY ON AIR, mid-show, mid-flow. Do NOT re-introduce the show, the
   host, or the segment. No "welcome back", no "you're listening to", no
   greetings — pick up exactly where the story so far leaves off, as if the
