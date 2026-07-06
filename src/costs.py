@@ -32,12 +32,20 @@ def estimate(config: dict) -> dict:
     wr_usd = (wr_runs * wr_in) / 1e6 * wr["price_in"] + \
              (wr_runs * wr_out) / 1e6 * wr["price_out"]
 
+    # Hourly KAOS News: one small writer call per hour.
+    news_usd = 0.0
+    if config.get("news", {}).get("enabled"):
+        runs = 24 * 30
+        news_usd = (runs * 1200) / 1e6 * wr["price_in"] + \
+                   (runs * 300) / 1e6 * wr["price_out"]
+
     return {
         "performer_model": perf["id"],
         "writer_model": wr["id"],
         "performer_usd": perf_usd,
         "writer_usd": wr_usd,
-        "total_usd": perf_usd + wr_usd,
+        "news_usd": news_usd,
+        "total_usd": perf_usd + wr_usd + news_usd,
     }
 
 
@@ -47,6 +55,8 @@ def main():
     print("KAOS-FM — estimated monthly LLM cost\n")
     print(f"  performers  {e['performer_model']:<45} ${e['performer_usd']:.2f}")
     print(f"  head writer {e['writer_model']:<45} ${e['writer_usd']:.2f}")
+    if e["news_usd"]:
+        print(f"  hourly news {e['writer_model']:<45} ${e['news_usd']:.2f}")
     print(f"  {'-'*62}")
     print(f"  LLM total{'':<48}${e['total_usd']:.2f}/mo")
     print("  + Kokoro TTS (self-hosted): $0   + server: your Netcup box")

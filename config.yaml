@@ -26,12 +26,22 @@ models:
 generation:
   # How much dialogue to produce per performer call (minutes of audio).
   segment_minutes: 5
-  # Rolling context fed back to performers (tokens). 4k = richer continuity.
-  context_tokens: 4000
+  # Rolling context fed back to performers (tokens). 4.5k = richer continuity.
+  context_tokens: 4500
   # Words per minute of speech, for pacing + cost estimates.
   words_per_minute: 145
   # Keep the buffer this many minutes ahead of playback.
   buffer_target_minutes: 45
+
+news:
+  # Hourly "KAOS News": real headlines pulled from RSS, mangled by the writer
+  # into the station's absurd 90-second top-of-the-hour bulletin.
+  enabled: true
+  feeds:
+    - https://feeds.bbci.co.uk/news/world/rss.xml
+    - https://hnrss.org/frontpage
+  headlines_per_bulletin: 4
+  # small writer call each hour: ~1.2k in / 300 out on the writer model
 
 tts:
   engine: kokoro
