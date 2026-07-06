@@ -23,11 +23,14 @@ LAST_SPOT_FILE="$BUF/.last_spot"
 
 bed_for() {
   # segment filenames encode the show id: 000000123_night-shift-....wav
+  # pick a random variant of the mood so beds never wear a groove
+  local mood
   case "$(basename "$1")" in
-    *morning-scramble*) echo "$BEDS/morning.wav" ;;
-    *night-shift*|*static-hour*|*dawn-patrol*) echo "$BEDS/night.wav" ;;
-    *) echo "$BEDS/day.wav" ;;
+    *morning-scramble*) mood=morning ;;
+    *night-shift*|*static-hour*|*dawn-patrol*) mood=night ;;
+    *) mood=day ;;
   esac
+  ls "$BEDS/${mood}"*.wav 2>/dev/null | shuf -n1
 }
 
 play_file() {
