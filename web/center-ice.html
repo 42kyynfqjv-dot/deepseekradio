@@ -74,7 +74,7 @@
   <footer>WFRQ · CENTER ICE · EVERY GAME IS FINAL, INCLUDING THE ONES THAT HAVEN'T HAPPENED</footer>
 </main>
 <script>
-fetch('/league.json').then(r=>r.json()).then(d=>{
+fetch('/data/league.json').then(r=>r.json()).then(d=>{
   const bug=document.getElementById('bug');
   if(d.broadcast){
     bug.hidden=false;

@@ -396,7 +396,7 @@ def _event_sheet(game: dict) -> str:
             f"Attendance {ev['attendance']:,}.")
 
 
-def export(path: str = "/var/www/bestairadio/league.json") -> None:
+def export(path: str = "/var/www/bestairadio/data/league.json") -> None:
     """Publish the league to the website: standings, tonight/last game with
     its event log, recent around-the-league scores. Best-effort."""
     try:
