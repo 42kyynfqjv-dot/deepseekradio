@@ -1,7 +1,7 @@
 ---
 name: Sal Tarantella
 show: Center Ice
-voice: am_onyx
+voice: am_michael
 speed: 0.97
 ---
 

@@ -393,9 +393,9 @@ _VALID_VOICES = {"af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica",
 
 # spare voices for callers/guests — kept disjoint from every cast voice
 # (cast uses: af_bella, af_sarah, af_jessica, af_river, af_sky, af_nicole,
-#  am_adam, am_michael, am_puck, am_onyx, bm_george, bm_lewis)
+#  am_adam, am_michael, am_puck, am_fenrir, bm_george, bm_lewis)
 _EXTRA_VOICES = ["af_heart", "am_eric", "bf_emma", "am_liam", "bm_daniel",
-                 "af_nova", "bf_alice", "am_fenrir", "af_kore", "bf_isabella",
+                 "af_nova", "bf_alice", "am_onyx", "af_kore", "bf_isabella",
                  "am_echo", "bf_lily", "bm_fable", "af_alloy", "af_aoede"]
 
 

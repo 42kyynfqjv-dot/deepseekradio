@@ -465,7 +465,7 @@ def run_show(daypart, config, schedule, live: bool):
     # so no single bit can flood the lore pool)
     # quarantined shows (the Watcher) must NEVER seed shared lore — their
     # conspiracies resurface as daytime callbacks. Other arc shows (Center
-    # Ice) SHOULD: the whole station gets to care about the Otters.
+    # Ice) SHOULD: the whole station gets to care about the Apologies.
     arc_quarantine = bool(daypart.get("lore_quarantine"))
     lore.remember(state,
                   jokes=([] if arc_quarantine else (outline.get("new_jokes") or [])[:2]),
