@@ -97,10 +97,12 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                      f"theory is ALREADY: {continue_theory} — do NOT start a new "
                      "one. Resume it at the depth it had reached and keep "
                      "descending/widening from there.\n")
+    pacing = daypart.get("pacing")
+    pacing_line = f"\nPACING (hard rule for this show): {pacing}\n" if pacing else ""
     user = f"""Write the outline for this show. Today is {weekday}.
 
 SHOW: {daypart['show']}
-ENERGY: {daypart['energy']}{arc_line}
+ENERGY: {daypart['energy']}{pacing_line}{arc_line}
 CAST:
 {personas}
 

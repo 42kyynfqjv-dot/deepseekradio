@@ -52,10 +52,19 @@ dayparts:
     window: ["10:00", "13:00"]
     cast: [reginald, cosima]
     energy: "pretentious critics reviewing things that need no review"
+    pacing: >
+      Each beat is ONE complete review of a NEW, unrelated ordinary object
+      (a doorknob, Tuesday, silence, a specific stair): introduced with
+      ceremony, fought over, and given its FINAL rating out of seven moons
+      inside that single beat. NEVER carry a subject into the next beat —
+      a debate past ten minutes is a stale debate. Verdicts already
+      delivered may return only as brief callbacks ("as we established,
+      the doorknob earned four moons"). The show should land at least ten
+      verdicts an hour.
     segments:
-      - "Today's Subject — they review an ordinary object (a doorknob, Tuesday, silence)"
-      - "Out of Seven Moons — the rating, argued to the death"
-      - "Listener Dispute — a 'caller' disagrees; they are destroyed politely"
+      - "The Docket — the next ordinary object is introduced with ceremony"
+      - "Out of Seven Moons — the rating, argued and DELIVERED this beat"
+      - "Listener Dispute — a 'caller' disputes a PAST verdict; destroyed politely"
 
   - id: complaints_department
     show: "The Complaints Department"
