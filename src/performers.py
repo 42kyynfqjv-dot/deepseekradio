@@ -55,8 +55,10 @@ def _stable_hash(s: str) -> int:
 
 
 def _time_context() -> str:
-    """Coarse station time for the cast — coarse because segments air late."""
-    now = datetime.now()
+    """Coarse station time for the cast — AIR time, so what they say about
+    the hour is true when the listener hears it, not when it was written."""
+    from .clock import air_now
+    now = air_now()
     h = now.hour
     part = ("the middle of the night" if h < 5 else "early morning" if h < 9
             else "mid-morning" if h < 12 else "the afternoon" if h < 17

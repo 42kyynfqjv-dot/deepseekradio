@@ -22,7 +22,7 @@ from pathlib import Path
 
 import yaml
 
-from . import buffer, lore
+from . import buffer, clock, lore
 from .openrouter import METER
 from .performers import perform_beat
 from .writer import write_outline
@@ -189,7 +189,7 @@ def _tail_context(lines):
 def run_show(daypart, config, schedule, live: bool):
     models = config["models"]
     state = lore.load()
-    weekday = _now().strftime("%A")
+    weekday = clock.air_now().strftime("%A")  # the day it will AIR
     fx = daypart.get("id") if daypart.get("id") == "static_hour" else None
 
     print(f"\n{'='*70}\n  {daypart['show']}  ({daypart['window'][0]}-{daypart['window'][1]})"
@@ -229,7 +229,7 @@ def run_show(daypart, config, schedule, live: bool):
         print(f"  (news skipped: {e})")
 
     st = _sstate()
-    opened_key = f"{daypart['id']}:{_now():%Y-%m-%d}"
+    opened_key = f"{daypart['id']}:{clock.air_now():%Y-%m-%d}"
     first_of_window = st.get("opened") != opened_key
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
     # short beat generates and airs so a cold start never goes quiet
@@ -320,7 +320,7 @@ def run_show(daypart, config, schedule, live: bool):
                                   + ("" if pi < parts - 1 else ". You may gently land the bit now"))
             beats.append(bb)
 
-    day_key = f"{_now():%Y-%m-%d}"
+    day_key = f"{clock.air_now():%Y-%m-%d}"
     if st.get("callers_day") != day_key:
         st["callers_day"], st["callers_today"] = day_key, []
     used_names = set(st.get("callers_today", []))
@@ -360,9 +360,11 @@ def run_show(daypart, config, schedule, live: bool):
                           _tail_texts(opener_lines)) if beats else None
         threw = False
         for i, beat in enumerate(beats):
-            # near the window's end: throw to the next show instead of
-            # starting another beat the boundary would cut off
-            if not threw and _minutes_left(daypart) < 7:
+            # near the window's end ON AIR: throw to the next show instead of
+            # starting another beat the boundary would cut off. Wall time is
+            # wrong here — this beat airs buffered_seconds from now, so a
+            # wall-clock check teases a handoff and then keeps generating.
+            if not threw and _minutes_left(daypart, clock.air_now()) < 7:
                 nxt = _next_daypart(schedule, daypart)
                 print(f"\n--- Handoff -> {nxt['show']} ---")
                 daypart["_target_lines"] = 6
@@ -372,8 +374,9 @@ def run_show(daypart, config, schedule, live: bool):
                                      _tail_texts(prev))
                 _emit(lines, f"{daypart['id']}-handoff", config, live, fx=fx)
                 break
-            # never generate past the daypart boundary — the next show owns it
-            if _current_daypart(schedule, _now()) is not daypart:
+            # never generate past the daypart's AIR boundary — the next show
+            # owns everything that would air after it
+            if _current_daypart(schedule, clock.air_now()) is not daypart:
                 print("  (daypart ended — handing over to the next show)")
                 break
             _throttle(config, live)
@@ -427,7 +430,8 @@ def main(argv=None):
     buffer.ensure_dirs()
 
     while True:
-        dp = _current_daypart(schedule, _now())
+        # write for the show that owns the AIR slot this content will land in
+        dp = _current_daypart(schedule, clock.air_now())
         try:
             st = _sstate()
             if args.live and time.time() - st.get("last_spots", 0) > 30 * 60:
@@ -445,8 +449,8 @@ def main(argv=None):
             time.sleep(60)
         if args.once:
             return
-        # wait until the buffer needs more, or the daypart changes
-        while (_current_daypart(schedule, _now()) is dp
+        # wait until the buffer needs more, or the AIR daypart changes
+        while (_current_daypart(schedule, clock.air_now()) is dp
                and buffer.buffered_seconds() >
                config["generation"]["buffer_target_minutes"] * 60 * 0.5):
             time.sleep(60)
