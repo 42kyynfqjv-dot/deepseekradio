@@ -165,9 +165,11 @@ def run_show(daypart, config, schedule, live: bool):
         daypart["_target_lines"] = 6
         opener = {"segment": "Open", "premise": "mid-show, mid-thought",
                   "beat": "resume mid-thought about something small and physical "
-                          "in the studio (the mug, the chair, the window). No "
-                          "greetings, no welcome-backs, no teases, no running "
-                          "jokes — just a quiet, ordinary beat of radio."}
+                          "in the studio (the mug, the chair, the window), IN THIS "
+                          "SHOW'S OWN REGISTER AND ENERGY. No greetings, no "
+                          "welcome-backs, no teases, no running jokes, and NO "
+                          "callers in this beat — just the host(s), mid-show.",
+                  "no_bit": False}
         opener_lines = perform_beat(opener, daypart, models, state, "")
         _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
     except Exception as e:
