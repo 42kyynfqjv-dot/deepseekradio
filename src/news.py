@@ -37,7 +37,8 @@ def fetch_headlines(feeds: list[str], count: int, used: set | None = None) -> li
     return titles[:count]
 
 
-def write_bulletin(headlines: list[str], models: dict, bible: str) -> str:
+def write_bulletin(headlines: list[str], models: dict, bible: str,
+                   coming_up: str = "") -> str:
     """One small writer call -> the anchor's 90-second bulletin script."""
     if not headlines:
         headlines = ["(no news reached the bunker today)"]
@@ -57,7 +58,9 @@ def write_bulletin(headlines: list[str], models: dict, bible: str) -> str:
             "anchor. The anchor is always named Chip Hanley — no other anchor "
             "names, ever. Report at least ONE story completely straight, no "
             "joke. Never use the same comedic device twice in one bulletin. "
-            "End with a station tagline.")
+            + (f" Before the tagline, one line pointing at what's on now/next: "
+               f"'{coming_up}' continues after the news. " if coming_up else "")
+            + "End with a station tagline.")
     return chat(models["writer"],
                 [{"role": "system", "content": system},
                  {"role": "user", "content": user}])

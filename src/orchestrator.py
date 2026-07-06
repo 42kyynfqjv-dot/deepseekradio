@@ -68,6 +68,38 @@ def _current_daypart(schedule: dict, now: datetime) -> dict:
     return schedule["dayparts"][0]
 
 
+def _minutes_left(daypart: dict, now=None) -> float:
+    """Minutes until this daypart's window closes."""
+    now = now or _now()
+    end = dtime.fromisoformat(daypart["window"][1])
+    mins_now = now.hour * 60 + now.minute
+    mins_end = end.hour * 60 + end.minute
+    left = mins_end - mins_now
+    if left <= 0:
+        left += 24 * 60  # window wraps past midnight
+    return float(left)
+
+
+def _next_daypart(schedule: dict, daypart: dict) -> dict:
+    dps = schedule["dayparts"]
+    i = next((k for k, d in enumerate(dps) if d is daypart), 0)
+    return dps[(i + 1) % len(dps)]
+
+
+def _throw_beat(daypart: dict, nxt: dict) -> dict:
+    """The one sanctioned wrap: the host hands the air to the next show."""
+    cast = ", ".join(n.replace("_", " ") for n in nxt.get("cast", []))
+    return {"segment": "Handoff",
+            "premise": f"the show is ending; {nxt['show']} is next",
+            "beat": (f"THIS IS A SCHEDULED HANDOFF BEAT — the one place a "
+                     f"wrap-up is allowed. In character, briefly land the "
+                     f"current thread, then throw to what's next on The "
+                     f"Frequency: {nxt['show']} (host cast: {cast}). Tease it "
+                     "warmly or wryly in one or two lines, hand over the air, "
+                     "done. No long goodbyes."),
+            "grounding": "the clock on the studio wall", "callback": None}
+
+
 def _throttle(config: dict, live: bool):
     """Block while the buffer is comfortably ahead of playback."""
     if not live:
@@ -88,7 +120,7 @@ def _emit(lines: list[dict], label: str, config: dict, live: bool, fx=None):
         print(f"  ♪ {out.name}  (buffer: {buffer.buffered_seconds()/60:.1f} min)")
 
 
-def _news_bulletin(config: dict, live: bool):
+def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     """Frequency News — real headlines, mangled. Cooldown survives restarts."""
     ncfg = config.get("news", {})
     if not ncfg.get("enabled"):
@@ -102,7 +134,10 @@ def _news_bulletin(config: dict, live: bool):
             if time.time() - ts < 24 * 3600}
     heads = fetch_headlines(ncfg["feeds"], ncfg.get("headlines_per_bulletin", 4),
                             used=used)
-    script = write_bulletin(heads, config["models"], Path("station/bible.md").read_text())
+    coming = daypart["show"] if daypart else ""
+    script = write_bulletin(heads, config["models"],
+                            Path("station/bible.md").read_text(),
+                            coming_up=coming)
     lines = [{"speaker": "Frequency News", "voice": NEWS_VOICE, "text": ln.strip()}
              for ln in script.splitlines() if ln.strip()]
     print("\n--- Frequency News ---")
@@ -138,7 +173,7 @@ def run_show(daypart, config, schedule, live: bool):
         print(f"  (opener skipped: {e})")
 
     try:
-        _news_bulletin(config, live)
+        _news_bulletin(config, live, daypart)
     except Exception as e:  # news must never kill the show
         print(f"  (news skipped: {e})")
 
@@ -194,7 +229,18 @@ def run_show(daypart, config, schedule, live: bool):
     with ThreadPoolExecutor(max_workers=1) as pool:
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines)) if beats else None
+        threw = False
         for i, beat in enumerate(beats):
+            # near the window's end: throw to the next show instead of
+            # starting another beat the boundary would cut off
+            if not threw and _minutes_left(daypart) < 7:
+                nxt = _next_daypart(schedule, daypart)
+                print(f"\n--- Handoff -> {nxt['show']} ---")
+                daypart["_target_lines"] = 6
+                lines = perform_beat(_throw_beat(daypart, nxt), daypart,
+                                     models, state, _context(i, lines if i else opener_lines))
+                _emit(lines, f"{daypart['id']}-handoff", config, live, fx=fx)
+                break
             # never generate past the daypart boundary — the next show owns it
             if _current_daypart(schedule, _now()) is not daypart:
                 print("  (daypart ended — handing over to the next show)")

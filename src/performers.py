@@ -104,7 +104,8 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   host, or the segment — UNLESS this beat explicitly calls for a station ID,
   in which case do it once, briefly, in character. No "welcome back", no
   greetings, and NEVER sign off, wrap up, or say goodnight — the show keeps
-  rolling after this beat.
+  rolling after this beat. (Sole exception: a beat explicitly marked as a
+  SCHEDULED HANDOFF may wrap briefly and throw to the next show.)
 - Never define or explain a recurring bit, and never comment on the show
   itself or its "world" — no "classic segment", no "you've really built
   something here". The bit just happens.
@@ -181,7 +182,9 @@ def _polish(lines: list[dict], daypart: dict, models: dict) -> list[dict]:
         + "4. If the scene has more than one impossible/absurd element, keep the "
         "first and cut the rest.\n"
         "5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
-        "and any line that introduces the show or comments on the show itself.\n"
+        "and any line that introduces the show or comments on the show itself "
+        "(EXCEPT a scheduled throw to the next show — 'coming up next is X' — "
+        "keep those).\n"
         "6. Keep speaker labels consistent; the show's cast is: "
         + ", ".join(cast_names) + ". Leave caller names as they are.\n"
         "Return the SAME JSON schema, edited:\n"
