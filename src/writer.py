@@ -122,15 +122,19 @@ Return STRICT JSON:
   "callbacks_used": ["<lore you referenced>"]
 }}"""
 
+    msgs = [{"role": "system", "content": system},
+            {"role": "user", "content": user}]
     try:
-        raw = chat(models["writer"],
-                   [{"role": "system", "content": system},
-                    {"role": "user", "content": user}])
+        raw = chat(models["writer"], msgs)
     except Exception as e:
-        # the writer being down must never take the station down: run the
-        # show from its own recurring segments until the model recovers
-        print(f"  (writer unavailable, using segment fallback: {e})")
-        raw = ""
+        print(f"  (writer failed: {e} — trying backup model)")
+        try:  # backup: the polish model writes a serviceable outline
+            raw = chat(dict(models.get("polish", models["performer"]),
+                            max_tokens=2500), msgs)
+        except Exception as e2:
+            # nothing may take the station down: outline from the segments
+            print(f"  (backup writer failed too, segment fallback: {e2})")
+            raw = ""
     return _parse_json(raw, daypart)
 
 

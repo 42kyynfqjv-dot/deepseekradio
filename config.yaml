@@ -4,9 +4,11 @@
 models:
   # Head writer: smart, runs rarely (once per show). Writes the bit outlines.
   writer:
-    id: deepseek/deepseek-v4-pro
-    price_in: 0.435
-    price_out: 0.87
+    # v4-flash: pro endpoint returned empty completions repeatedly (2026-07-06);
+    # outlines don't need pro. Swap back if desired.
+    id: deepseek/deepseek-v4-flash
+    price_in: 0.09
+    price_out: 0.18
     temperature: 0.9
     max_tokens: 2500
 

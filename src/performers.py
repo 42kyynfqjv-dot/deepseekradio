@@ -220,7 +220,10 @@ def _polish(lines: list[dict], daypart: dict, models: dict,
            if beat.get("scheduled_handoff") else
            "5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
            "and any line that introduces the show or comments on the show itself.\n")
-        + "6. Keep speaker labels consistent; the show's cast is: "
+        + "6. Delete any line advancing a conspiracy or claim about real "
+        "people, real brands, real tragedies, health/medicine, or politics — "
+        "invented-absurd targets only.\n"
+        + "7. Keep speaker labels consistent; the show's cast is: "
         + ", ".join(cast_names) + ". Leave caller names as they are.\n"
         "Return the SAME JSON schema, edited:\n"
         + json.dumps({"lines": lines})
