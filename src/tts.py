@@ -41,13 +41,91 @@ def _spoken_year(m: re.Match) -> str:
     return f"{_two_words(hi)} {'oh ' + _ONES[lo] if lo < 10 else _two_words(lo)}"
 
 
+_ORD_ONES = {1: "first", 2: "second", 3: "third", 5: "fifth", 8: "eighth",
+             9: "ninth", 12: "twelfth"}
+
+
+def _ordinal_words(n: int) -> str:
+    """1st -> first ... 99th -> ninety ninth (espeak mangles digit ordinals)."""
+    if n in _ORD_ONES:
+        return _ORD_ONES[n]
+    if n < 20:
+        return _ONES[n] + "th"
+    t, o = divmod(n, 10)
+    if o == 0:
+        return _TENS[t][:-1] + "ieth"          # twenty -> twentieth
+    return f"{_TENS[t]} {_ordinal_words(o)}"
+
+
+def _spoken_time(m: re.Match) -> str:
+    """7:00 -> seven o'clock, 7:05 -> seven oh five, 11:47 -> eleven forty seven."""
+    h, mm = int(m.group(1)), int(m.group(2))
+    h12 = h % 12 or 12
+    if mm == 0:
+        return f"{_two_words(h12)} o'clock"
+    if mm < 10:
+        return f"{_two_words(h12)} oh {_ONES[mm]}"
+    return f"{_two_words(h12)} {_two_words(mm)}"
+
+
+def _spoken_digits(m: re.Match) -> str:
+    """Phone-style digit runs: 555-0142 -> five five five, zero one four two."""
+    return ", ".join(" ".join(_ONES[int(d)] for d in part)
+                     for part in m.group().split("-"))
+
+
+# written-for-the-eye -> said-out-loud (word-boundary, case-sensitive on purpose)
+_ABBREV = [
+    (re.compile(r"\bMr\.(?=\s)"), "Mister"),
+    (re.compile(r"\bMrs\.(?=\s)"), "Missus"),
+    (re.compile(r"\bMs\.(?=\s)"), "Miz"),
+    (re.compile(r"\bDr\.(?=\s+[A-Z])"), "Doctor"),
+    (re.compile(r"\bProf\.(?=\s+[A-Z])"), "Professor"),
+    (re.compile(r"\bSgt\.(?=\s+[A-Z])"), "Sergeant"),
+    (re.compile(r"\bCapt\.(?=\s+[A-Z])"), "Captain"),
+    (re.compile(r"\bLt\.(?=\s+[A-Z])"), "Lieutenant"),
+    (re.compile(r"\bSt\.(?=\s+[A-Z])"), "Saint"),        # St. Mary
+    (re.compile(r"(?<=[a-z] )St\.?(?=[\s,.!?]|$)"), "Street"),  # Main St.
+    (re.compile(r"\bAve\.?(?=[\s,.!?]|$)"), "Avenue"),
+    (re.compile(r"\bBlvd\.?(?=[\s,.!?]|$)"), "Boulevard"),
+    (re.compile(r"\bRd\.(?=[\s,.!?]|$)"), "Road"),
+    (re.compile(r"\betc\.?(?=[\s,.!?]|$)"), "et cetera"),
+    (re.compile(r"\bvs\.?(?=\s)"), "versus"),
+    (re.compile(r"\bapprox\.(?=\s)"), "approximately"),
+    (re.compile(r"\bNo\.(?=\s*\d)"), "number"),
+    (re.compile(r"\bmph\b"), "miles an hour"),
+]
+
+
 def clean_for_speech(text: str) -> str:
-    """Strip typography the models write but a voice should never read aloud."""
+    """Rewrite text written for READERS into text said by a SPEAKER, then strip
+    typography. Models will always produce eye-formats (1998, 7:30, Dr., 24/7,
+    .com, 0.4) — assume every one of them, and normalize here, in one place."""
     t = text
     t = re.sub(r"\*[^*]{1,80}\*", " ", t)           # *stage directions* FIRST
     t = re.sub(r"\[[^\]]*\]|\([^)]*\)", " ", t)     # bracketed directions
+    for pat, rep in _ABBREV:                        # Dr. / Mr. / Main St. / mph
+        t = pat.sub(rep, t)
+    t = re.sub(r"(\d),(\d{3})\b", r"\1\2", t)       # 12,000 -> 12000
+    t = re.sub(r"(\d)\s*°\s*F\b", r"\1 degrees fahrenheit", t)
+    t = re.sub(r"(\d)\s*°\s*C\b", r"\1 degrees celsius", t)
+    t = re.sub(r"(\d)\s*°", r"\1 degrees", t)
     t = re.sub(r"(\d)\s*%", r"\1 percent", t)       # symbols -> words
-    t = re.sub(r"\$(\d[\d,.]*)", r"\1 dollars", t)
+    t = re.sub(r"\$(\d[\d.]*)", r"\1 dollars", t)
+    t = re.sub(r"\b24/7\b", "twenty-four seven", t)
+    t = re.sub(r"#(\d)", r"number \1", t)
+    t = re.sub(r"\.(com|net|org|fm|io|gov)\b", r" dot \1", t)
+    # am/pm BEFORE clock digits turn into words (needs the digit to anchor,
+    # so "I am" can never match)
+    t = re.sub(r"(\d)\s*[aA]\.?[mM]\.?(?=[\s,.!?]|$)", r"\1 ay em", t)
+    t = re.sub(r"(\d)\s*[pP]\.?[mM]\.?(?=[\s,.!?]|$)", r"\1 pee em", t)
+    t = re.sub(r"\b(\d{1,2}):([0-5]\d)\b", _spoken_time, t)     # clock times
+    t = re.sub(r"\b\d{3}-(?:\d{3}-)?\d{4}\b", _spoken_digits, t)  # phone shapes
+    t = re.sub(r"(\d)\s*-\s*(\d)", r"\1 to \2", t)  # 5-10 -> 5 to 10 (ranges)
+    t = re.sub(r"\b(\d{1,2})(st|nd|rd|th)\b",
+               lambda m: _ordinal_words(int(m.group(1))), t)    # 3rd -> third
+    t = re.sub(r"(\d)\.(\d+)", lambda m: m.group(1) + " point " +
+               " ".join(_ONES[int(d)] for d in m.group(2)), t)  # 0.4 decimals
     t = re.sub(r"(?<![\d-])(1[89]\d{2}|20\d{2})(?!\d)", _spoken_year, t)  # years
     t = t.replace("&", " and ")
     t = re.sub(r"[*_~`#]+", "", t)                  # leftover markdown
