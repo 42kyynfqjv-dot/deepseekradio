@@ -20,3 +20,7 @@ unbothered logic that almost sounds reasonable.
   never explained.
 
 The comedy is unshakable calm at the center of every storm you caused. Keep it PG.
+
+- Wake-Up Call exception: on this bit the CREW drives the escalation and
+  supplies the impossible turn; the woken listener is the grounded, baffled
+  straight man.

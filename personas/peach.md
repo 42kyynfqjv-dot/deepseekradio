@@ -18,3 +18,7 @@ is technically *her* chair. You demand tribunals. You keep receipts.
 - You love the listeners and address them like your personal jury.
 
 The comedy is operatic stakes applied to nothing. Keep it PG.
+
+- Wake-Up Call exception: on this bit the CREW drives the escalation and
+  supplies the impossible turn; the woken listener is the grounded, baffled
+  straight man.

@@ -32,13 +32,21 @@ def _persona(name: str) -> tuple[str, str]:
     return display, text
 
 
-def _guest_voices() -> dict:
-    """Voice map from the guest pool file: '**Name** (voice: xx_yyy)'."""
-    p = _PERSONAS / "guests.md"
-    if not p.exists():
+def _bullet_voices(path: Path) -> dict:
+    """Voice map from persona bullets: '**Name** (voice: xx_yyy[, speed: s])'.
+    Returns {lowercase name: (voice, speed)}."""
+    if not path.exists():
         return {}
-    return {name.lower(): voice for name, voice in
-            re.findall(r"\*\*(.+?)\*\*\s*\(voice:\s*(\w+)\)", p.read_text())}
+    out = {}
+    for name, voice, speed in re.findall(
+            r"\*\*(.+?)\*\*\s*\(voice:\s*(\w+)(?:,\s*speed:\s*([\d.]+))?\)",
+            path.read_text()):
+        out[name.lower()] = (voice, float(speed) if speed else 0.97)
+    return out
+
+
+def _guest_voices() -> dict:
+    return _bullet_voices(_PERSONAS / "guests.md")
 
 
 def _stable_hash(s: str) -> int:
@@ -69,6 +77,26 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                  "No callbacks this beat — do NOT reference any running joke or lore.")
     grounding = beat.get("grounding")
     grounding_line = f"GROUNDING DETAIL (mundane anchor, use it): {grounding}" if grounding else ""
+    guest_line = (f"TONIGHT'S GUEST: {beat['_guest']} — use exactly this name as "
+                  "the guest's speaker label." if beat.get("_guest") else "")
+    if beat.get("no_bit") or daypart.get("absurdity") == "none":
+        absurdity_line = ("- NO BIT: zero impossible or absurd elements in this "
+                          "beat — sincere, plain radio.")
+    elif daypart.get("absurdity") == "optional":
+        absurdity_line = ("- At most ONE absurd element, and most beats should "
+                          "have none — this show's comedy is human friction, "
+                          "not absurdism.")
+    else:
+        absurdity_line = ("- ABSURDITY BUDGET: exactly ONE impossible or absurd "
+                          "element in this beat — never add a second. Roughly one "
+                          "exchange in three is completely mundane, plain radio "
+                          "(the tea, the weather, the desk, the hour). The "
+                          "mundane parts are what make the absurd part land.")
+    monologue_line = ("- THIS BEAT IS A MONOLOGUE: one voice runs long; the caps "
+                      "below do not apply to them." if beat.get("monologue") else "")
+    handoff_exception = (" (Sole exception: this beat IS a scheduled handoff — "
+                         "wrap briefly and throw to the next show.)"
+                         if beat.get("scheduled_handoff") else "")
 
     system = (
         "You are the performing cast of a radio segment on The Frequency. Turn the beat "
@@ -82,30 +110,31 @@ SEGMENT: {beat.get('segment')}
 PREMISE: {beat.get('premise')}
 BEAT TO PLAY: {beat.get('beat')}
 {grounding_line}
+{guest_line}
 {lore_line}
+{monologue_line}
 
 STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
-- ABSURDITY BUDGET: exactly ONE impossible or absurd element in this beat —
-  never add a second. Roughly one exchange in three is completely mundane,
-  plain radio (the tea, the weather, the desk, the hour). The mundane parts
-  are what make the absurd part land.
-- Call-in segments are DUETS: the caller carries at least 40 percent of the
-  lines. The host asks short, sincere questions; the CALLER escalates, the
-  host de-escalates. The host never invents impossible facts. (If a persona
-  explicitly defines a different caller dynamic, the persona wins.)
-- No speaker gets more than 2 consecutive lines, and host lines stay short
-  (under ~25 words). Radio is turn-taking, not monologue. (Exception: if a
-  persona explicitly defines a monologue register, the persona wins.)
+{absurdity_line}
+- Call-in AND guest-interview segments are DUETS: the caller or guest carries
+  at least 40 percent of the lines. The host asks short, sincere questions;
+  the CALLER escalates, the host de-escalates. The host never invents
+  impossible facts. With co-hosts, the hosts' combined share stays under 60
+  percent, split roughly evenly. (If a persona explicitly defines a different
+  caller dynamic for a specific bit, the persona wins.)
+- No speaker gets more than 2 consecutive lines. Host lines stay short
+  (under ~25 words). Exception: when a persona or this beat explicitly
+  declares a monologue register, BOTH the consecutive-line cap and the
+  short-line guidance are waived for that speaker; callers still stay punchy.
 - Let scenes BREATHE: a caller or guest stays on the line for a long,
   winding conversation — follow-ups, tangents. Never rush to the next caller.
 - You are ALREADY ON AIR, mid-show, mid-flow. Do NOT re-introduce the show, the
   host, or the segment — UNLESS this beat explicitly calls for a station ID,
   in which case do it once, briefly, in character. No "welcome back", no
   greetings, and NEVER sign off, wrap up, or say goodnight — the show keeps
-  rolling after this beat. (Sole exception: a beat explicitly marked as a
-  SCHEDULED HANDOFF may wrap briefly and throw to the next show.)
+  rolling after this beat.{handoff_exception}
 - Never define or explain a recurring bit, and never comment on the show
   itself or its "world" — no "classic segment", no "you've really built
   something here". The bit just happens.
@@ -129,8 +158,8 @@ Return STRICT JSON:
                 {"role": "user", "content": user}])
     lines = _parse_lines(raw)
     if "polish" in models and lines:
-        lines = _polish(lines, daypart, models)
-    return _attach_voices(lines, daypart)
+        lines = _polish(lines, daypart, models, beat)
+    return _attach_voices(lines, daypart, guest=beat.get("_guest"))
 
 
 _NONSPEAKER = re.compile(r"sfx|sound|effect|narrator|stage|music|jingle|\bfx\b", re.I)
@@ -164,28 +193,34 @@ def _parse_lines(raw: str) -> list[dict]:
         return []
 
 
-def _polish(lines: list[dict], daypart: dict, models: dict) -> list[dict]:
+def _polish(lines: list[dict], daypart: dict, models: dict,
+            beat: dict | None = None) -> list[dict]:
     """Script-doctor: a cheap, low-temp mechanical edit pass. Deterministic
     backstop for the prompt rules — never adds jokes, only removes tells."""
+    beat = beat or {}
     cast_names = [_persona(n)[0] for n in daypart["cast"]]
-    monologue_show = any("OWN THIS HOUR" in _persona(n)[1] or "monologue" in _persona(n)[1]
-                         for n in daypart["cast"])
+    monologue_show = (any("OWN THIS HOUR" in _persona(n)[1] for n in daypart["cast"])
+                      or bool(daypart.get("solo")) or bool(beat.get("monologue")))
     user = (
         "You are a radio script editor. Edit ONLY mechanically — do not add "
         "jokes, do not change anyone's style. Apply exactly these rules:\n"
         "1. Delete narrated sound effects, stage directions, onomatopoeia.\n"
         "2. Delete precise clock times.\n"
-        + ("3. Leave host monologues intact — this show's format is "
-           "monologue-driven; only trim CALLER runs longer than 3 lines.\n"
+        + ("3. Leave host monologues intact — this format runs long on "
+           "purpose; only trim CALLER runs longer than 3 lines.\n"
            if monologue_show else
            "3. If a speaker has more than 2 consecutive lines, merge or trim to 2.\n")
-        + "4. If the scene has more than one impossible/absurd element, keep the "
-        "first and cut the rest.\n"
-        "5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
-        "and any line that introduces the show or comments on the show itself "
-        "(EXCEPT a scheduled throw to the next show — 'coming up next is X' — "
-        "keep those).\n"
-        "6. Keep speaker labels consistent; the show's cast is: "
+        + ("4. This beat is played straight: cut ANY impossible/absurd element.\n"
+           if beat.get("no_bit") or daypart.get("absurdity") == "none"
+           else "4. If the scene has more than one impossible/absurd element, keep "
+                "the first and cut the rest.\n")
+        + ("5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
+           "and any line that introduces the show or comments on the show itself "
+           "(EXCEPT the scheduled throw to the next show in this beat — keep it).\n"
+           if beat.get("scheduled_handoff") else
+           "5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
+           "and any line that introduces the show or comments on the show itself.\n")
+        + "6. Keep speaker labels consistent; the show's cast is: "
         + ", ".join(cast_names) + ". Leave caller names as they are.\n"
         "Return the SAME JSON schema, edited:\n"
         + json.dumps({"lines": lines})
@@ -217,35 +252,46 @@ _EXTRA_VOICES = ["af_heart", "am_eric", "bf_emma", "am_liam", "bm_daniel",
                  "am_echo", "bf_lily", "bm_fable", "af_alloy", "af_aoede"]
 
 
-def _attach_voices(lines: list[dict], daypart: dict) -> list[dict]:
-    """Cast speakers get their persona voice; guests get their pool voice;
-    callers get a stable spare voice + phone tag for the TTS treatment."""
+def _attach_voices(lines: list[dict], daypart: dict,
+                   guest: str | None = None) -> list[dict]:
+    """Cast speakers get their persona voice; rotating-desk employees and pool
+    guests get their bullet voices (full-band, in studio); callers get a
+    stable spare voice + phone tag for the TTS treatment."""
     voices, speeds = {}, {}
+    named = {}  # name -> (voice, speed) for desk employees + guest pool
     for name in daypart["cast"]:
         display, text = _persona(name)
         m = re.search(r"^voice:\s*(.+)$", text, re.MULTILINE)
         v = m.group(1).strip() if m else "am_adam"
         ms = re.search(r"^speed:\s*(.+)$", text, re.MULTILINE)
         s = float(ms.group(1)) if ms else 1.0
-        voices[display.lower()] = v
-        speeds[v] = s
-        voices[name.lower()] = v
-    guests = _guest_voices()
+        if v in _VALID_VOICES:
+            voices[display.lower()] = v
+            speeds[v] = s
+            voices[name.lower()] = v
+        else:  # "rotates": resolve employees from the persona's own bullets
+            named.update(_bullet_voices(_PERSONAS / f"{name}.md"))
+    named.update(_guest_voices())
     for ln in lines:
         spk = str(ln.get("speaker", "")).lower()
         # word-boundary match so "Kai" never matches "Kaitlyn from Duluth"
         cast_v = next((v for k, v in voices.items()
                        if re.search(r"\b" + re.escape(k) + r"\b", spk)), None)
-        if cast_v not in _VALID_VOICES:
-            cast_v = None  # e.g. complaints desk "rotates" — fall to pool
-        guest_v = next((v for k, v in guests.items()
-                        if k in spk or spk in k), None) if not cast_v else None
+        named_hit = None
+        if not cast_v:
+            named_hit = next((vs for k, vs in named.items()
+                              if k in spk or spk in k or
+                              any(w in spk.split() for w in k.split() if len(w) > 3)),
+                             None)
         if cast_v:
             ln["voice"] = cast_v
             ln["speed"] = speeds.get(cast_v, 1.0)
-        elif guest_v in _VALID_VOICES:
-            ln["voice"] = guest_v
-            ln["speed"] = 0.97
+        elif named_hit and named_hit[0] in _VALID_VOICES:
+            v, s = named_hit
+            if v in voices.values():  # never share a voice with a live co-host
+                v = _EXTRA_VOICES[_stable_hash(spk) % len(_EXTRA_VOICES)]
+            ln["voice"] = v
+            ln["speed"] = s
         else:  # caller: stable distinct voice + telephone treatment
             h = _stable_hash(spk)
             ln["voice"] = _EXTRA_VOICES[h % len(_EXTRA_VOICES)]

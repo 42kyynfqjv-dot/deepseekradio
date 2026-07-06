@@ -29,7 +29,7 @@ def _load_personas(cast: list[str]) -> str:
 
 
 def write_outline(daypart: dict, models: dict, lore_state: dict,
-                  weekday: str) -> dict:
+                  weekday: str, first_of_window: bool = True) -> dict:
     """Return an outline dict: {show, beats:[{segment, premise, beat}], guest?}."""
     bible = _BIBLE.read_text()
     personas = _load_personas(daypart["cast"])
@@ -38,11 +38,38 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
     policy = str(daypart.get("guest", "never")).lower()
     wants_guest = (policy in ("always", "true") or
                    (policy == "wednesday" and weekday == "Wednesday"))
+    role = daypart.get("guest_role", "cameo")
+    role_txt = {"host": "The guest IS today's sole host — they man the phones for "
+                        "the entire show; write every beat for them.",
+                "persistent": "Weave the guest into nearly every beat — they are in "
+                              "studio for the full show and never leave.",
+                "cameo": "Weave them into 2-3 beats."}[role if role in
+                                                       ("host", "persistent") else "cameo"]
     guest_line = (("This show features a GUEST. Choose one from the GUEST POOL below "
                    f"(not already in {lore_state.get('guests_seen', [])[-6:]}), name them "
-                   "exactly as the pool does, and weave them into 2-3 beats.\n\nGUEST POOL:\n"
-                   + guest_pool)
+                   f"exactly as the pool does. {role_txt}\n\nGUEST POOL:\n" + guest_pool)
                   if wants_guest else "No guest today.")
+
+    lo, hi = daypart.get("outline_beats", [12, 16])
+    seg_count = len(daypart.get("segments", []))
+    open_txt = ('The FIRST beat must open with the host naturally identifying '
+                'themselves and the show in one or two in-character lines '
+                '("I\'m X, this is Y, on The Frequency") before flowing into the '
+                'beat — this is the ONLY beat that may do this.'
+                if first_of_window else
+                'The show has ALREADY been on air for a while: do NOT include any '
+                'self-identification or show-open beat — the first beat continues '
+                'mid-flow straight into a segment.')
+    sponsor_txt = ("" if daypart.get("sponsor") == "none" else
+                   " Put one or two SPONSOR-READ beats (a host reads a short ad "
+                   "for a recurring bible sponsor, in their own voice, slightly "
+                   "annoyed about it) in the FIRST HALF of the outline.")
+    fresh_txt = (" then add fresh angles on them." if hi > seg_count + 2 else ".")
+    beat_shape = (f"Write {lo}-{hi} beats total: cover each recurring segment at "
+                  f"least once,{fresh_txt} {open_txt}{sponsor_txt} Soft segment "
+                  "boundaries and throws are welcome. This outline is ONE STRETCH "
+                  "of a show that keeps rolling: never write an outro, wrap-up, "
+                  "sign-off, or cold-open beat — every beat is mid-show.")
 
     system = (
         "You are the head writer for The Frequency, a 24/7 comedy radio station. "
@@ -60,24 +87,17 @@ CAST:
 RECURRING SEGMENTS TO HIT:
 {segments}
 
-Write 12-16 beats total: cover each recurring segment at least once, then add
-fresh angles on them. The FIRST beat must open with the host naturally
-identifying themselves and the show in one or two in-character lines ("I'm X,
-this is Y, on The Frequency") before flowing into the beat — this is the ONLY
-beat that may do this; no other beat re-introduces anything. Put one or two SPONSOR-READ beats (a host reads a short
-ad for a recurring bible sponsor, in their own voice, slightly annoyed about
-it) in the FIRST HALF of the outline. Soft segment boundaries and throws
-("after this, X") are welcome. The outline must fill a long block of
-continuous air. This outline is ONE STRETCH of a show that runs for hours:
-never write an outro, wrap-up, sign-off, or cold-open beat — every beat is
-mid-show. The show never ends; it just keeps rolling.
+{beat_shape}
 
 Per beat also supply:
 - "grounding": one mundane physical detail to anchor the beat (the mug, rain
-  on the window, a squeaky chair) — the beat's ONE absurd element must float
-  on ordinary radio.
+  on the window, a squeaky chair).
 - "callback": normally null. For AT MOST 2 beats in the whole outline, name
   one lore item to reference. Every other beat must not touch lore.
+- "no_bit": normally false. Set true for sincerely straight beats (a wind-down,
+  an ident, a quiet moment) — zero absurdity in those.
+- "monologue": normally false. Set true when one voice should run long (a
+  declared solo register, a rating defense, a guest performing their craft).
 
 {guest_line}
 
@@ -96,7 +116,7 @@ Return STRICT JSON:
       "premise": "<one-line setup>",
       "beat": "<what happens, the turn, the punchline target>",
       "grounding": "<one mundane physical detail>",
-      "callback": null}}
+      "callback": null, "no_bit": false, "monologue": false}}
   ],
   "new_jokes": ["<any fresh running joke this show establishes>"],
   "callbacks_used": ["<lore you referenced>"]
@@ -122,7 +142,9 @@ def _parse_json(raw: str, daypart: dict) -> dict:
                              "premise": str(b.get("premise", "")),
                              "beat": str(b.get("beat")),
                              "grounding": str(b.get("grounding") or ""),
-                             "callback": (str(b["callback"]) if b.get("callback") else None)}
+                             "callback": (str(b["callback"]) if b.get("callback") else None),
+                             "no_bit": bool(b.get("no_bit")),
+                             "monologue": bool(b.get("monologue"))}
                             for b in beats]
             return out
         raise ValueError("bad outline shape")

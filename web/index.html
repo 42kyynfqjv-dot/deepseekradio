@@ -48,13 +48,12 @@
   .dial{position:relative;height:64px;border:1px solid var(--line);border-radius:10px;
     background:linear-gradient(180deg,var(--bg2),var(--panel));overflow:hidden;font-family:var(--mono)}
   .dial .marks{position:absolute;inset:0;display:flex;justify-content:space-between;
-    padding:10px 46px 10px 18px;color:var(--dim);font-size:.72rem}
+    padding:10px 34px 10px 18px;color:var(--dim);font-size:.72rem}
   .dial .marks s{text-decoration:none;border-left:1px solid var(--line);padding-left:5px;height:16px}
   .dial .needle{position:absolute;top:0;bottom:0;right:22px;width:3px;background:var(--red);
     box-shadow:0 0 14px var(--red)}
-  .dial .live{position:absolute;right:34px;top:9px;display:flex;align-items:center;gap:6px;
-    font-size:.62rem;letter-spacing:.22em;color:var(--red)}
-  .dial .live i{width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
+  .onair{display:inline-flex;align-items:center;gap:5px;color:var(--red);margin-left:8px}
+  .onair i{width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
   @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,71,87,.6)}50%{opacity:.5;box-shadow:0 0 0 7px rgba(255,71,87,0)}}
   .dial .cap{position:absolute;left:18px;bottom:6px;font-size:.6rem;letter-spacing:.14em;color:var(--dim)}
 
@@ -123,9 +122,7 @@
   .card .role{color:var(--amber);font-family:var(--mono);font-size:.66rem;letter-spacing:.1em}
   .card .when{color:var(--dim);font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;margin-top:1px}
   .card p{color:var(--dim);font-size:.84rem;margin-top:6px;line-height:1.45}
-  .strip{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-  .strip .card{align-items:center}
-  .strip .avatar.faded{filter:sepia(.55) opacity(.85)}
+  .avatar.faded{filter:sepia(.55) opacity(.85)}
 
   /* ── sponsors ── */
   .ads{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
@@ -183,7 +180,6 @@
       <div class="dial">
         <div class="marks"><s>88</s><s>92</s><s>96</s><s>100</s><s>104</s><s>108</s></div>
         <div class="needle"></div>
-        <div class="live"><i></i>ON AIR</div>
         <div class="cap">TUNED · JUST PAST THE END OF THE DIAL</div>
       </div>
       <div class="row">
@@ -191,7 +187,7 @@
           <svg id="playicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
         </button>
         <div class="nowplaying">
-          <div class="lab">NOW PLAYING</div>
+          <div class="lab">NOW PLAYING <span class="onair"><i></i>ON AIR</span></div>
           <div class="show" id="np-show"></div>
           <div class="hook" id="np-hook"></div>
           <div class="next" id="np-next"></div>
@@ -237,9 +233,7 @@
       <div class="card"><img class="avatar" src="faces/vivian.jpg" alt="Vivian Nightshade" loading="lazy"><div><h3>Vivian Nightshade</h3><div class="role">THE NIGHT SHIFT</div><div class="when" data-slot="5"></div><p>Late-night companion for insomniacs. Presiding judge of Dream Court. Verdicts are final.</p></div></div>
       <div class="card"><img class="avatar spooky" src="faces/watcher.jpg" alt="The Watcher" loading="lazy"><div><h3>The Watcher</h3><div class="role">THE STATIC HOUR</div><div class="when" data-slot="6"></div><p>Has Theories. About birds, about Tuesday, about the moon landing being filmed too well. The numbers will be read.</p></div></div>
       <div class="card"><img class="avatar" src="faces/dawn.jpg" alt="Dawn" loading="lazy"><div><h3>Dawn</h3><div class="role">DAWN PATROL</div><div class="when" data-slot="7"></div><p>One quiet hour. One quote of the day. The reset button on the whole beautiful mess.</p></div></div>
-    </div>
-    <div class="strip">
-      <div class="card"><img class="avatar" src="faces/complaints.jpg" alt="The Complaints Desk" loading="lazy"><div><h3>The Complaints Desk</h3><div class="role">A DIFFERENT UNQUALIFIED EMPLOYEE EVERY DAY</div><p>Your grievance will be escalated to someone who does not exist.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/complaints.jpg" alt="The Complaints Desk" loading="lazy"><div><h3>The Complaints Desk</h3><div class="role">THE COMPLAINTS DEPARTMENT</div><div class="when" data-slot="2"></div><p>A different unqualified employee every day. Your grievance will be escalated to someone who does not exist.</p></div></div>
       <div class="card"><img class="avatar faded" src="faces/guests.jpg" alt="The Guest Pool" loading="lazy"><div><h3>…and whoever shows up</h3><div class="role">THE GUEST POOL · WEDNESDAYS ESPECIALLY</div><p>A ghost from 1974. A knight afraid of the microphone. A time-traveler who keeps getting the year wrong.</p></div></div>
     </div>
   </section>
@@ -259,7 +253,7 @@
   <section id="about">
     <h2>What <em>Is</em> This</h2>
     <p class="sub" style="max-width:640px">The Frequency is a fully autonomous radio station broadcasting 24 hours a day.
-    The news is real. Everything else is not.</p>
+    The headlines are real. What we do to them is not.</p>
   </section>
 
 </main>
@@ -283,7 +277,7 @@
 <script>
 /* ── ticker: seamless loop of station nonsense ── */
 const TICKS = [
-  "FREQUENCY NEWS · LOCAL MAN REPORTEDLY UNSURE · DETAILS AT THE TOP OF EVERY HOUR",
+  "FREQUENCY NEWS · REAL HEADLINES, WRONGED HOURLY · LOCAL MAN REPORTEDLY UNSURE",
   "GARY'S DISCOUNT TEETH — NOW WITH FEWER",
   "THE VOID IS HIRING · NO EXPERIENCE POSSIBLE",
   "REGINALD'S ARTISANAL AIR — BREATHE, BUT FANCIER",

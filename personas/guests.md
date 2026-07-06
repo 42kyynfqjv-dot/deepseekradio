@@ -15,7 +15,7 @@ because the premise carries it.
   keeps asking about disco.
 - **The cult recruiter** (voice: af_sarah) — insists "it's a lifestyle brand,"
   not a cult; hard, cheerful sell; harmless.
-- **The time-traveler** (voice: am_adam) — keeps getting the year wrong, warns
+- **The time-traveler** (voice: am_echo) — keeps getting the year wrong, warns
   about things that already happened.
 - **The off-world weatherman** (voice: bm_george) — forecasts for a planet that
   isn't Earth; three suns, methane drizzle.

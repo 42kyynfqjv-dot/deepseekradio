@@ -91,6 +91,7 @@ def _throw_beat(daypart: dict, nxt: dict) -> dict:
     cast = ", ".join(n.replace("_", " ") for n in nxt.get("cast", []))
     return {"segment": "Handoff",
             "premise": f"the show is ending; {nxt['show']} is next",
+            "scheduled_handoff": True,
             "beat": (f"THIS IS A SCHEDULED HANDOFF BEAT — the one place a "
                      f"wrap-up is allowed. In character, briefly land the "
                      f"current thread, then throw to what's next on The "
@@ -123,7 +124,7 @@ def _emit(lines: list[dict], label: str, config: dict, live: bool, fx=None):
 def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     """Frequency News — real headlines, mangled. Cooldown survives restarts."""
     ncfg = config.get("news", {})
-    if not ncfg.get("enabled"):
+    if not ncfg.get("enabled") or (daypart and daypart.get("news", True) is False):
         return
     st = _sstate()
     if time.time() - st.get("last_news", 0) < 55 * 60:
@@ -177,7 +178,14 @@ def run_show(daypart, config, schedule, live: bool):
     except Exception as e:  # news must never kill the show
         print(f"  (news skipped: {e})")
 
-    outline = write_outline(daypart, models, state, weekday)
+    st = _sstate()
+    window_key = f"{daypart['id']}:{_now():%Y-%m-%d-%H}"
+    opened_key = f"{daypart['id']}:{_now():%Y-%m-%d}"
+    first_of_window = st.get("opened") != opened_key
+    outline = write_outline(daypart, models, state, weekday,
+                            first_of_window=first_of_window)
+    st["opened"] = opened_key
+    _sstate_save(st)
     if outline.get("guest"):
         print(f"  GUEST: {outline['guest']}\n")
     # drop structurally banned beats — the prompt ban demonstrably fails at temp 0.9
@@ -188,14 +196,17 @@ def run_show(daypart, config, schedule, live: bool):
                                    if b.get("premise")])
     lore.save(state)
 
-    daypart["_target_lines"] = config["generation"].get("lines_per_beat", 22)
-    parts = config["generation"].get("parts_per_beat", 3)
+    daypart["_target_lines"] = daypart.get(
+        "lines_per_beat", config["generation"].get("lines_per_beat", 22))
+    parts = daypart.get("parts_per_beat",
+                        config["generation"].get("parts_per_beat", 3))
     # each outline beat becomes N chained parts of one continuous scene
     beats = []
     for b in outline.get("beats", []):
         for pi in range(parts):
             bb = dict(b)
             bb["_part"] = pi
+            bb["_guest"] = outline.get("guest")
             if pi > 0:
                 bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
                               f"part {pi+1} of {parts}: same characters and callers still "
@@ -217,9 +228,15 @@ def run_show(daypart, config, schedule, live: bool):
         ctx = recap + ("LAST LINES SPOKEN ON AIR (continue directly from these):\n"
                        + tail if tail else "")
         if i > 0 and beats[i].get("_part", 0) == 0:
-            ctx += ("\nSCENE BREAK: the previous caller/guest hung up and is GONE "
-                    "— do not mention them. Open on the NEW beat with a new caller "
-                    "if the beat needs one.")
+            if (daypart.get("guest_role") in ("host", "persistent")
+                    and beats[i].get("_guest")):
+                ctx += ("\nSCENE BREAK: any previous CALLER is gone — but "
+                        f"tonight's guest ({beats[i]['_guest']}) is STILL in the "
+                        "studio; keep them present and speaking.")
+            else:
+                ctx += ("\nSCENE BREAK: the previous caller/guest hung up and is "
+                        "GONE — do not mention them. Open on the NEW beat with a "
+                        "new caller if the beat needs one.")
             if used_names:
                 ctx += ("\nCaller names already used tonight (do NOT reuse): "
                         + ", ".join(sorted(used_names)))
