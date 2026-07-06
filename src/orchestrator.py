@@ -92,6 +92,17 @@ def run_show(daypart, config, live: bool):
     print(f"\n{'='*70}\n  {daypart['show']}  ({daypart['window'][0]}-{daypart['window'][1]})"
           f"  —  {weekday}\n{'='*70}")
 
+    # quick open: a short beat first, so a cold start puts a voice on air fast
+    try:
+        daypart["_target_lines"] = 6
+        opener = {"segment": "Open", "premise": "settling back in mid-show",
+                  "beat": "a brief, in-character beat of welcome-back chatter; "
+                          "tease that more of the show is ahead"}
+        _emit(perform_beat(opener, daypart, models, state, ""),
+              f"{daypart['id']}-open", config, live)
+    except Exception as e:
+        print(f"  (opener skipped: {e})")
+
     try:
         _news_bulletin(config, live)
     except Exception as e:  # news must never kill the show

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 from . import lore
@@ -29,6 +30,16 @@ def _persona(name: str) -> tuple[str, str]:
     return display, text
 
 
+def _time_context() -> str:
+    """Coarse station time for the cast — coarse because segments air late."""
+    now = datetime.now()
+    h = now.hour
+    part = ("the middle of the night" if h < 5 else "early morning" if h < 9
+            else "mid-morning" if h < 12 else "the afternoon" if h < 17
+            else "the evening" if h < 21 else "late night")
+    return f"It is {now:%A}, {part}, station time."
+
+
 def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                  rolling_summary: str) -> list[dict]:
     """Generate the dialogue lines for a single beat."""
@@ -42,6 +53,7 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
         "guardrail absolutely.\n\n" + bible + "\n\nCAST:\n" + cast_text
     )
     user = f"""SHOW: {daypart['show']}
+{_time_context()}
 SEGMENT: {beat.get('segment')}
 PREMISE: {beat.get('premise')}
 BEAT TO PLAY: {beat.get('beat')}
@@ -56,6 +68,9 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   or joke about imaginary sounds. If a bit implies a sound, skip it and carry the
   moment with words alone.
 - Punctuation limited to . , ? ! and apostrophes.
+- NEVER state a precise clock time ("it's 11:47") — segments can air up to an
+  hour after writing. Speak of time loosely: "late night", "this hour",
+  "almost morning".
 - Give each distinct caller/guest a NAME as the speaker (e.g. "Caller Doreen",
   not just "Caller") so they get their own voice.
 Return STRICT JSON:
