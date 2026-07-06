@@ -21,9 +21,14 @@ feed() {
       # keep only the last 50 played segments
       ls -t "$BUF"/played/*.wav 2>/dev/null | tail -n +51 | xargs -r rm -f
     else
-      # buffer empty: play a station liner (round-robin) before resorting to noise
-      r=$(ls "$RESERVE"/*.wav 2>/dev/null | shuf -n1)
-      if [ -n "$r" ]; then
+      # buffer empty: no-repeat shuffled rotation through the reserve pool —
+      # every piece airs once before anything repeats
+      QUEUE="/tmp/frequency-reserve-queue"
+      if [ ! -s "$QUEUE" ]; then
+        ls "$RESERVE"/*.wav 2>/dev/null | shuf > "$QUEUE"
+      fi
+      r=$(head -1 "$QUEUE"); sed -i 1d "$QUEUE"
+      if [ -n "$r" ] && [ -f "$r" ]; then
         ffmpeg -v quiet -i "$r" -f s16le -ar 24000 -ac 1 - </dev/null
       else
         ffmpeg -v quiet -i "$FILLER" -f s16le -ar 24000 -ac 1 - </dev/null
