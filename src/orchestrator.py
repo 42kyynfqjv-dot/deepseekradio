@@ -93,13 +93,14 @@ def run_show(daypart, config, live: bool):
           f"  —  {weekday}\n{'='*70}")
 
     # quick open: a short beat first, so a cold start puts a voice on air fast
+    opener_lines = []
     try:
         daypart["_target_lines"] = 6
         opener = {"segment": "Open", "premise": "settling back in mid-show",
                   "beat": "a brief, in-character beat of welcome-back chatter; "
                           "tease that more of the show is ahead"}
-        _emit(perform_beat(opener, daypart, models, state, ""),
-              f"{daypart['id']}-open", config, live)
+        opener_lines = perform_beat(opener, daypart, models, state, "")
+        _emit(opener_lines, f"{daypart['id']}-open", config, live)
     except Exception as e:
         print(f"  (opener skipped: {e})")
 
@@ -115,19 +116,24 @@ def run_show(daypart, config, live: bool):
     daypart["_target_lines"] = config["generation"].get("lines_per_beat", 22)
     beats = outline.get("beats", [])
 
-    def _rolling(i):  # continuity summary = previous beat's outline entry
-        return "" if i == 0 else f"{beats[i-1].get('segment')}: {beats[i-1].get('beat')}"
+    def _context(i, prev_lines):
+        """True continuity: outline recap + the actual last lines spoken."""
+        recap = "" if i == 0 else f"{beats[i-1].get('segment')}: {beats[i-1].get('beat')}\n"
+        tail = "\n".join(f"{ln.get('speaker')}: {ln.get('text')}"
+                          for ln in prev_lines[-6:])
+        return (recap + ("LAST LINES SPOKEN ON AIR (continue directly from these):\n"
+                         + tail if tail else "")).strip()
 
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
-                          _rolling(0)) if beats else None
+                          _context(0, opener_lines)) if beats else None
         for i, beat in enumerate(beats):
             _throttle(config, live)
             lines = fut.result()
             if i + 1 < len(beats):
                 fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
-                                  state, _rolling(i + 1))
+                                  state, _context(i + 1, lines))
             print(f"\n--- {beat.get('segment')} ---")
             _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live)
 
