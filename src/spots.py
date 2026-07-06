@@ -24,7 +24,9 @@ SPOT_DIR = Path("spots")
 
 # rotation policy: (min_live, regenerate_batch, max_age_seconds, max_plays)
 POLICY = {
-    "ad":      (6, 3, 72 * 3600, 40),
+    # bigger live ad pool + earlier retirement: more sponsors on air at once,
+    # less copy fatigue per spot
+    "ad":      (16, 4, 72 * 3600, 24),
     "weather": (2, 2, 2.5 * 3600, 8),
     "traffic": (2, 2, 8 * 3600, 12),
 }
@@ -74,12 +76,12 @@ def _real_forecast() -> str:
 
 _BRIEFS = {
     "ad": """Write {n} DIFFERENT 15-25 second radio ads for The Frequency's recurring
-fictional sponsors. Rotate among: Gary's Discount Teeth, The Void (now hiring),
-Reginald's Artisanal Air, Doze (the sleep aid that is a man saying doze), the
-Frequency Gift Shop (one mug, not for sale) — or invent ONE new equally absurd
-clean sponsor. Each ad: single announcer, 4-6 short spoken lines, deadpan,
-PG, ends with the sponsor name. Fresh copy — do not repeat old taglines beyond
-the sponsor's core gag.""",
+fictional sponsors. Use the SPONSOR ROSTER from the station bible: each ad a
+DIFFERENT sponsor, chosen at random from the roster — do not favor the first
+few. Honor each sponsor's ONE core gag; never invent a new gag for an old
+sponsor. You may invent at most ONE brand-new equally absurd clean sponsor per
+batch. Each ad: single announcer, 4-6 short spoken lines, deadpan, PG, ends
+with the sponsor name. Fresh copy every time — no recycled taglines.""",
     "weather": """Write {n} DIFFERENT 15-20 second Frequency weather spots. Here is the REAL
 current forecast: {forecast}. Keep the real numbers roughly right (temperature,
 rain chance) so the forecast is genuinely useful, but deliver it in the

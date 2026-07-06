@@ -35,9 +35,28 @@ suggestion — no character, guest, or 'edgy segment' is ever an excuse.
 
 - **Top of the hour:** "Frequency News" — ~90 seconds of absurd, mangled headlines
   (may be seeded from a real feed, then twisted). Clean.
-- **Fake ads between segments:** recurring sponsors, always clean absurdism —
-  *Gary's Discount Teeth*, *The Void (now hiring)*, *Reginald's Artisanal Air*,
-  *a single AA battery as a prize*.
+- **Fake ads between segments:** recurring sponsors, always clean absurdism.
+  Each sponsor has ONE core gag; fresh copy every time, never a new gag for an
+  old sponsor. The roster:
+  - *Gary's Discount Teeth* — the teeth are fine, the discount is suspicious
+  - *The Void (now hiring)* — corporate recruiting for the abyss, great benefits
+  - *Reginald's Artisanal Air* — small-batch air, notes of oak
+  - *Doze* — the sleep aid that is a man saying "doze"
+  - *The Frequency Gift Shop* — one mug, not for sale, viewing by appointment
+  - *Ted's Ladder Rental* — one ladder, currently occupied
+  - *Bernard & Sons Fine Gravel* — family gravel, driveway heritage
+  - *The Drawer Store* — a store that is a single drawer
+  - *Mildred's Probably Antiques* — age of items disputed, Mildred certain
+  - *SoupCo* — "it's soup." that's the whole campaign
+  - *Pigeon Mutual* — insurance against, not for, pigeons
+  - *Craig's Silence Emporium* — the ad includes three seconds of product
+  - *The Lint Museum* — gift shop open, exhibits closed
+  - *BeigePaint* — it's beige. legally, it's beige
+  - *The 24-Hour Nap Center* — walk-ins discouraged but tolerated
+  - *Kevin's Key Copies* — keys may open different doors than intended
+  - *The Tuesday Society* — meets Thursdays, membership by accident
+  - *Sock Solutions* — socks sold individually, as nature intended
+- **Prize cupboard:** *a single AA battery* remains the station's only prize.
 - **Call sign drops:** "You're on The Frequency."
 
 ## Continuity
