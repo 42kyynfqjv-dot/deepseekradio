@@ -62,6 +62,10 @@ STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
 LORE: {lore.digest(lore_state, limit=6)}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
+- You are ALREADY ON AIR, mid-show, mid-flow. Do NOT re-introduce the show, the
+  host, or the segment. No "welcome back", no "you're listening to", no
+  greetings — pick up exactly where the story so far leaves off, as if the
+  previous sentence just ended.
 - Plain spoken words ONLY: no markdown, asterisks, stage directions, or emoji.
 - The station has NO sound effects, stings, or jingles. Never describe a sound,
   never imitate one (no onomatopoeia: no bang, ding, whoosh), and never react to
