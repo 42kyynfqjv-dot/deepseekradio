@@ -233,7 +233,7 @@ def _enforce_caller_policy(lines, daypart):
     # a take-line with no caller in the beat is an invitation to a ghost
     if not any(ln.get("phone") for ln in lines):
         lines = [ln for ln in lines
-                 if not re.search(r"\b(go ahead|you're on|caller)\b",
+                 if not re.search(r"\b(go ahead|you're on(?: the air)?)\b",
                                   ln.get("text", ""), re.I)
                  or ln.get("phone")]
     for ln in lines:
@@ -300,8 +300,10 @@ def _parse_lines(raw: str) -> list[dict]:
             if ln["text"] and ln["speaker"]:
                 out.append(ln)
         return out
-    except Exception:
-        # Never read malformed JSON aloud on air — skip the beat instead.
+    except Exception as e:
+        # Never read malformed JSON aloud on air — skip the beat instead,
+        # but LOUDLY: five silent empty beats sounded like a dead station.
+        print(f"  !! beat parse failed ({e}); raw head: {txt[:120]!r}")
         return []
 
 

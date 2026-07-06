@@ -19,10 +19,11 @@ models:
     price_in: 0.09
     price_out: 0.10
     temperature: 0.9
-    # anti-loop: repetition is a probability attractor; penalize it at the
-    # sampler, don't add more prompt rules (instruction saturation is real)
-    frequency_penalty: 0.35
-    presence_penalty: 0.15
+    # anti-loop: presence_penalty only — it fires ONCE per token so it nudges
+    # away from catchphrase reuse without accumulating against the repeated
+    # structural tokens of JSON output (frequency_penalty at 0.35 broke JSON
+    # entirely: every beat parsed empty. the echo-guard is the main defense)
+    presence_penalty: 0.12
     max_tokens: 2400
 
   # Script doctor: cheap low-temp mechanical edit pass on every beat (I5).
