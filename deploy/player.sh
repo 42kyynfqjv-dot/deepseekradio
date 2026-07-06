@@ -20,6 +20,23 @@ mkdir -p "$BUF/incoming" "$BUF/played"
 QUEUE="$BUF/reserve-queue"
 LAST_SPOT_FILE="$BUF/.last_spot"
 [ -f "$LAST_SPOT_FILE" ] || date +%s > "$LAST_SPOT_FILE"
+LAST_SHOW=""
+
+show_of() {
+  # 000000123_night-shift-the-quiet-part.wav -> night-shift (etc.)
+  local n; n=$(basename "$1"); n=${n#*_}
+  case "$n" in
+    morning-scramble*) echo morning-scramble ;;
+    refined-palate*)   echo refined-palate ;;
+    complaints*)       echo complaints ;;
+    the-handover*)     echo the-handover ;;
+    culture-vulture*)  echo culture-vulture ;;
+    night-shift*)      echo night-shift ;;
+    static-hour*)      echo static-hour ;;
+    dawn-patrol*)      echo dawn-patrol ;;
+    *) echo "" ;;      # news/spots/unknown: no transition
+  esac
+}
 
 bed_for() {
   # segment filenames encode the show id: 000000123_night-shift-....wav
@@ -80,6 +97,14 @@ feed() {
     fi
     f=$(ls "$BUF"/incoming/*.wav 2>/dev/null | sort | head -1)
     if [ -n "$f" ]; then
+      # produced handover at show boundaries: bumper + a breath
+      sh=$(show_of "$f")
+      if [ -n "$sh" ] && [ -n "$LAST_SHOW" ] && [ "$sh" != "$LAST_SHOW" ]; then
+        b=$(ls "$RESERVE"/bumper*.wav 2>/dev/null | shuf -n1)
+        [ -n "$b" ] && ffmpeg -v quiet -i "$b" -f s16le -ar 24000 -ac 1 - </dev/null
+        ffmpeg -v quiet -i "$FILLER" -t 1.5 -f s16le -ar 24000 -ac 1 - </dev/null
+      fi
+      [ -n "$sh" ] && LAST_SHOW="$sh"
       play_file "$f"
       mv "$f" "$BUF/played/"
       # keep only the last 50 played segments
