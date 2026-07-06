@@ -72,7 +72,9 @@ def remember(state: dict, *, jokes=None, feuds=None, guest=None, callbacks=None,
         for item in new:
             if item and item not in state[key]:
                 state[key].append(item)
-        state[key] = state[key][-60:]
+        # premises need a longer tail (same-evening repetition guard);
+        # other lore stays tight so digests remain current
+        state[key] = state[key][-200 if key == "recent_premises" else -60:]
     if guest and guest not in state["guests_seen"]:
         state["guests_seen"].append(guest)
     return state

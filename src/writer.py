@@ -67,7 +67,7 @@ STATION LORE (call back to these where natural):
 {lore.digest(lore_state)}
 
 PREMISES ALREADY AIRED RECENTLY — do NOT reuse or lightly reskin any of these:
-{chr(10).join('- ' + p for p in lore_state.get('recent_premises', [])[-30:]) or '(none yet)'}
+{chr(10).join('- ' + p for p in lore_state.get('recent_premises', [])[-60:]) or '(none yet)'}
 
 Return STRICT JSON:
 {{
