@@ -13,11 +13,13 @@ models:
     max_tokens: 2500
 
   # Performers: cheap, run constantly. Turn beats into in-character dialogue.
-  # Qwen3-235B: big enough to keep the Scramble trio's three voices distinct.
+  # v4-flash: same model as the writer — a full tier smarter than qwen3-235b
+  # at +~$1/mo (output 0.18 vs 0.10); qwen dialogue was reading stilted.
+  # Fallback if v4-flash misbehaves: qwen/qwen3-235b-a22b-2507 (0.09/0.10).
   performer:
-    id: qwen/qwen3-235b-a22b-2507
+    id: deepseek/deepseek-v4-flash
     price_in: 0.09
-    price_out: 0.10
+    price_out: 0.18
     temperature: 0.9
     # anti-loop: presence_penalty only — it fires ONCE per token so it nudges
     # away from catchphrase reuse without accumulating against the repeated
