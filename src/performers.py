@@ -49,7 +49,12 @@ BEAT TO PLAY: {beat.get('beat')}
 STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
 LORE: {lore.digest(lore_state, limit=6)}
 
-Write ~{daypart.get('_target_lines', 8)} spoken lines. Return STRICT JSON:
+Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
+- Plain spoken words ONLY: no markdown, asterisks, stage directions, or emoji.
+- Punctuation limited to . , ? ! and apostrophes.
+- Give each distinct caller/guest a NAME as the speaker (e.g. "Caller Doreen",
+  not just "Caller") so they get their own voice.
+Return STRICT JSON:
 {{"lines": [{{"speaker": "<name>", "text": "<what they say out loud>"}}]}}"""
 
     raw = chat(models["performer"],
@@ -71,8 +76,15 @@ def _parse_lines(raw: str) -> list[dict]:
                 for ln in raw.splitlines() if ln.strip()]
 
 
+# spare voices for callers/guests — none used by the main cast
+_EXTRA_VOICES = ["af_heart", "am_eric", "bf_emma", "am_liam", "af_jessica",
+                 "bm_daniel", "af_nova", "am_puck", "bf_alice", "am_fenrir",
+                 "af_kore", "bf_isabella", "am_echo", "af_river", "bm_fable"]
+
+
 def _attach_voices(lines: list[dict], daypart: dict) -> list[dict]:
-    """Map speaker names to Kokoro voices from the cast persona front-matter."""
+    """Cast speakers get their persona voice; callers/one-offs each get a
+    distinct spare voice, stable per speaker name within the segment."""
     voices = {}
     for name in daypart["cast"]:
         display, text = _persona(name)
@@ -82,5 +94,9 @@ def _attach_voices(lines: list[dict], daypart: dict) -> list[dict]:
         voices[name.lower()] = v
     for ln in lines:
         spk = str(ln.get("speaker", "")).lower()
-        ln["voice"] = next((voices[k] for k in voices if k in spk), "am_adam")
+        cast_v = next((voices[k] for k in voices if k in spk), None)
+        if cast_v:
+            ln["voice"] = cast_v
+        else:  # caller/guest: deterministic distinct voice per name
+            ln["voice"] = _EXTRA_VOICES[hash(spk) % len(_EXTRA_VOICES)]
     return lines

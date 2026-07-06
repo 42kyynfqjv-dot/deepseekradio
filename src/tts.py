@@ -6,8 +6,23 @@ Kokoro installed.
 """
 from __future__ import annotations
 
+import re
 import wave
 from pathlib import Path
+
+
+def clean_for_speech(text: str) -> str:
+    """Strip typography the models write but a voice should never read aloud."""
+    t = text
+    t = re.sub(r"[*_~`#]+", "", t)                  # markdown emphasis/headers
+    t = t.replace("\u2026", ", ").replace("...", ", ")  # ellipses -> beat
+    t = re.sub(r"[\u2014\u2013]", ", ", t)          # em/en dashes -> beat
+    t = t.replace("\u2018", "'").replace("\u2019", "'")
+    t = t.replace("\u201c", '"').replace("\u201d", '"')
+    t = re.sub(r"\[[^\]]*\]|\([^)]*\)", "", t)      # stage directions in brackets
+    t = re.sub(r"[^\w\s.,?!'\"-]", " ", t)          # anything else exotic (emoji etc.)
+    t = re.sub(r"\s{2,}", " ", t).strip()
+    return t
 
 _kokoro = None
 
@@ -28,7 +43,7 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict) -> Path:
     kokoro = _engine(sr)
     chunks = []
     for ln in lines:
-        text = ln.get("text", "").strip()
+        text = clean_for_speech(ln.get("text", "").strip())
         if not text:
             continue
         voice = ln.get("voice", cfg["tts"]["default_voice"])
