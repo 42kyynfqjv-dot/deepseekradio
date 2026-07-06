@@ -1,4 +1,5 @@
 bestairadio.com, www.bestairadio.com {
+	tls internal
 	root * /var/www/bestairadio
 	file_server
 	handle_path /stream {
