@@ -80,6 +80,9 @@ dayparts:
     window: ["01:00", "05:00"]
     cast: [watcher]
     outline_beats: [6, 8]     # one rabbit hole = 33-50 min of air; 5-8 holes/night
+    caller_policy:            # code-enforced, not prompt-suggested
+      per_beat: 1             # one caller per beat, max
+      max_lines: 3            # then they're gone — the Watcher takes the wheel
     arc: >
       ONE theory per outline — never several. This outline is ONE RABBIT HOLE
       and it must sustain at least 30 minutes of air: every beat stays on the

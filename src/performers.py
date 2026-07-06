@@ -169,7 +169,50 @@ Return STRICT JSON:
     lines = _parse_lines(raw)
     if "polish" in models and lines:
         lines = _polish(lines, daypart, models, beat)
-    return _attach_voices(lines, daypart, guest=beat.get("_guest"))
+    lines = _attach_voices(lines, daypart, guest=beat.get("_guest"))
+    return _enforce_caller_policy(lines, daypart)
+
+
+_SELF_ID = re.compile(r"\b(hi|hey|hello|this is|calling|caller|first.?time|"
+                      r"long.?time|line|you're on|am i on)\b", re.I)
+
+_TAKE_LINES = ["We've got a caller. Go ahead, you're on.",
+               "Line two. You're on the air.",
+               "Hold that thought, there's a call. Go ahead.",
+               "The lines are lit. Caller, you're on."]
+
+
+def _enforce_caller_policy(lines, daypart):
+    """Code-level caller discipline (prompt rules leak at temp 0.9):
+    cap callers per beat, cap their lines (then they're 'gone'), and make
+    sure every call is announced — by the host or by the caller."""
+    pol = daypart.get("caller_policy") or {}
+    if not pol or not lines:
+        return lines
+    per_beat = int(pol.get("per_beat", 1))
+    max_lines = int(pol.get("max_lines", 3))
+    host_voice = next(((ln.get("voice"), ln.get("speed", 1.0), ln.get("speaker"))
+                       for ln in lines if not ln.get("phone")), None)
+    out, seen, counts = [], [], {}
+    for ln in lines:
+        if not ln.get("phone"):
+            out.append(ln)
+            continue
+        spk = ln.get("speaker")
+        if spk not in seen:
+            if len(seen) >= per_beat:
+                continue  # extra callers never get through the switchboard
+            seen.append(spk)
+            # announce the call if neither side did
+            if host_voice and not _SELF_ID.search(ln.get("text", "")):
+                v, s, hname = host_voice
+                out.append({"speaker": hname, "voice": v, "speed": s,
+                            "text": _TAKE_LINES[_stable_hash(spk) % len(_TAKE_LINES)]})
+        counts[spk] = counts.get(spk, 0) + 1
+        if counts[spk] > max_lines:
+            continue  # they hung up; the host has the wheel
+        out.append(ln)
+    return out
 
 
 _NONSPEAKER = re.compile(r"sfx|sound|effect|narrator|stage|music|jingle|\bfx\b", re.I)
