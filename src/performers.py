@@ -93,13 +93,15 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   are what make the absurd part land.
 - Call-in segments are DUETS: the caller carries at least 40 percent of the
   lines. The host asks short, sincere questions; the CALLER escalates, the
-  host de-escalates. The host never invents impossible facts.
+  host de-escalates. The host never invents impossible facts. (If a persona
+  explicitly defines a different caller dynamic, the persona wins.)
 - No speaker gets more than 2 consecutive lines, and host lines stay short
   (under ~25 words). Radio is turn-taking, not monologue.
 - Let scenes BREATHE: a caller or guest stays on the line for a long,
   winding conversation — follow-ups, tangents. Never rush to the next caller.
 - You are ALREADY ON AIR, mid-show, mid-flow. Do NOT re-introduce the show, the
-  host, or the segment. No "welcome back", no "you're listening to", no
+  host, or the segment — UNLESS this beat explicitly calls for a station ID,
+  in which case do it once, briefly, in character. No "welcome back", no
   greetings, and NEVER sign off, wrap up, or say goodnight — the show keeps
   rolling after this beat.
 - Never define or explain a recurring bit, and never comment on the show

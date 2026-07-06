@@ -59,7 +59,10 @@ RECURRING SEGMENTS TO HIT:
 {segments}
 
 Write 12-16 beats total: cover each recurring segment at least once, then add
-fresh angles on them. Put one or two SPONSOR-READ beats (a host reads a short
+fresh angles on them. The FIRST beat must open with the host naturally
+identifying themselves and the show in one or two in-character lines ("I'm X,
+this is Y, on The Frequency") before flowing into the beat — this is the ONLY
+beat that may do this; no other beat re-introduces anything. Put one or two SPONSOR-READ beats (a host reads a short
 ad for a recurring bible sponsor, in their own voice, slightly annoyed about
 it) in the FIRST HALF of the outline. Soft segment boundaries and throws
 ("after this, X") are welcome. The outline must fill a long block of
