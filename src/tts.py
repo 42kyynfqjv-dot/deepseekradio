@@ -167,12 +167,19 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict,
         samples = _fade(_level(samples), sr)
         chunks.append(samples)
         # conversational rhythm: gap reflects the UPCOMING transition;
-        # questions get answered quicker
+        # questions get answered quicker, and every few exchanges someone
+        # lets a line LAND before replying — the air is what makes it radio
         if i + 1 < len(spoken):
-            base = 0.5 if spoken[i + 1][2] != spk else 0.22
+            if spoken[i + 1][2] != spk:
+                base = 0.62
+                if (not text.rstrip().endswith("?")
+                        and random.random() < 0.18):
+                    base = random.uniform(1.0, 1.5)   # a beat: let it land
+            else:
+                base = 0.28
             if text.rstrip().endswith("?"):
-                base = min(base, 0.3)
-            gap = int(sr * random.uniform(base * 0.7, base * 1.4))
+                base = min(base, 0.35)
+            gap = int(sr * random.uniform(base * 0.75, base * 1.3))
             chunks.append(_room_tone(gap, sr))
 
     if not chunks:
