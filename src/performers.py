@@ -186,6 +186,12 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   on", "we've got a caller") or the caller self-identifies ("yeah hi,
   first-time caller, long-time listener" — plus their name, a NEW one). When a call ends, it ends like a call — the
   host thanks them or the line just goes, and the host reacts.
+- Callers are MEMBERS OF THE LISTENING PUBLIC — ordinary people phoning in from
+  their own homes and lives in the outside world. A caller does NOT work at the
+  station, is NOT the host's coworker, and has no desk, office, work order, or
+  inside knowledge of the building. Their complaints and stories are about
+  THEIR world (a neighbor, a toaster, a parking spot, a rude pigeon), never
+  about the station's offices, staff, or equipment.
 Return STRICT JSON:
 {{"lines": [{{"speaker": "<name>", "text": "<what they say out loud>"}}]}}"""
 

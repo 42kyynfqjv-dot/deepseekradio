@@ -8,9 +8,42 @@ from __future__ import annotations
 
 import json
 import random
+import re
+from difflib import SequenceMatcher
 from pathlib import Path
 
 _PATH = Path("lore_state.json")
+
+_STOP = {"the", "a", "an", "and", "of", "to", "in", "on", "is", "as", "its",
+         "it", "for", "with", "that", "this", "by", "are", "was", "now", "one",
+         "who", "has", "had", "not", "but", "over", "into", "about", "their",
+         "they", "them", "from", "when", "what", "some", "than", "then"}
+
+
+def _sig(s: str) -> set:
+    """Significant words of a lore line — its 'subject' fingerprint."""
+    return {w for w in re.findall(r"[a-z']+", s.lower())
+            if len(w) > 3 and w not in _STOP}
+
+
+def _distinct(items, cap: int) -> list:
+    """Most-recent items, dropping any whose SUBJECT already appeared (>=2
+    shared significant words) — so one topic (the coffee machine) can never
+    occupy the whole digest and saturate every show."""
+    kept, sigs = [], []
+    for it in reversed(items):
+        s = _sig(it)
+        if s and any(len(s & prev) >= 2 for prev in sigs):
+            continue
+        kept.append(it)
+        sigs.append(s)
+        if len(kept) >= cap:
+            break
+    return list(reversed(kept))
+
+
+def _near(a: str, b: str) -> bool:
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio() > 0.6
 
 _DEFAULT = {
     "running_jokes": [],   # e.g. "Chip insists cereal is a soup"
@@ -42,12 +75,16 @@ def save(state: dict) -> None:
 def digest(state: dict, limit: int = 12) -> str:
     """A short human-readable digest to drop into a prompt."""
     lines = []
-    if state["running_jokes"]:
-        lines.append("Running jokes: " + "; ".join(state["running_jokes"][-limit:]))
+    # cap to distinct SUBJECTS, not just the last N — otherwise five near-dup
+    # entries about one topic crowd out everything else in every show's prompt
+    jokes = _distinct(state["running_jokes"], 6)
+    callbacks = _distinct(state["recent_callbacks"], 6)
+    if jokes:
+        lines.append("Running jokes: " + "; ".join(jokes))
     if state["feuds"]:
         lines.append("Ongoing feuds: " + "; ".join(state["feuds"][-limit:]))
-    if state["recent_callbacks"]:
-        lines.append("Recent callbacks: " + "; ".join(state["recent_callbacks"][-limit:]))
+    if callbacks:
+        lines.append("Recent callbacks: " + "; ".join(callbacks))
     if state.get("arcs"):
         from . import arcs as _arcs
         d = _arcs.digest(state)
@@ -75,7 +112,11 @@ def remember(state: dict, *, jokes=None, feuds=None, guest=None, callbacks=None,
         if not new:
             continue
         for item in new:
-            if item and item not in state[key]:
+            # skip near-duplicates, not just exact ones — otherwise one subject
+            # ("coffee machine standoff" / "The Great Office Coffee Machine
+            # Standoff" / "coffee machine clean me light") balloons into many
+            # slots and dominates the lore digest
+            if item and not any(_near(item, x) for x in state[key]):
                 state[key].append(item)
         # premises need a longer tail (same-evening repetition guard);
         # other lore stays tight so digests remain current
