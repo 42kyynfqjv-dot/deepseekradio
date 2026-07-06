@@ -206,6 +206,15 @@ def tonight(air_date: str) -> dict:
     return game
 
 
+def tick(air_date: str) -> None:
+    """Advance the league to today (off-air slates) and republish the site
+    data — called daily so standings stay fresh between broadcasts."""
+    st = _load()
+    _sim_through(st, air_date)
+    _save(st)
+    export()
+
+
 def record(air_date: str) -> str | None:
     """Fold tonight's result into the standings (idempotent). Returns a
     one-line result for station lore. Rolls the season over at 82 games."""
@@ -231,6 +240,196 @@ def record(air_date: str) -> str | None:
         line += f" — and that's the season; season {st['season']} starts next game"
     _save(st)
     return line
+
+
+# --- event-level game simulation: the factual play-by-play the booth narrates
+
+_FIRST = ("Doug Marty Gilles Pete Anders Toivo Brick Lars Chuck Remy Sven "
+          "Gord Wally Jean-Guy Boone Alexei Dmitri Cliff Norm Tug Moose "
+          "Stanislav Bert Olaf Petr Randy Curtis Yvon Merle Stu").split()
+_LAST = ("Bouchard Larsson Petrenko Gustafsson Tremblay Kowalski O'Rourke "
+         "Vachon Lindqvist Dubois Sorensen Mackenzie Novak Fitzpatrick "
+         "Berube Halloran Jurgens Pelletier Sopel Grimsby Thibodeau Vrana "
+         "Ostberg Callahan Demers Sikora Brandt Leclair Mulligan Ruud").split()
+
+_PENALTIES = ["tripping", "hooking", "interference", "delay of game",
+              "too many men on the ice", "high-sticking", "holding",
+              "excessive apologizing", "slashing", "unsportsmanlike conduct",
+              "embellishment", "arguing with the zamboni"]
+
+_INJURY_NOTES = ["day-to-day, lower body", "day-to-day, upper body",
+                 "questionable, general body", "day-to-day, morale"]
+
+_REFS = ["Referee Don Pelkey", "Referee Marcel Aube", "Referee Sandy Kowalchuk",
+         "Referee Wes Trudel", "Referee Pat Onions", "Referee Gil Ferland"]
+
+
+def _roster(key: str, season: int) -> dict:
+    """Deterministic per-season roster: 8 notable skaters + a goalie."""
+    rng = random.Random(f"roster:{season}:{key}")
+    names, used = [], set()
+    while len(names) < 9:
+        n = f"{rng.choice(_FIRST)} {rng.choice(_LAST)}"
+        if n not in used:
+            used.add(n)
+            names.append(n)
+    return {"skaters": names[:8], "goalie": names[8]}
+
+
+def _clock(rng: random.Random) -> str:
+    return f"{rng.randint(0, 19)}:{rng.randint(0, 59):02d}"
+
+
+def simulate(game: dict) -> dict:
+    """The full factual event log for a game — goals with scorers/assists/
+    times/strength, penalties, refs, goalies, shots, three stars, the odd
+    injury. Deterministic: same game dict -> same events."""
+    rng = random.Random(f"events:{game['season']}:{game['date']}")
+    hk, ak = game["home_key"], game["away_key"]
+    hr, ar = _roster(hk, game["season"]), _roster(ak, game["season"])
+    hg, ag = game["final"]
+    periods = {1: [], 2: [], 3: [], "OT": []}
+
+    # penalties first (power plays explain goals)
+    pens = []
+    for _ in range(rng.randint(3, 7)):
+        against_home = rng.random() < 0.5
+        team = game["home"] if against_home else game["away"]
+        player = rng.choice((hr if against_home else ar)["skaters"])
+        pens.append({"period": rng.randint(1, 3), "clock": _clock(rng),
+                     "team": team, "player": player,
+                     "call": rng.choice(_PENALTIES), "min": 2})
+
+    # distribute goals across periods (last goal in OT if applicable)
+    def _spread(n, ot_last):
+        ps = [rng.choice([1, 1, 2, 2, 2, 3, 3, 3]) for _ in range(n)]
+        if ot_last and ps:
+            ps[-1] = "OT"
+        return ps
+
+    goals = []
+    home_periods = _spread(hg, game["ot"] and hg > ag)
+    away_periods = _spread(ag, game["ot"] and ag > hg)
+    for team_name, roster, opp_pens, plist in (
+            (game["home"], hr, [p for p in pens if p["team"] == game["away"]], home_periods),
+            (game["away"], ar, [p for p in pens if p["team"] == game["home"]], away_periods)):
+        stars = roster["skaters"][:3]
+        for p in plist:
+            scorer = rng.choice(stars + stars + roster["skaters"])  # stars score more
+            assist = rng.choice([None] + roster["skaters"])
+            strength = "PP" if opp_pens and rng.random() < 0.3 else "EV"
+            goals.append({"period": p, "clock": _clock(rng), "team": team_name,
+                          "scorer": scorer,
+                          "assist": assist if assist != scorer else None,
+                          "strength": strength})
+    def _secs(c: str) -> int:
+        m, s = c.split(":")
+        return int(m) * 60 + int(s)
+    goals.sort(key=lambda g: (4 if g["period"] == "OT" else g["period"],
+                              _secs(g["clock"])))
+
+    shots_h = max(hg, rng.randint(22, 38))
+    shots_a = max(ag, rng.randint(20, 36))
+    injury = None
+    if rng.random() < 0.12:
+        side = rng.random() < 0.5
+        injury = {"player": rng.choice((hr if side else ar)["skaters"]),
+                  "team": game["home"] if side else game["away"],
+                  "note": rng.choice(_INJURY_NOTES),
+                  "period": rng.randint(1, 3)}
+    scorers = [g["scorer"] for g in goals]
+    win_goalie = (hr if hg > ag else ar)["goalie"]
+    stars3 = list(dict.fromkeys(scorers[::-1]))[:2] + [win_goalie]
+    disputed = rng.choice(pens) if pens and rng.random() < 0.6 else None
+
+    return {"goals": goals, "penalties": pens, "injury": injury,
+            "shots": [shots_h, shots_a],
+            "goalies": {game["home"]: hr["goalie"], game["away"]: ar["goalie"]},
+            "refs": rng.sample(_REFS, 2), "three_stars": stars3,
+            "disputed": disputed,
+            "attendance": rng.randint(9000, 18000) + rng.choice([0, 3, 7, 12])}
+
+
+def _event_sheet(game: dict) -> str:
+    """Compact factual play-by-play sheet for the writer to narrate."""
+    ev = simulate(game)
+
+    def _secs(c: str) -> int:
+        m, s = c.split(":")
+        return int(m) * 60 + int(s)
+
+    out = []
+    for p in (1, 2, 3, "OT"):
+        timed = []
+        for g in ev["goals"]:
+            if g["period"] == p:
+                a = f" (assist {g['assist']})" if g["assist"] else " (unassisted)"
+                pp = " on the POWER PLAY" if g["strength"] == "PP" else ""
+                timed.append((_secs(g["clock"]),
+                              f"GOAL {g['team']}: {g['scorer']}{a}{pp}, {g['clock']}"))
+        for pen in ev["penalties"]:
+            if pen["period"] == p:
+                timed.append((_secs(pen["clock"]),
+                              f"PENALTY {pen['team']}: {pen['player']}, "
+                              f"{pen['min']} min for {pen['call']}, {pen['clock']}"))
+        if ev["injury"] and ev["injury"]["period"] == p:
+            i = ev["injury"]
+            timed.append((1200, f"INJURY {i['team']}: {i['player']} leaves, "
+                                f"listed {i['note']}"))
+        timed.sort()
+        lines = [t[1] for t in timed]
+        if lines or p != "OT":
+            out.append(f"Period {p}: " + ("; ".join(lines) if lines else
+                                          "no scoring, no penalties"))
+    d = ev["disputed"]
+    return ("EVENT SHEET (narrate EXACTLY these events in order — you may add "
+            "color, saves, and near-misses between them, but no other goals, "
+            "penalties, or injuries; game clocks like '14:32 of the second' "
+            "are correct usage):\n"
+            + "\n".join(out) + "\n"
+            f"Shots: {game['home']} {ev['shots'][0]}, {game['away']} {ev['shots'][1]}. "
+            f"Goalies: {ev['goalies'][game['home']]} vs {ev['goalies'][game['away']]}. "
+            f"Officials: {', '.join(ev['refs'])}."
+            + (f" The {d['call']} call on {d['player']} is DISPUTED — the booth "
+               "disagrees about it all night." if d else "")
+            + f" Three stars: {', '.join(ev['three_stars'])}. "
+            f"Attendance {ev['attendance']:,}.")
+
+
+def export(path: str = "/var/www/bestairadio/league.json") -> None:
+    """Publish the league to the website: standings, tonight/last game with
+    its event log, recent around-the-league scores. Best-effort."""
+    try:
+        st = _load()
+        latest_date = max(st["games"]) if st["games"] else None
+        game = st["games"].get(latest_date) if latest_date else None
+        divisions = {}
+        for conf in LEAGUE.values():
+            for dname in conf:
+                keys = [k for k, d in _DIV_OF.items() if d == dname]
+                keys.sort(key=lambda k: (-_pts(st["league"][k]),
+                                         st["league"][k]["l"]))
+                divisions[dname] = [
+                    {"team": _ALL[k], "tracked": k in TRACKED,
+                     **{f: st["league"][k][f] for f in ("gp", "w", "l", "otl")},
+                     "pts": _pts(st["league"][k])} for k in keys]
+        slate = st["slates"].get(st["sim_through"], [])
+        out = {"season": st["season"], "updated": st["sim_through"],
+               "divisions": divisions, "last_result": st["last_result"],
+               "broadcast": ({"date": game["date"], "home": game["home"],
+                              "away": game["away"], "final": game["final"],
+                              "ot": game["ot"], "arena": game["arena"],
+                              "played": game["recorded"],
+                              "events": simulate(game)} if game else None),
+               "around": [{"home": _ALL[h], "away": _ALL[a],
+                           "score": [hg, ag], "ot": o}
+                          for h, a, hg, ag, o in slate]}
+        p = Path(path)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(out))
+        tmp.replace(p)
+    except Exception:
+        pass  # the website is decoration; the broadcast is the product
 
 
 def _pts(t: dict) -> int:
@@ -281,5 +480,5 @@ def brief(game: dict) -> str:
         f"DIVISION STANDINGS: {standings}.\n"
         + (f"STREAK WATCH: {'; '.join(streaks)}.\n" if streaks else "")
         + (f"LAST BROADCAST: {st['last_result']}.\n" if st["last_result"] else "")
-        + around
+        + around + "\n\n" + _event_sheet(game)
     )

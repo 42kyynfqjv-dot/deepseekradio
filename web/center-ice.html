@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Center Ice · The Frequency</title>
+<style>
+  :root{
+    --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
+    --amber:#ffb454; --red:#ff4757; --cyan:#4ecdc4; --text:#e8e6f0;
+    --dim:#9a97ad; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --display:'Avenir Next Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.55}
+  main{max-width:960px;margin:0 auto;padding:32px 20px 60px}
+  a{color:var(--cyan);text-decoration:none}
+  .back{font-family:var(--mono);font-size:.75rem;letter-spacing:.15em;color:var(--dim)}
+  h1{font-family:var(--display);font-size:clamp(2rem,7vw,3.4rem);font-weight:800;margin:10px 0 2px}
+  h1 em{color:var(--cyan);font-style:normal}
+  .sub{color:var(--dim);font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;margin-bottom:28px}
+  .scorebug{background:linear-gradient(180deg,var(--bg2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:22px 24px;margin-bottom:30px}
+  .scorebug .tag{font-family:var(--mono);font-size:.68rem;letter-spacing:.22em;color:var(--amber);margin-bottom:12px}
+  .matchup{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .team{flex:1;min-width:190px}
+  .team .name{font-family:var(--display);font-weight:700;font-size:1.4rem}
+  .team .score{font-family:var(--mono);font-size:2.6rem;font-weight:700;color:var(--cyan)}
+  .fin{font-family:var(--mono);font-size:.72rem;color:var(--dim);letter-spacing:.15em}
+  .events{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;
+    font-family:var(--mono);font-size:.78rem;color:var(--dim)}
+  .events b{color:var(--text);font-weight:600}
+  .events .goal b{color:var(--amber)}
+  h2{font-family:var(--display);font-size:1.5rem;margin:34px 0 12px}
+  h2 em{color:var(--cyan);font-style:normal}
+  .tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+  .divbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto}
+  .divbox h3{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;color:var(--amber);margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th{font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;color:var(--dim);text-align:right;padding:3px 6px}
+  th:first-child{text-align:left}
+  td{padding:4px 6px;text-align:right;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  td:first-child{text-align:left}
+  tr.us td{color:var(--cyan);font-weight:600}
+  .around{font-family:var(--mono);font-size:.78rem;color:var(--dim)}
+  .around div{padding:6px 0;border-bottom:1px solid var(--line)}
+  .around b{color:var(--text)}
+  footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:.7rem;
+    letter-spacing:.15em;padding:40px 0 30px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; THE FREQUENCY · 108.1</a>
+  <h1>CENTER <em>ICE</em></h1>
+  <p class="sub">FREQUENCY HOCKEY LEAGUE · WEDNESDAYS &amp; SATURDAYS 8PM · BUCKY MERLE &amp; SAL TARANTELLA</p>
+
+  <div class="scorebug" id="bug" hidden>
+    <div class="tag" id="bugtag">LAST BROADCAST</div>
+    <div class="matchup">
+      <div class="team"><div class="name" id="away"></div><div class="score" id="ascore"></div></div>
+      <div class="fin" id="fin">FINAL</div>
+      <div class="team" style="text-align:right"><div class="name" id="home"></div><div class="score" id="hscore"></div></div>
+    </div>
+    <div class="events" id="events"></div>
+  </div>
+
+  <h2>The <em>Standings</em></h2>
+  <div class="tables" id="tables"></div>
+
+  <h2>Around the <em>League</em></h2>
+  <div class="around" id="around"></div>
+
+  <footer>WFRQ · CENTER ICE · EVERY GAME IS FINAL, INCLUDING THE ONES THAT HAVEN'T HAPPENED</footer>
+</main>
+<script>
+fetch('/league.json').then(r=>r.json()).then(d=>{
+  const bug=document.getElementById('bug');
+  if(d.broadcast){
+    bug.hidden=false;
+    const b=d.broadcast;
+    document.getElementById('bugtag').textContent=(b.played?'LAST BROADCAST · ':'NEXT BROADCAST · ')+b.date+' · '+b.arena.toUpperCase();
+    document.getElementById('home').textContent=b.home;
+    document.getElementById('away').textContent=b.away;
+    if(b.played){
+      document.getElementById('hscore').textContent=b.final[0];
+      document.getElementById('ascore').textContent=b.final[1];
+      document.getElementById('fin').textContent=b.ot?'FINAL / OT':'FINAL';
+      const ev=b.events, rows=[];
+      for(const g of ev.goals)
+        rows.push(`<div class="goal"><b>GOAL</b> ${g.team} — ${g.scorer}${g.assist?' (a: '+g.assist+')':''}${g.strength==='PP'?' PP':''}, P${g.period} ${g.clock}</div>`);
+      if(ev.injury) rows.push(`<div><b>INJ</b> ${ev.injury.player} (${ev.injury.team}) — ${ev.injury.note}</div>`);
+      rows.push(`<div>Shots ${b.home} ${ev.shots[0]} · ${b.away} ${ev.shots[1]} — three stars: ${ev.three_stars.join(', ')}</div>`);
+      document.getElementById('events').innerHTML=rows.join('');
+    }else{
+      document.getElementById('hscore').textContent='–';
+      document.getElementById('ascore').textContent='–';
+      document.getElementById('fin').textContent='PUCK DROP 8PM';
+      document.getElementById('events').innerHTML='<div>Listen live on The Frequency.</div>';
+    }
+  }
+  const tb=document.getElementById('tables');
+  tb.innerHTML=Object.entries(d.divisions).map(([name,rows])=>`
+    <div class="divbox"><h3>${name.toUpperCase()} DIVISION</h3>
+    <table><tr><th>TEAM</th><th>GP</th><th>W</th><th>L</th><th>OTL</th><th>PTS</th></tr>
+    ${rows.map(t=>`<tr${t.tracked?' class="us"':''}><td>${t.team}</td><td>${t.gp}</td><td>${t.w}</td><td>${t.l}</td><td>${t.otl}</td><td>${t.pts}</td></tr>`).join('')}
+    </table></div>`).join('');
+  document.getElementById('around').innerHTML=(d.around||[]).map(g=>
+    `<div>${g.away} <b>${g.score[1]}</b> at ${g.home} <b>${g.score[0]}</b>${g.ot?' (OT)':''}</div>`
+  ).join('')||'<div>League resumes tonight.</div>';
+}).catch(()=>{document.getElementById('tables').textContent='Season data loading — check back after tonight\'s slate.'});
+</script>
+</body>
+</html>

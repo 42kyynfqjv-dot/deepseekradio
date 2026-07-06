@@ -246,10 +246,21 @@ def run_show(daypart, config, schedule, live: bool):
         from . import season
         game_date = f"{clock.air_now():%Y-%m-%d}"
         daypart["_arc_extra"] = season.brief(season.tonight(game_date))
+        season.export()
     else:
         daypart.pop("_arc_extra", None)
 
     st = _sstate()
+    # serialized station arcs advance once per air-day (story editor pass)
+    if st.get("arcs_day") != f"{clock.air_now():%Y-%m-%d}":
+        try:
+            from . import arcs
+            arcs.daily_tick(models, state)
+            lore.save(state)
+            st["arcs_day"] = f"{clock.air_now():%Y-%m-%d}"
+            _sstate_save(st)
+        except Exception as e:  # storylines are garnish, never a blocker
+            print(f"  (arc tick skipped: {e})")
     opened_key = f"{daypart['id']}:{clock.air_now():%Y-%m-%d}"
     first_of_window = st.get("opened") != opened_key
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
@@ -461,6 +472,7 @@ def run_show(daypart, config, schedule, live: bool):
         result = season.record(game_date)
         if result:
             lore.remember(state, callbacks=[result])
+        season.export()
     # persist any new lore the writer established (max 2 new jokes per show
     # so no single bit can flood the lore pool)
     # quarantined shows (the Watcher) must NEVER seed shared lore — their
@@ -488,6 +500,11 @@ def main(argv=None):
     while True:
         # write for the show that owns the AIR slot this content will land in
         dp = _current_daypart(schedule, clock.air_now())
+        try:  # league plays every night whether we broadcast or not
+            from . import season
+            season.tick(f"{clock.air_now():%Y-%m-%d}")
+        except Exception:
+            pass
         try:
             st = _sstate()
             if args.live and time.time() - st.get("last_spots", 0) > 30 * 60:

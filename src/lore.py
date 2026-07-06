@@ -48,6 +48,11 @@ def digest(state: dict, limit: int = 12) -> str:
         lines.append("Ongoing feuds: " + "; ".join(state["feuds"][-limit:]))
     if state["recent_callbacks"]:
         lines.append("Recent callbacks: " + "; ".join(state["recent_callbacks"][-limit:]))
+    if state.get("arcs"):
+        from . import arcs as _arcs
+        d = _arcs.digest(state)
+        if d:
+            lines.append(d)
     return "\n".join(lines) if lines else "(no lore yet — this is a fresh station)"
 
 

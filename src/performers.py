@@ -172,8 +172,9 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - The station has NO sound effects, stings, or jingles. Never describe a sound,
   never imitate one (no onomatopoeia), never react to imaginary sounds.
 - Punctuation limited to . , ? ! and apostrophes.
-- NEVER state a precise clock time — speak of time loosely ("late night",
-  "this hour", "almost morning").
+- NEVER state a precise clock time of DAY — speak of time loosely ("late
+  night", "this hour", "almost morning"). A GAME clock in a sports
+  broadcast ("14:32 of the second period") is fine and correct.
 - Give each distinct caller/guest a first-name as the speaker label (never a
   bare "Caller"). Pick ordinary, DIFFERENT names — a fresh name for every new
   caller, never reusing a name from these instructions or earlier context.
