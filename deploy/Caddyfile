@@ -1,0 +1,20 @@
+bestairadio.com, www.bestairadio.com {
+	root * /var/www/bestairadio
+	file_server
+	handle_path /stream {
+		reverse_proxy 127.0.0.1:8000 {
+			rewrite /kaos.mp3
+			flush_interval -1
+		}
+	}
+}
+http://116.202.13.97 {
+	root * /var/www/bestairadio
+	file_server
+	handle_path /stream {
+		reverse_proxy 127.0.0.1:8000 {
+			rewrite /kaos.mp3
+			flush_interval -1
+		}
+	}
+}
