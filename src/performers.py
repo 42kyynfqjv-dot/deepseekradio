@@ -95,6 +95,10 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                           "mundane parts are what make the absurd part land.")
     monologue_line = ("- THIS BEAT IS A MONOLOGUE: one voice runs long; the caps "
                       "below do not apply to them." if beat.get("monologue") else "")
+    register_line = ("" if daypart.get("arc") else
+                     "- NOT the conspiracy show: no paranormal, prophecy, hidden "
+                     "patterns, cover-ups, or 'it KNOWS something' material — the "
+                     "comedy here is petty human friction over mundane things.")
     pol = daypart.get("caller_policy") or {}
     policy_line = ""
     if pol:
@@ -133,6 +137,7 @@ STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 {absurdity_line}
+{register_line}
 {policy_line}
 - Call-in AND guest-interview segments are DUETS: the caller or guest carries
   at least 40 percent of the lines. The host asks short, sincere questions;

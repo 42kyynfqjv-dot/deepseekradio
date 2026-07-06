@@ -291,6 +291,24 @@ def run_show(daypart, config, schedule, live: bool):
                                   "props, or phrases from the lines already "
                                   "spoken — reference them in passing at most, "
                                   "then move FORWARD.)")
+                elif len(daypart.get("cast", [])) > 1:
+                    # multi-host shows: the same disagreement DEEPENS across
+                    # parts — that sustained bicker is the show
+                    job = ("DIG IN: stay on the exact subject already in "
+                           "dispute and go a layer deeper — each host defends "
+                           "THEIR position with one new concrete argument, "
+                           "example, or petty piece of evidence; nobody "
+                           "concedes, nobody changes the subject"
+                           if pi < parts - 1 else
+                           "LAST WORD: the same argument reaches its pettiest, "
+                           "most specific point and someone wins on a "
+                           "technicality — you may gently land the bit now")
+                    bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
+                                  f"part {pi+1} of {parts}: same characters and callers "
+                                  f"still present, the SAME disagreement still live. {job}. "
+                                  "Keep the absurdity at the level it already reached — "
+                                  "escalate the argument, never the premise. Never "
+                                  "re-describe the scene or repeat imagery already used.)")
                 else:
                     bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
                                   f"part {pi+1} of {parts}: same characters and callers still "

@@ -79,7 +79,13 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
         "Honor the content guardrail absolutely.\n\n" + bible
     )
     arc = daypart.get("arc")
-    arc_line = f"\nSHOW ARC (structure the ENTIRE outline this way):\n{arc}\n" if arc else ""
+    arc_line = (f"\nSHOW ARC (structure the ENTIRE outline this way):\n{arc}\n" if arc else
+                "\nREGISTER GUARD: this is NOT the conspiracy show. No paranormal, "
+                "no prophecy or prediction bits, no 'the object KNOWS things', no "
+                "hidden forces, patterns, signals, or cover-ups — that register "
+                "belongs to the late-night arc show only. This show's comedy is "
+                "petty, human, and mundane: taste, manners, logistics, grudges, "
+                "professionalism, who touched whose stuff.\n")
     if continue_theory:
         arc_line += (f"\nIMPORTANT: the show was interrupted mid-theory. Tonight's "
                      f"theory is ALREADY: {continue_theory} — do NOT start a new "
