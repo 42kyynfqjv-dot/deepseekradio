@@ -94,6 +94,15 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                           "mundane parts are what make the absurd part land.")
     monologue_line = ("- THIS BEAT IS A MONOLOGUE: one voice runs long; the caps "
                       "below do not apply to them." if beat.get("monologue") else "")
+    pol = daypart.get("caller_policy") or {}
+    policy_line = ""
+    if pol:
+        policy_line = (f"- THIS SHOW'S CALL FORMAT (hard): at most "
+                       f"{pol.get('per_beat', 1)} caller in this beat; the caller "
+                       f"speaks at most {pol.get('max_lines', 3)} times; after the "
+                       "host wraps the call in his own words the caller is GONE — "
+                       "write NO further dialogue with or about them, the host "
+                       "monologues onward alone.")
     if beat.get("scheduled_handoff"):
         handoff_exception = (" (Sole exception: this beat IS a scheduled handoff "
                              "— wrap briefly and throw to the next show.)")
@@ -123,6 +132,7 @@ STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 {absurdity_line}
+{policy_line}
 - Call-in AND guest-interview segments are DUETS: the caller or guest carries
   at least 40 percent of the lines. The host asks short, sincere questions;
   the CALLER escalates, the host de-escalates. The host never invents
@@ -201,22 +211,17 @@ def _enforce_caller_policy(lines, daypart):
     max_lines = int(pol.get("max_lines", 3))
     host_voice = next(((ln.get("voice"), ln.get("speed", 1.0), ln.get("speaker"))
                        for ln in lines if not ln.get("phone")), None)
-    out, seen, counts, closed = [], [], {}, set()
+    out, seen, counts = [], [], {}
     for ln in lines:
         if not ln.get("phone"):
-            # never leave a dangling question to a caller who's been dismissed
-            if (closed and out and ln.get("text", "").rstrip().endswith("?")
-                    and any(n.split()[0].lower() in ln.get("text", "").lower()
-                            for n in closed)):
-                continue
             out.append(ln)
             continue
         spk = ln.get("speaker")
-        if spk in closed:
-            continue  # they already hung up
         if spk not in seen:
             if len(seen) >= per_beat:
-                continue  # extra callers never get through the switchboard
+                # a second caller means the rest of the script is THEIR
+                # conversation — cut the beat here rather than ghost-reply
+                break
             seen.append(spk)
             # announce the call if neither side did
             if host_voice and not _SELF_ID.search(ln.get("text", "")):
@@ -224,20 +229,21 @@ def _enforce_caller_policy(lines, daypart):
                 out.append({"speaker": hname, "voice": v, "speed": s,
                             "text": _TAKE_LINES[_stable_hash(spk) % len(_TAKE_LINES)]})
         counts[spk] = counts.get(spk, 0) + 1
-        # answer-allowance: a direct host question always gets its reply,
-        # up to a hard ceiling — no cutting someone off mid-invitation
+        # answer-allowance: a direct host question always gets its reply
         prev_host_q = bool(out and not out[-1].get("phone")
                            and out[-1].get("text", "").rstrip().endswith("?"))
-        hard_cap = max_lines + 2
-        if counts[spk] > max_lines and not (prev_host_q and counts[spk] <= hard_cap):
+        if counts[spk] > max_lines and not (prev_host_q and
+                                            counts[spk] <= max_lines + 2):
+            # over cap: ritual close, then TRUNCATE the beat — everything after
+            # this point was written as dialogue with a caller we just removed,
+            # and one-sided dialogue is how the host stops making sense
             if host_voice:
                 v, s, hname = host_voice
                 first = (spk or "caller").split()[0].title()
                 tmpl = _CLOSE_LINES[_stable_hash(spk) % len(_CLOSE_LINES)]
                 out.append({"speaker": hname, "voice": v, "speed": s,
                             "text": tmpl.format(name=first)})
-            closed.add(spk)
-            continue
+            break
         out.append(ln)
     return out
 
