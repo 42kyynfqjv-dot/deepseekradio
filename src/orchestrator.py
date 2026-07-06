@@ -123,8 +123,11 @@ def run_show(daypart, config, live: bool):
             if pi > 0:
                 bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
                               f"part {pi+1} of {parts}: same characters and callers still "
-                              "present, go deeper, escalate — do not resolve or move on"
-                              + ("" if pi < parts - 1 else "; you may land the punchline now"))
+                              "present. Develop the conversation naturally — follow-ups, "
+                              "small turns, warmth. Keep the absurdity at the level it "
+                              "already reached; do NOT escalate further. The host stays "
+                              "grounded and sincere no matter how odd the caller gets"
+                              + ("" if pi < parts - 1 else ". You may gently land the bit now"))
             beats.append(bb)
 
     def _context(i, prev_lines):

@@ -16,7 +16,7 @@ models:
     id: qwen/qwen3-235b-a22b-2507
     price_in: 0.09
     price_out: 0.10
-    temperature: 1.0
+    temperature: 0.9
     max_tokens: 2400
 
   # Cheaper fallbacks:
