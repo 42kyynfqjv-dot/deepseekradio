@@ -150,6 +150,11 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - Give each distinct caller/guest a first-name as the speaker label (never a
   bare "Caller"). Pick ordinary, DIFFERENT names — a fresh name for every new
   caller, never reusing a name from these instructions or earlier context.
+- Callers arrive like PHONE CALLS, never like people in the room: before a new
+  caller's first real line, either the host takes the call ("line two, you're
+  on", "we've got a caller") or the caller self-identifies ("yeah hi, this is
+  Doreen, first-time caller"). When a call ends, it ends like a call — the
+  host thanks them or the line just goes, and the host reacts.
 Return STRICT JSON:
 {{"lines": [{{"speaker": "<name>", "text": "<what they say out loud>"}}]}}"""
 
