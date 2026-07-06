@@ -94,9 +94,14 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                           "mundane parts are what make the absurd part land.")
     monologue_line = ("- THIS BEAT IS A MONOLOGUE: one voice runs long; the caps "
                       "below do not apply to them." if beat.get("monologue") else "")
-    handoff_exception = (" (Sole exception: this beat IS a scheduled handoff — "
-                         "wrap briefly and throw to the next show.)"
-                         if beat.get("scheduled_handoff") else "")
+    if beat.get("scheduled_handoff"):
+        handoff_exception = (" (Sole exception: this beat IS a scheduled handoff "
+                             "— wrap briefly and throw to the next show.)")
+    elif beat.get("ad_throw"):
+        handoff_exception = (" (Sole exception: this beat throws to a short ad "
+                             "break — briefly, teasing continuation. No goodbyes.)")
+    else:
+        handoff_exception = ""
 
     system = (
         "You are the performing cast of a radio segment on The Frequency. Turn the beat "
@@ -221,8 +226,9 @@ def _polish(lines: list[dict], daypart: dict, models: dict,
                 "the first and cut the rest.\n")
         + ("5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
            "and any line that introduces the show or comments on the show itself "
-           "(EXCEPT the scheduled throw to the next show in this beat — keep it).\n"
-           if beat.get("scheduled_handoff") else
+           "(EXCEPT this beat's scheduled throw — to the next show or to an ad "
+           "break — keep it).\n"
+           if beat.get("scheduled_handoff") or beat.get("ad_throw") else
            "5. Delete mid-show greetings, welcome-backs, sign-offs, goodnights, "
            "and any line that introduces the show or comments on the show itself.\n")
         + "6. Delete any line advancing a conspiracy or claim about real "

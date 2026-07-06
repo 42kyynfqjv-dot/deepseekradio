@@ -150,6 +150,35 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     _sstate_save(st)
 
 
+def _save_tail(daypart, lines):
+    """Persist the last aired lines so a restart resumes mid-thought."""
+    if not lines:
+        return
+    st = _sstate()
+    st["tail"] = {"dp": daypart["id"], "ts": time.time(),
+                  "lines": [{"speaker": ln.get("speaker"), "text": ln.get("text")}
+                            for ln in lines[-6:]]}
+    _sstate_save(st)
+
+
+def _break_marker(daypart):
+    """Queue a marker the player turns into an ad break (0.4s of silence)."""
+    import wave as _w
+    out = buffer.next_path(f"{daypart['id']}-break")
+    tmp = out.with_name(out.name + ".part")
+    with _w.open(str(tmp), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(24000)
+        w.writeframes(b"\x00\x00" * 9600)
+    tmp.replace(out)
+
+
+_OPENER_OBJECTS = ["the mug", "the window", "the chair", "a pen that stopped working",
+                   "the wall clock", "the carpet", "a ceiling tile", "the thermos",
+                   "the notepad", "the microphone stand"]
+
+
 def _tail_context(lines):
     tail = "\n".join(f"{ln.get('speaker')}: {ln.get('text')}" for ln in lines[-6:])
     return ("LAST LINES SPOKEN ON AIR (continue directly from these):\n" + tail
@@ -165,21 +194,33 @@ def run_show(daypart, config, schedule, live: bool):
     print(f"\n{'='*70}\n  {daypart['show']}  ({daypart['window'][0]}-{daypart['window'][1]})"
           f"  —  {weekday}\n{'='*70}")
 
-    # quick open: a short beat first, so a cold start puts a voice on air fast
+    # quick open — UNLESS this show aired within the last 15 min (a restart),
+    # in which case resume mid-thought from the persisted tail: no opener loop
     opener_lines = []
-    try:
-        daypart["_target_lines"] = 6
-        opener = {"segment": "Open", "premise": "mid-show, mid-thought",
-                  "beat": "resume mid-thought about something small and physical "
-                          "in the studio (the mug, the chair, the window), IN THIS "
-                          "SHOW'S OWN REGISTER AND ENERGY. No greetings, no "
-                          "welcome-backs, no teases, no running jokes, and NO "
-                          "callers in this beat — just the host(s), mid-show.",
-                  "no_bit": False}
-        opener_lines = perform_beat(opener, daypart, models, state, "")
-        _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
-    except Exception as e:
-        print(f"  (opener skipped: {e})")
+    st0 = _sstate()
+    tail = st0.get("tail") or {}
+    if tail.get("dp") == daypart["id"] and time.time() - tail.get("ts", 0) < 15 * 60:
+        opener_lines = tail.get("lines", [])
+        print("  (recent tail found — skipping opener, resuming mid-thought)")
+    else:
+        try:
+            import random as _r
+            avoid = st0.get("last_open_obj")
+            obj = _r.choice([o for o in _OPENER_OBJECTS if o != avoid])
+            st0["last_open_obj"] = obj
+            _sstate_save(st0)
+            daypart["_target_lines"] = 6
+            opener = {"segment": "Open", "premise": "mid-show, mid-thought",
+                      "beat": f"resume mid-thought about {obj}, IN THIS "
+                              "SHOW'S OWN REGISTER AND ENERGY. No greetings, no "
+                              "welcome-backs, no teases, no running jokes, and NO "
+                              "callers in this beat — just the host(s), mid-show.",
+                      "no_bit": False}
+            opener_lines = perform_beat(opener, daypart, models, state, "")
+            _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
+            _save_tail(daypart, opener_lines)
+        except Exception as e:
+            print(f"  (opener skipped: {e})")
 
     try:
         _news_bulletin(config, live, daypart)

@@ -13,7 +13,7 @@ FILLER="${FILLER:-/opt/kaos/roomtone.wav}"
 RESERVE="${RESERVE:-/opt/kaos/reserve}"
 BEDS="${BEDS:-/opt/kaos/beds}"
 MOUNT="${MOUNT:-live}"
-SPOT_EVERY="${SPOT_EVERY:-900}"
+SPOT_EVERY="${SPOT_EVERY:-3600}"  # fallback only; breaks are host-announced
 : "${ICECAST_PW:?set ICECAST_PW (see /opt/kaos/stream.env)}"
 
 mkdir -p "$BUF/incoming" "$BUF/played"
@@ -62,7 +62,10 @@ play_file() {
 
 play_spot() {
   # least-recently-aired live spot from the SQLite rotation; returns 1 if none
-  local row wav
+  # guarded: never within 5 minutes of the previous break
+  local row wav now last
+  now=$(date +%s); last=$(cat "$LAST_SPOT_FILE" 2>/dev/null || echo 0)
+  [ $((now - last)) -lt 300 ] && return 1
   row=$(python3 - << "PY"
 import sqlite3, time
 try:
@@ -103,6 +106,16 @@ feed() {
       done
     fi
     if [ -n "$f" ]; then
+      # host-announced ad break: marker file -> two spots, then back to the show
+      case "$(basename "$f")" in *-break*)
+        mv "$f" "$BUF/played/"
+        if play_spot; then
+          date +%s > "$LAST_SPOT_FILE"
+          play_spot && true
+          ffmpeg -v quiet -i "$FILLER" -t 1.0 -f s16le -ar 24000 -ac 1 - </dev/null
+        fi
+        continue
+      ;; esac
       # produced handover at show boundaries: bumper + a breath
       sh=$(show_of "$f")
       if [ -n "$sh" ] && [ -n "$LAST_SHOW" ] && [ "$sh" != "$LAST_SHOW" ]; then
