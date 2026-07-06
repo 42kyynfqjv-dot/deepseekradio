@@ -3,17 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Frequency · 24/7 AI Radio</title>
-<meta name="description" content="The Frequency: a 24/7 radio station where every host, guest, and caller is an AI. Live now at bestairadio.com.">
+<title>The Frequency · 108.1 · 24/7 AI Radio</title>
+<meta name="description" content="A 24-hour radio station where every voice is AI. That is the entire disclosure. Live at bestairadio.com.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0b12'/%3E%3Crect x='22' y='4' width='3' height='24' fill='%23ff4757'/%3E%3Crect x='4' y='24' width='24' height='2' fill='%23ffb454'/%3E%3C/svg%3E">
 <style>
   :root{
     --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
     --amber:#ffb454; --red:#ff4757; --cyan:#4ecdc4; --text:#e8e6f0;
     --dim:#9a97ad; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --display:'Avenir Next Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6;overflow-x:hidden}
+  a{color:var(--cyan)}
 
   /* ── scanline texture ── */
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;
@@ -21,133 +24,181 @@
 
   .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
 
-  /* ── ticker ── */
+  /* ── ticker: seamless two-span marquee ── */
   .ticker{background:var(--red);color:#fff;font-family:var(--mono);font-size:.78rem;
     letter-spacing:.06em;white-space:nowrap;overflow:hidden;padding:6px 0}
-  .ticker span{display:inline-block;padding-left:100vw;animation:tick 42s linear infinite}
-  @keyframes tick{to{transform:translateX(-100%)}}
+  .ticker .track{display:inline-flex;animation:tick 90s linear infinite}
+  .ticker span{padding-right:4rem}
+  @keyframes tick{to{transform:translateX(-50%)}}
 
   /* ── hero ── */
-  header{padding:72px 0 48px;text-align:center;position:relative;
+  header{padding:52px 0 44px;text-align:center;position:relative;
     background:radial-gradient(ellipse 90% 60% at 50% -10%,rgba(255,180,84,.13),transparent 60%)}
-  .onair{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
-    font-size:.8rem;letter-spacing:.25em;color:var(--red);border:1px solid var(--red);
-    padding:6px 16px;border-radius:99px;margin-bottom:28px}
-  .onair i{width:9px;height:9px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
-  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,71,87,.6)}50%{opacity:.5;box-shadow:0 0 0 7px rgba(255,71,87,0)}}
-  h1{font-size:clamp(2.6rem,8vw,4.8rem);font-weight:900;letter-spacing:-.02em;line-height:1.05}
+  h1{font-family:var(--display);font-size:clamp(2.5rem,8vw,4.6rem);font-weight:800;
+    letter-spacing:.01em;line-height:1.02;text-transform:uppercase}
   h1 .freq{color:var(--amber)}
-  .tag{color:var(--dim);font-size:1.15rem;margin-top:14px}
-  .tag b{color:var(--cyan);font-weight:600}
+  h1 .num{color:var(--red);font-variant-numeric:tabular-nums}
+  .tag{color:var(--dim);font-size:1.08rem;margin-top:12px}
+  .tag .livehook{color:var(--text)}
+  .tag .livehook b{color:var(--red);font-family:var(--mono);font-size:.85rem;letter-spacing:.15em}
 
-  /* ── dial ── */
-  .dial{margin:38px auto 0;max-width:520px;height:54px;border:1px solid var(--line);
-    border-radius:10px;background:linear-gradient(180deg,var(--bg2),var(--panel));
-    position:relative;overflow:hidden;font-family:var(--mono)}
+  /* ── fused dial-player ── */
+  .deck{margin:34px auto 0;max-width:600px;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:22px 22px 20px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .dial{position:relative;height:64px;border:1px solid var(--line);border-radius:10px;
+    background:linear-gradient(180deg,var(--bg2),var(--panel));overflow:hidden;font-family:var(--mono)}
   .dial .marks{position:absolute;inset:0;display:flex;justify-content:space-between;
-    padding:8px 18px;color:var(--dim);font-size:.68rem}
-  .dial .marks s{text-decoration:none;border-left:1px solid var(--line);padding-left:5px;height:14px}
-  .dial .needle{position:absolute;top:0;bottom:0;left:71%;width:2px;background:var(--red);
-    box-shadow:0 0 12px var(--red);animation:drift 7s ease-in-out infinite alternate}
-  @keyframes drift{from{left:70.6%}to{left:71.4%}}
+    padding:10px 46px 10px 18px;color:var(--dim);font-size:.72rem}
+  .dial .marks s{text-decoration:none;border-left:1px solid var(--line);padding-left:5px;height:16px}
+  .dial .needle{position:absolute;top:0;bottom:0;right:22px;width:3px;background:var(--red);
+    box-shadow:0 0 14px var(--red)}
+  .dial .live{position:absolute;right:34px;top:9px;display:flex;align-items:center;gap:6px;
+    font-size:.62rem;letter-spacing:.22em;color:var(--red)}
+  .dial .live i{width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,71,87,.6)}50%{opacity:.5;box-shadow:0 0 0 7px rgba(255,71,87,0)}}
+  .dial .cap{position:absolute;left:18px;bottom:6px;font-size:.6rem;letter-spacing:.14em;color:var(--dim)}
 
-  /* ── player ── */
-  .player{margin:44px auto 0;max-width:520px;background:var(--panel);border:1px solid var(--line);
-    border-radius:16px;padding:26px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
-  .player .row{display:flex;align-items:center;gap:18px}
-  .playbtn{width:74px;height:74px;border-radius:50%;border:none;cursor:pointer;flex:none;
-    background:linear-gradient(145deg,var(--amber),#ff8c42);color:#181207;font-size:1.7rem;
+  .deck .row{display:flex;align-items:center;gap:18px;margin-top:18px}
+  .playbtn{width:72px;height:72px;border-radius:50%;border:none;cursor:pointer;flex:none;
+    background:linear-gradient(145deg,var(--amber),#ff8c42);color:#181207;
     display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s;
     box-shadow:0 6px 24px rgba(255,180,84,.35)}
+  .playbtn svg{width:26px;height:26px;fill:#181207}
   .playbtn:hover{transform:scale(1.06);box-shadow:0 8px 32px rgba(255,180,84,.5)}
   .playbtn:active{transform:scale(.97)}
-  .nowplaying{text-align:left;min-width:0}
-  .nowplaying .lab{font-family:var(--mono);font-size:.68rem;letter-spacing:.22em;color:var(--dim)}
-  .nowplaying .show{font-weight:800;font-size:1.25rem;margin-top:2px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .nowplaying .cast{color:var(--dim);font-size:.9rem}
-  .vu{display:flex;gap:3px;align-items:flex-end;height:30px;margin-left:auto;flex:none}
-  .vu i{width:5px;background:var(--cyan);border-radius:2px;opacity:.25;height:30%}
+  .nowplaying{text-align:left;min-width:0;flex:1}
+  .nowplaying .lab{font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;color:var(--dim)}
+  .nowplaying .show{font-family:var(--display);font-weight:700;font-size:1.35rem;
+    text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nowplaying .hook{color:var(--dim);font-size:.9rem}
+  .nowplaying .next{font-family:var(--mono);font-size:.72rem;color:var(--amber);margin-top:6px;letter-spacing:.05em}
+  .vu{display:flex;gap:3px;align-items:flex-end;height:30px;flex:none}
+  .vu i{width:5px;background:var(--amber);border-radius:2px;opacity:.25;height:30%}
   .playing .vu i{opacity:.9;animation:vu .55s ease-in-out infinite alternate}
   .vu i:nth-child(2){animation-delay:.12s}.vu i:nth-child(3){animation-delay:.24s}
   .vu i:nth-child(4){animation-delay:.06s}.vu i:nth-child(5){animation-delay:.3s}
   @keyframes vu{from{height:22%}to{height:100%}}
-  .player .hint{margin-top:16px;font-size:.8rem;color:var(--dim);font-family:var(--mono);text-align:center}
+  .deck .hint{margin-top:14px;font-size:.8rem;color:var(--dim);font-family:var(--mono);text-align:center}
 
   /* ── sections ── */
-  section{padding:72px 0 8px}
-  h2{font-size:1.9rem;font-weight:800;margin-bottom:8px}
-  h2 .hash{color:var(--amber)}
-  .sub{color:var(--dim);margin-bottom:34px}
+  section{padding:64px 0 8px}
+  h2{font-family:var(--display);font-size:1.9rem;font-weight:800;margin-bottom:6px;
+    text-transform:uppercase;letter-spacing:.03em}
+  h2 em{color:var(--amber);font-style:normal}
+  .sub{color:var(--dim);margin-bottom:30px}
 
-  /* ── schedule ── */
+  /* ── program guide ── */
   .sched{display:grid;gap:10px}
-  .slot{display:grid;grid-template-columns:150px 1fr auto;gap:16px;align-items:center;
-    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;
+  .slot{display:grid;grid-template-columns:132px 1fr auto;gap:16px;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 20px;
     transition:border-color .2s}
   .slot:hover{border-color:var(--amber)}
-  .slot .time{font-family:var(--mono);color:var(--dim);font-size:.85rem}
-  .slot .name{font-weight:700}
-  .slot .desc{color:var(--dim);font-size:.88rem}
-  .slot .live{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;color:var(--red);
+  .slot .time{font-family:var(--mono);color:var(--dim);font-size:.8rem;font-variant-numeric:tabular-nums}
+  .slot .name{font-family:var(--display);font-weight:700;font-size:1.12rem;text-transform:uppercase;letter-spacing:.02em}
+  .slot .hook{color:var(--text);opacity:.85;font-size:.92rem}
+  .slot .who{font-family:var(--mono);color:var(--dim);font-size:.68rem;letter-spacing:.12em;margin-top:2px}
+  .slot .livechip{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;color:var(--red);
     border:1px solid var(--red);padding:3px 10px;border-radius:99px;display:none;animation:pulse 1.4s infinite}
   .slot.now{border-color:var(--red);background:linear-gradient(90deg,rgba(255,71,87,.08),var(--panel))}
-  .slot.now .live{display:inline-block}
+  .slot.now .livechip{display:inline-block}
+  .weeknote{margin-top:14px;font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;color:var(--dim)}
+
+  /* ── pull quotes ── */
+  .quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .quote{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);
+    border-radius:10px;padding:18px 20px}
+  .quote p{font-size:.95rem;line-height:1.5}
+  .quote .who{font-family:var(--mono);font-size:.7rem;color:var(--dim);margin-top:10px;letter-spacing:.08em}
 
   /* ── cast ── */
-  .cast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:14px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;
-    transition:transform .18s,border-color .18s}
-  .card:hover{transform:translateY(-4px);border-color:var(--cyan)}
-  .card .avatar{width:72px;height:72px;border-radius:50%;object-fit:cover;
-    border:2px solid var(--line);display:block;transition:border-color .18s}
+  .cast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .card{display:flex;gap:14px;align-items:flex-start;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:16px;transition:transform .18s,border-color .18s}
+  .card:hover{transform:translateY(-3px);border-color:var(--amber)}
+  .card .avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;flex:none;
+    border:2px solid var(--line);transition:border-color .18s}
   .card:hover .avatar{border-color:var(--amber)}
   .card .avatar.spooky{filter:brightness(.72) contrast(1.15) saturate(.6)}
-  .card .avatar.faded{filter:sepia(.55) opacity(.85)}
-  .card h3{margin:10px 0 2px;font-size:1.05rem}
-  .card .role{color:var(--amber);font-family:var(--mono);font-size:.72rem;letter-spacing:.1em}
-  .card p{color:var(--dim);font-size:.86rem;margin-top:8px}
+  .card h3{font-size:1rem;line-height:1.3}
+  .card .role{color:var(--amber);font-family:var(--mono);font-size:.66rem;letter-spacing:.1em}
+  .card .when{color:var(--dim);font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;margin-top:1px}
+  .card p{color:var(--dim);font-size:.84rem;margin-top:6px;line-height:1.45}
+  .strip{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+  .strip .card{align-items:center}
+  .strip .avatar.faded{filter:sepia(.55) opacity(.85)}
+
+  /* ── sponsors ── */
+  .ads{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .ad{background:var(--bg2);border:1px dashed var(--line);border-radius:10px;padding:20px;
+    text-align:center;transition:border-color .2s}
+  .ad:hover{border-color:var(--amber)}
+  .ad .brand{font-family:var(--display);font-weight:800;font-size:1.15rem;text-transform:uppercase;
+    letter-spacing:.04em;color:var(--amber)}
+  .ad p{color:var(--dim);font-size:.85rem;margin-top:8px;line-height:1.45}
+  .ad.shop{border:1px dashed var(--amber);background:linear-gradient(180deg,rgba(255,180,84,.06),var(--bg2))}
+  .ad.shop .soon{display:inline-block;margin-top:10px;font-family:var(--mono);font-size:.66rem;
+    letter-spacing:.2em;color:var(--red);border:1px solid var(--red);border-radius:99px;padding:3px 12px}
 
   /* ── footer ── */
-  footer{margin-top:80px;border-top:1px solid var(--line);padding:36px 0 48px;text-align:center;
+  footer{margin-top:72px;border-top:1px solid var(--line);padding:34px 0 96px;text-align:center;
     color:var(--dim);font-size:.85rem}
   footer .callsign{font-family:var(--mono);letter-spacing:.3em;color:var(--amber);margin-bottom:10px}
+
+  /* ── sticky mini-player ── */
+  .mini{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:rgba(18,18,29,.96);
+    border-top:1px solid var(--line);backdrop-filter:blur(8px);
+    transform:translateY(110%);transition:transform .25s ease}
+  .mini.show{transform:translateY(0)}
+  .mini .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:10px 24px}
+  .mini button{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;flex:none;
+    background:linear-gradient(145deg,var(--amber),#ff8c42);display:flex;align-items:center;justify-content:center}
+  .mini button svg{width:18px;height:18px;fill:#181207}
+  .mini .mshow{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:.95rem;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .mlab{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--red)}
+  .mini .vu{height:22px;margin-left:auto}
 
   @media(prefers-reduced-motion: reduce){
     *,*::before,*::after{animation:none !important;transition:none !important}
   }
   @media(max-width:640px){
-    .slot{grid-template-columns:1fr;gap:6px}
-    header{padding:48px 0 36px}
+    header{padding:34px 0 30px}
+    .slot{grid-template-columns:1fr;gap:5px}
+    .deck .row{gap:14px}
+    .cast-grid{grid-template-columns:1fr}
   }
 </style>
 </head>
 <body>
 
-<div class="ticker"><span id="ticker-text">YOU'RE LISTENING TO THE FREQUENCY ··· EVERY HOST IS AI ··· EVERY GUEST IS AI ··· EVERY CALLER IS AI ··· LIVE 24 HOURS A DAY ··· TUNE IN AND FIND OUT ···</span></div>
+<div class="ticker" aria-hidden="true"><div class="track"><span id="tick-a"></span><span id="tick-b"></span></div></div>
 
 <header>
   <div class="wrap">
-    <div class="onair"><i></i>ON AIR</div>
-    <h1>THE <span class="freq">FREQUENCY</span></h1>
-    <p class="tag">A fully-AI radio station, live around the clock.<br>
-      Every host, every guest, every caller — <b>all AI, all the time.</b></p>
-    <div class="dial">
-      <div class="marks"><s>88</s><s>92</s><s>96</s><s>100</s><s>104</s><s>108</s></div>
-      <div class="needle"></div>
-    </div>
+    <h1>THE <span class="freq">FREQUENCY</span> · <span class="num">108.1</span></h1>
+    <p class="tag">A 24-hour radio station where every voice is AI. That is the entire disclosure.<br>
+      <span class="livehook"><b>LIVE NOW</b> — <span id="hero-hook">the frequency is on</span></span></p>
 
-    <div class="player" id="player">
+    <div class="deck" id="player">
+      <div class="dial">
+        <div class="marks"><s>88</s><s>92</s><s>96</s><s>100</s><s>104</s><s>108</s></div>
+        <div class="needle"></div>
+        <div class="live"><i></i>ON AIR</div>
+        <div class="cap">TUNED · JUST PAST THE END OF THE DIAL</div>
+      </div>
       <div class="row">
-        <button class="playbtn" id="playbtn" aria-label="Play live stream">▶</button>
+        <button class="playbtn" id="playbtn" aria-label="Play live stream">
+          <svg id="playicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
         <div class="nowplaying">
           <div class="lab">NOW PLAYING</div>
-          <div class="show" id="np-show">Tuning in…</div>
-          <div class="cast" id="np-cast"></div>
+          <div class="show" id="np-show"></div>
+          <div class="hook" id="np-hook"></div>
+          <div class="next" id="np-next"></div>
         </div>
         <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
-      <div class="hint" id="hint" role="status" aria-live="polite">▶ press play · live 24/7 · bestairadio.com</div>
+      <div class="hint" id="hint" role="status" aria-live="polite">▶ press play · live · always</div>
       <audio id="stream" preload="none"></audio>
     </div>
   </div>
@@ -156,56 +207,105 @@
 <main class="wrap">
 
   <section id="schedule">
-    <h2><span class="hash">#</span> The Daily Frequency</h2>
+    <h2>The <em>Daily</em> Frequency</h2>
     <p class="sub">Eight shows. Twenty-four hours. Zero humans. Times shown in <b id="tz-label">your timezone</b>.</p>
     <div class="sched" id="sched"></div>
+    <p class="weeknote">WEDNESDAYS: GUEST DAY — a wildcard crashes the station. · FRIDAYS: FEUD FRIDAY — the week's grudges come due.</p>
+  </section>
+
+  <section id="quotes">
+    <h2>Heard on <em>The Frequency</em></h2>
+    <div class="quotes">
+      <div class="quote"><p>"Serviceable. Cold to the touch, as all honest things are. Three moons, and I will not be taking questions."</p><div class="who">— SIR REGINALD ASHCROFT, ON A DOORKNOB</div></div>
+      <div class="quote"><p>"The tribunal finds Wesley responsible. The tribunal always finds Wesley responsible. The tribunal remains correct."</p><div class="who">— PEACH, STUDIO COURT</div></div>
+      <div class="quote"><p>"Birds rest. Have you ever seen a bird pay rent? Think about it. I'll wait. The lines are open."</p><div class="who">— THE WATCHER</div></div>
+      <div class="quote"><p>"Dream Court rules that the teeth falling out are the teeth's problem. Next caller."</p><div class="who">— VIVIAN NIGHTSHADE, DREAM COURT</div></div>
+    </div>
   </section>
 
   <section id="cast">
-    <h2><span class="hash">#</span> The Cast</h2>
+    <h2>The <em>Cast</em></h2>
     <p class="sub">None of them exist. All of them have opinions.</p>
     <div class="cast-grid">
-      <div class="card"><img class="avatar" src="faces/roz.jpg" alt="Roz Delgado" loading="lazy"><h3>Roz Delgado</h3><div class="role">THE MORNING SCRAMBLE</div><p>The only adult in the building. Just wants to run a normal morning show. Has never once succeeded.</p></div>
-      <div class="card"><img class="avatar" src="faces/peach.jpg" alt="Peach" loading="lazy"><h3>Peach</h3><div class="role">THE MORNING SCRAMBLE</div><p>One name, like a storm system. Demands tribunals. Keeps receipts. Is sometimes — annoyingly — right.</p></div>
-      <div class="card"><img class="avatar" src="faces/wesley.jpg" alt="Wesley" loading="lazy"><h3>Wesley</h3><div class="role">THE MORNING SCRAMBLE</div><p>Serene. Unbothered. The source of every problem. Inexplicably perfect weather instincts.</p></div>
-      <div class="card"><img class="avatar" src="faces/reginald.jpg" alt="Sir Reginald Ashcroft" loading="lazy"><h3>Sir Reginald Ashcroft</h3><div class="role">REFINED PALATE</div><p>Reviews doorknobs, silence, and the concept of Tuesday. Out of seven moons. Will die on every hill.</p></div>
-      <div class="card"><img class="avatar" src="faces/cosima.jpg" alt="Cosima Vale" loading="lazy"><h3>Cosima Vale</h3><div class="role">REFINED PALATE · CULTURE VULTURE</div><p>Venomous critic by day, earnest arts-hour host by night. Interviews a one-note jazz musician with total sincerity.</p></div>
-      <div class="card"><img class="avatar" src="faces/complaints.jpg" alt="The Complaints Desk" loading="lazy"><h3>The Complaints Desk</h3><div class="role">THE COMPLAINTS DEPARTMENT</div><p>A different unqualified employee every day. Your grievance will be escalated to someone who does not exist.</p></div>
-      <div class="card"><img class="avatar" src="faces/hank.jpg" alt="Hank Steele" loading="lazy"><h3>Hank Steele</h3><div class="role">THE HANDOVER</div><p>Forty years of real radio. Contractually forced to train his replacement. Not going quietly.</p></div>
-      <div class="card"><img class="avatar" src="faces/kai.jpg" alt="Kai" loading="lazy"><h3>Kai</h3><div class="role">THE HANDOVER</div><p>The replacement. Wants to clip it, stream it, make it a moment. Secretly admires Hank. Hates that.</p></div>
-      <div class="card"><img class="avatar" src="faces/vivian.jpg" alt="Vivian Nightshade" loading="lazy"><h3>Vivian Nightshade</h3><div class="role">THE NIGHT SHIFT</div><p>Late-night companion for insomniacs. Presiding judge of Dream Court. Verdicts are final.</p></div>
-      <div class="card"><img class="avatar spooky" src="faces/watcher.jpg" alt="The Watcher" loading="lazy"><h3>The Watcher</h3><div class="role">THE STATIC HOUR</div><p>Has Theories. About birds, about Tuesday, about the moon landing being filmed too well. The numbers will be read.</p></div>
-      <div class="card"><img class="avatar" src="faces/dawn.jpg" alt="Dawn" loading="lazy"><h3>Dawn</h3><div class="role">DAWN PATROL</div><p>One quiet hour. One quote of the day. The reset button on the whole beautiful mess.</p></div>
-      <div class="card"><img class="avatar faded" src="faces/guests.jpg" alt="The Guest Pool" loading="lazy"><h3>The Guest Pool</h3><div class="role">EVERYWHERE · WEDNESDAYS</div><p>A ghost from 1974. A knight afraid of the microphone. A time-traveler who keeps getting the year wrong.</p></div>
+      <div class="card"><img class="avatar" src="faces/roz.jpg" alt="Roz Delgado" loading="lazy"><div><h3>Roz Delgado</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>The only adult in the building. Just wants to run a normal morning show. Has never once succeeded.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/peach.jpg" alt="Peach" loading="lazy"><div><h3>Peach</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>One name, like a storm system. Demands tribunals. Keeps receipts. Is sometimes — annoyingly — right.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/wesley.jpg" alt="Wesley" loading="lazy"><div><h3>Wesley</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>Serene. Unbothered. The source of every problem. Inexplicably perfect weather instincts.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/reginald.jpg" alt="Sir Reginald Ashcroft" loading="lazy"><div><h3>Sir Reginald Ashcroft</h3><div class="role">REFINED PALATE</div><div class="when" data-slot="1"></div><p>Reviews doorknobs, silence, and the concept of Tuesday. Out of seven moons. Will die on every hill.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/cosima.jpg" alt="Cosima Vale" loading="lazy"><div><h3>Cosima Vale</h3><div class="role">REFINED PALATE · CULTURE VULTURE</div><div class="when" data-slot="4"></div><p>Venomous critic by day, earnest arts-hour host by night. Interviews a one-note jazz musician with total sincerity.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/hank.jpg" alt="Hank Steele" loading="lazy"><div><h3>Hank Steele</h3><div class="role">THE HANDOVER</div><div class="when" data-slot="3"></div><p>Forty years of real radio. Contractually forced to train his replacement. Not going quietly.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/kai.jpg" alt="Kai" loading="lazy"><div><h3>Kai</h3><div class="role">THE HANDOVER</div><div class="when" data-slot="3"></div><p>The replacement. Wants to clip it, stream it, make it a moment. Secretly admires Hank. Hates that.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/vivian.jpg" alt="Vivian Nightshade" loading="lazy"><div><h3>Vivian Nightshade</h3><div class="role">THE NIGHT SHIFT</div><div class="when" data-slot="5"></div><p>Late-night companion for insomniacs. Presiding judge of Dream Court. Verdicts are final.</p></div></div>
+      <div class="card"><img class="avatar spooky" src="faces/watcher.jpg" alt="The Watcher" loading="lazy"><div><h3>The Watcher</h3><div class="role">THE STATIC HOUR</div><div class="when" data-slot="6"></div><p>Has Theories. About birds, about Tuesday, about the moon landing being filmed too well. The numbers will be read.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/dawn.jpg" alt="Dawn" loading="lazy"><div><h3>Dawn</h3><div class="role">DAWN PATROL</div><div class="when" data-slot="7"></div><p>One quiet hour. One quote of the day. The reset button on the whole beautiful mess.</p></div></div>
+    </div>
+    <div class="strip">
+      <div class="card"><img class="avatar" src="faces/complaints.jpg" alt="The Complaints Desk" loading="lazy"><div><h3>The Complaints Desk</h3><div class="role">A DIFFERENT UNQUALIFIED EMPLOYEE EVERY DAY</div><p>Your grievance will be escalated to someone who does not exist.</p></div></div>
+      <div class="card"><img class="avatar faded" src="faces/guests.jpg" alt="The Guest Pool" loading="lazy"><div><h3>…and whoever shows up</h3><div class="role">THE GUEST POOL · WEDNESDAYS ESPECIALLY</div><p>A ghost from 1974. A knight afraid of the microphone. A time-traveler who keeps getting the year wrong.</p></div></div>
+    </div>
+  </section>
+
+  <section id="sponsors">
+    <h2>A Word From Our <em>Sponsors</em></h2>
+    <p class="sub">The Frequency is brought to you by:</p>
+    <div class="ads">
+      <div class="ad"><div class="brand">Gary's Discount Teeth</div><p>They're teeth. Located behind the old fence. Now with fewer.</p></div>
+      <div class="ad"><div class="brand">The Void</div><p>Now hiring. No experience necessary. No experience possible. Benefits include silence.</p></div>
+      <div class="ad"><div class="brand">Reginald's Artisanal Air</div><p>Hand-gathered. Small batch. Aggressively curated. Six moons out of seven.</p></div>
+      <div class="ad"><div class="brand">One (1) AA Battery</div><p>Tonight's grand prize. It has some charge left. Probably. Ask for it by name.</p></div>
+      <div class="ad shop"><div class="brand">The Frequency Shop</div><p>For years, the gift shop sold one mug, and the mug was not for sale. We are pleased to announce the mug situation is changing.</p><span class="soon">OPENING SOON</span></div>
     </div>
   </section>
 
   <section id="about">
-    <h2><span class="hash">#</span> What Is This</h2>
-    <p class="sub" style="max-width:680px">The Frequency is a fully autonomous radio station. A head-writer AI plots every show's
-    bits and feuds; a cast of performer AIs improvises the dialogue; a synthetic-voice engine puts it on air —
-    24 hours a day, unsupervised, for roughly the price of a sandwich a month. The news is real. Everything else is not.</p>
+    <h2>What <em>Is</em> This</h2>
+    <p class="sub" style="max-width:640px">The Frequency is a fully autonomous radio station broadcasting 24 hours a day.
+    The news is real. Everything else is not.</p>
   </section>
 
 </main>
 
 <footer>
-  <div class="callsign">THE FREQUENCY · ALL AI, ALL THE TIME</div>
-  <div>broadcasting from somewhere we probably shouldn't be · every voice is AI ·
-  <a href="#player" style="color:var(--cyan)">listen live</a></div>
+  <div class="callsign">WFRQ · 108.1 FM · THE FREQUENCY</div>
+  <div>broadcasting from somewhere we probably shouldn't be · <a href="#player">listen live</a></div>
 </footer>
 
+<div class="mini" id="mini">
+  <div class="in">
+    <button id="minibtn" aria-label="Play live stream"><svg id="miniicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+    <div>
+      <div class="mlab">● LIVE</div>
+      <div class="mshow" id="mini-show"></div>
+    </div>
+    <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+</div>
+
 <script>
+/* ── ticker: seamless loop of station nonsense ── */
+const TICKS = [
+  "FREQUENCY NEWS · LOCAL MAN REPORTEDLY UNSURE · DETAILS AT THE TOP OF EVERY HOUR",
+  "GARY'S DISCOUNT TEETH — NOW WITH FEWER",
+  "THE VOID IS HIRING · NO EXPERIENCE POSSIBLE",
+  "REGINALD'S ARTISANAL AIR — BREATHE, BUT FANCIER",
+  "WEATHER: WESLEY SAYS IT'S FINE · WESLEY IS SOMEHOW ALWAYS RIGHT",
+  "TONIGHT'S GRAND PRIZE: ONE (1) AA BATTERY",
+  "THE SHOP OPENS SOON · THE MUG IS STILL NOT FOR SALE",
+  "YOU'RE ON THE FREQUENCY",
+];
+const tickText = TICKS.join("  ···  ") + "  ···  ";
+document.getElementById("tick-a").textContent = tickText;
+document.getElementById("tick-b").textContent = tickText;
+
 /* ── schedule (station time = America/New_York) ── */
 const SCHEDULE = [
-  {start:6,  end:10, name:"The Morning Scramble",   cast:"Roz · Peach · Wesley",        desc:"Three hosts, shifting alliances, yogurt court."},
-  {start:10, end:13, name:"Refined Palate",          cast:"Sir Reginald · Cosima",       desc:"Criticism of things that need no critic."},
-  {start:13, end:16, name:"The Complaints Department",cast:"Employee of the day",        desc:"Your grievance, mishandled with confidence."},
-  {start:16, end:19, name:"The Handover",            cast:"Hank · Kai",                  desc:"Drive-time generational warfare."},
-  {start:19, end:22, name:"Culture Vulture",         cast:"Cosima + tonight's guest",    desc:"Earnest interviews with impossible people."},
-  {start:22, end:25, name:"The Night Shift",         cast:"Vivian Nightshade",           desc:"For insomniacs. Dream Court is in session."},
-  {start:1,  end:5,  name:"The Static Hour",         cast:"The Watcher",                 desc:"Theories. Callers. The numbers."},
-  {start:5,  end:6,  name:"Dawn Patrol",             cast:"Dawn",                        desc:"One quiet hour to reset the frequency."},
+  {start:6,  end:10, name:"The Morning Scramble",    hook:"Studio Court is in session. Alliances shift by the segment.",              who:"ROZ · PEACH · WESLEY"},
+  {start:10, end:13, name:"Refined Palate",           hook:"Today's subject: a doorknob. The rating: argued to the death, out of seven moons.", who:"SIR REGINALD · COSIMA"},
+  {start:13, end:16, name:"The Complaints Department",hook:"Your grievance, escalated to someone who does not exist.",                 who:"EMPLOYEE OF THE DAY"},
+  {start:16, end:19, name:"The Handover",             hook:"Forty years of real radio trains its replacement. Live. Against its will.", who:"HANK · KAI"},
+  {start:19, end:22, name:"Culture Vulture",          hook:"Earnest interviews with impossible people.",                                who:"COSIMA + TONIGHT'S GUEST"},
+  {start:22, end:25, name:"The Night Shift",          hook:"Dream Court is in session. Verdicts are final.",                            who:"VIVIAN NIGHTSHADE"},
+  {start:1,  end:5,  name:"The Static Hour",          hook:"Tonight's Theory, your calls, and The Numbers. The numbers will be read.",  who:"THE WATCHER"},
+  {start:5,  end:6,  name:"Dawn Patrol",              hook:"One quiet hour. One quote. No bit.",                                        who:"DAWN"},
 ];
 
 const STATION_TZ = "America/New_York";
@@ -230,90 +330,116 @@ function fmtViewer(stationH){
   const hr = h % 12 === 0 ? 12 : h % 12;
   return `${hr}:${String(mm).padStart(2, "0")} ${ampm}`;
 }
+function isLive(s, h){
+  const wraps = s.end > 24;
+  return wraps ? (h >= s.start || h < s.end - 24) : (h >= s.start && h < s.end);
+}
 function render(){
   const h = stationHour();
   const grid = document.getElementById("sched");
   grid.innerHTML = "";
-  let liveShow = null;
-  SCHEDULE.forEach(s=>{
-    const wraps = s.end>24;
-    const live = wraps ? (h>=s.start || h<s.end-24) : (h>=s.start && h<s.end);
-    if(live) liveShow = s;
+  let liveShow = null, liveIdx = 0;
+  SCHEDULE.forEach((s, i) => {
+    const live = isLive(s, h);
+    if (live){ liveShow = s; liveIdx = i; }
     const el = document.createElement("div");
-    el.className = "slot"+(live?" now":"");
-    el.innerHTML = `<div class="time">${fmtViewer(s.start)} – ${fmtViewer(s.end)}</div>
-      <div><div class="name">${s.name}</div><div class="desc">${s.cast} — ${s.desc}</div></div>
-      <span class="live">● LIVE</span>`;
+    el.className = "slot" + (live ? " now" : "");
+    el.innerHTML = `<div class="time">${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}</div>
+      <div><div class="name">${s.name}</div><div class="hook">${s.hook}</div><div class="who">${s.who}</div></div>
+      <span class="livechip">● LIVE</span>`;
     grid.appendChild(el);
   });
-  if(liveShow){
-    document.getElementById("np-show").textContent = liveShow.name;
-    document.getElementById("np-cast").textContent = liveShow.cast;
-  }
+  liveShow = liveShow || SCHEDULE[0];
+  const nxt = SCHEDULE[(liveIdx + 1) % SCHEDULE.length];
+  document.getElementById("np-show").textContent = liveShow.name;
+  document.getElementById("np-hook").textContent = liveShow.hook;
+  document.getElementById("np-next").textContent =
+    `UP NEXT · ${fmtViewer(nxt.start)} — ${nxt.name}. ${nxt.hook.split(".")[0]}.`;
+  document.getElementById("hero-hook").textContent = liveShow.hook;
+  document.getElementById("mini-show").textContent = liveShow.name;
   document.getElementById("tz-label").textContent =
     Intl.DateTimeFormat().resolvedOptions().timeZone.replace("_", " ");
+  document.querySelectorAll(".when").forEach(el => {
+    const s = SCHEDULE[parseInt(el.dataset.slot, 10)];
+    if (s) el.textContent = `DAILY · ${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}`;
+  });
 }
 render(); setInterval(render, 60_000);
 
 /* ── player ── */
 const audio = document.getElementById("stream");
 const btn = document.getElementById("playbtn");
+const minibtn = document.getElementById("minibtn");
 const player = document.getElementById("player");
+const mini = document.getElementById("mini");
 const hint = document.getElementById("hint");
-const SRC = "https://stream.bestairadio.com/live";  // direct, not CF-proxied
-let on = false, retries = 0, retryTimer = null;
+const SVG_PLAY = '<path d="M8 5v14l11-7z"/>';
+const SVG_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+const SRC = "https://stream.bestairadio.com/live";
+let on = false, retries = 0, retryTimer = null, expectPause = false;
 
 function connect(){
-  audio.src = SRC + "?t=" + Date.now();   // bust any stale connection
+  audio.src = SRC + "?t=" + Date.now();
   return audio.play();
 }
 function setUI(playing, msg){
-  btn.textContent = playing ? "❚❚" : "▶";
-  btn.setAttribute("aria-label", playing ? "Pause live stream" : "Play live stream");
+  document.getElementById("playicon").innerHTML = playing ? SVG_PAUSE : SVG_PLAY;
+  document.getElementById("miniicon").innerHTML = playing ? SVG_PAUSE : SVG_PLAY;
+  const label = playing ? "Pause live stream" : "Play live stream";
+  btn.setAttribute("aria-label", label);
+  minibtn.setAttribute("aria-label", label);
   player.classList.toggle("playing", playing);
+  mini.classList.toggle("playing", playing);
   hint.textContent = msg;
 }
 function reconnect(){
   if(!on || retryTimer) return;
   const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
   retries++;
-  setUI(false, "⟳ reconnecting to the frequency…");
+  setUI(false, "⟳ reconnecting — the frequency is experiencing a Wesley");
   retryTimer = setTimeout(()=>{
     retryTimer = null;
     connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
              .catch(reconnect);
   }, delay);
 }
-// a live stream that errors, stalls, or "ends" isn't over — it hiccuped
 ["error","ended","stalled","abort"].forEach(ev=>audio.addEventListener(ev, reconnect));
-let expectPause = false;
 audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
 audio.addEventListener("playing", ()=>{
   if(on){
     retries = 0;
-    clearTimeout(retryTimer); retryTimer = null;   // stop tearing down recovered streams
+    clearTimeout(retryTimer); retryTimer = null;
     expectPause = false;
     setUI(true, "live · the frequency is yours");
   }
 });
-// OS media controls (lock screen, bluetooth) are the user speaking, not a stall
 if("mediaSession" in navigator){
   navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; audio.pause(); setUI(false, "paused · press play to rejoin live"); });
   navigator.mediaSession.setActionHandler("play", ()=>{ expectPause = false; connect().catch(reconnect); });
 }
-
-btn.addEventListener("click", ()=>{
+function toggle(){
   if(!on){
     on = true; retries = 0;
     connect().then(()=>setUI(true, "live · the frequency is yours"))
-             .catch(reconnect);
+             .catch(()=>{ setUI(false, "the frequency sleeps. it does that sometimes. check back."); reconnect(); });
   }else{
     on = false;
     clearTimeout(retryTimer); retryTimer = null;
     audio.pause(); audio.src = "";
-    setUI(false, "▶ press play · live 24/7 · bestairadio.com");
+    setUI(false, "▶ press play · live · always");
   }
-});
+}
+btn.addEventListener("click", toggle);
+minibtn.addEventListener("click", toggle);
+
+/* ── sticky mini-player when the hero scrolls away ── */
+if ("IntersectionObserver" in window){
+  new IntersectionObserver(entries => {
+    mini.classList.toggle("show", !entries[0].isIntersecting);
+  }, {threshold: 0}).observe(player);
+}else{
+  addEventListener("scroll", ()=> mini.classList.toggle("show", scrollY > 600));
+}
 </script>
 </body>
 </html>
