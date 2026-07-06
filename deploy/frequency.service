@@ -1,0 +1,17 @@
+[Unit]
+Description=The Frequency — show generation (writer/performers/TTS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kaos/app
+EnvironmentFile=/opt/kaos/app/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/kaos/.venv/bin/python -m src.orchestrator --live
+Restart=always
+RestartSec=15
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

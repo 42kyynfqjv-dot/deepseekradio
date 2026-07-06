@@ -39,7 +39,7 @@ def chat(model_cfg: dict, messages: list[dict], retries: int = 3) -> str:
 
     headers = {
         "Authorization": f"Bearer {key}",
-        "X-Title": os.environ.get("OPENROUTER_APP_NAME", "KAOS-FM"),
+        "X-Title": os.environ.get("OPENROUTER_APP_NAME", "The Frequency"),
     }
     if url := os.environ.get("OPENROUTER_APP_URL"):
         headers["HTTP-Referer"] = url

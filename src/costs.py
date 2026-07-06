@@ -32,7 +32,7 @@ def estimate(config: dict) -> dict:
     wr_usd = (wr_runs * wr_in) / 1e6 * wr["price_in"] + \
              (wr_runs * wr_out) / 1e6 * wr["price_out"]
 
-    # Hourly KAOS News: one small writer call per hour.
+    # Hourly Frequency News: one small writer call per hour.
     news_usd = 0.0
     if config.get("news", {}).get("enabled"):
         runs = 24 * 30
@@ -52,7 +52,7 @@ def estimate(config: dict) -> dict:
 def main():
     config = yaml.safe_load(Path("config.yaml").read_text())
     e = estimate(config)
-    print("KAOS-FM — estimated monthly LLM cost\n")
+    print("The Frequency — estimated monthly LLM cost\n")
     print(f"  performers  {e['performer_model']:<45} ${e['performer_usd']:.2f}")
     print(f"  head writer {e['writer_model']:<45} ${e['writer_usd']:.2f}")
     if e["news_usd"]:

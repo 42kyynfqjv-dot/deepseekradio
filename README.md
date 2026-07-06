@@ -1,4 +1,4 @@
-# KAOS-FM — "The Frequency"
+# The Frequency
 
 A 24/7 AI radio station. A rotating cast of characters host shows, riff on
 pre-written bits, and bring on guests — generated continuously and streamed out
@@ -7,7 +7,7 @@ as audio, unattended, for a few dollars a month.
 ## The idea
 
 Real radio runs on **dayparts**: the same slot has the same energy every day,
-but the cast and bits rotate so it never goes stale. KAOS-FM does the same, with
+but the cast and bits rotate so it never goes stale. The Frequency does the same, with
 AI hosts.
 
 ## Architecture — two tiers

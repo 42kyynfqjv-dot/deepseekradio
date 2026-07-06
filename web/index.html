@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KAOS-FM — The Frequency · 24/7 AI Radio</title>
-<meta name="description" content="KAOS-FM: a 24/7 radio station where every host, guest, and caller is an AI. Live now at bestairadio.com.">
+<title>The Frequency · 24/7 AI Radio</title>
+<meta name="description" content="The Frequency: a 24/7 radio station where every host, guest, and caller is an AI. Live now at bestairadio.com.">
 <style>
   :root{
     --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
@@ -121,12 +121,12 @@
 </head>
 <body>
 
-<div class="ticker"><span id="ticker-text">YOU'RE LISTENING TO KAOS-FM ··· THE FREQUENCY ··· EVERY HOST IS AI ··· EVERY GUEST IS AI ··· EVERY CALLER IS AI ··· THE YOGURT COURT IS NOW IN SESSION ··· GARY'S DISCOUNT TEETH: THEY'RE TEETH ··· THE VOID IS HIRING ··· BROADCASTING 24/7 FROM SOMEWHERE WE PROBABLY SHOULDN'T BE ···</span></div>
+<div class="ticker"><span id="ticker-text">YOU'RE LISTENING TO THE FREQUENCY ··· EVERY HOST IS AI ··· EVERY GUEST IS AI ··· EVERY CALLER IS AI ··· LIVE 24 HOURS A DAY ··· TUNE IN AND FIND OUT ···</span></div>
 
 <header>
   <div class="wrap">
     <div class="onair"><i></i>ON AIR</div>
-    <h1>KAOS<span class="freq">-FM</span></h1>
+    <h1>THE <span class="freq">FREQUENCY</span></h1>
     <p class="tag">The world's first fully-AI 24/7 radio station.<br>
       Every host, every guest, every caller — <b>all AI, all the time.</b></p>
     <div class="dial">
@@ -154,7 +154,7 @@
 
   <section id="schedule">
     <h2><span class="hash">#</span> The Daily Frequency</h2>
-    <p class="sub">Eight shows. Twenty-four hours. Zero humans. Times shown in <b id="tz-label">your timezone</b>.</p>
+    <p class="sub">Eight shows. Twenty-four hours. Zero humans. All times <b id="tz-label">station time</b>.</p>
     <div class="sched" id="sched"></div>
   </section>
 
@@ -179,7 +179,7 @@
 
   <section id="about">
     <h2><span class="hash">#</span> What Is This</h2>
-    <p class="sub" style="max-width:680px">KAOS-FM is a fully autonomous radio station. A head-writer AI plots every show's
+    <p class="sub" style="max-width:680px">The Frequency is a fully autonomous radio station. A head-writer AI plots every show's
     bits and feuds; a cast of performer AIs improvises the dialogue; a synthetic-voice engine puts it on air —
     24 hours a day, unsupervised, for roughly the price of a sandwich a month. The news is real. Everything else is not.</p>
   </section>
@@ -187,7 +187,7 @@
 </main>
 
 <footer>
-  <div class="callsign">KAOS-FM · THE FREQUENCY</div>
+  <div class="callsign">THE FREQUENCY · ALL AI, ALL THE TIME</div>
   <div>broadcasting from somewhere we probably shouldn't be · every voice is AI ·
   <a href="#player" style="color:var(--cyan)">listen live</a></div>
 </footer>
@@ -205,9 +205,11 @@ const SCHEDULE = [
   {start:5,  end:6,  name:"Dawn Patrol",             cast:"Dawn",                        desc:"One quiet hour to reset the frequency."},
 ];
 
-function fmtLocal(utcHour){
-  const d = new Date(); d.setUTCHours(utcHour%24, 0, 0, 0);
-  return d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+function fmtStation(h){
+  h = h % 24;
+  const ampm = h < 12 ? "AM" : "PM";
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}:00 ${ampm}`;
 }
 function currentShow(){
   const h = new Date().getUTCHours();
@@ -225,7 +227,7 @@ function render(){
     if(live) liveShow = s;
     const el = document.createElement("div");
     el.className = "slot"+(live?" now":"");
-    el.innerHTML = `<div class="time">${fmtLocal(s.start)} – ${fmtLocal(s.end%24)}</div>
+    el.innerHTML = `<div class="time">${fmtStation(s.start)} – ${fmtStation(s.end)}</div>
       <div><div class="name">${s.name}</div><div class="desc">${s.cast} — ${s.desc}</div></div>
       <span class="live">● LIVE</span>`;
     grid.appendChild(el);
@@ -234,8 +236,7 @@ function render(){
     document.getElementById("np-show").textContent = liveShow.name;
     document.getElementById("np-cast").textContent = liveShow.cast;
   }
-  document.getElementById("tz-label").textContent =
-    Intl.DateTimeFormat().resolvedOptions().timeZone.replace("_"," ");
+  document.getElementById("tz-label").textContent = "station time";
 }
 render(); setInterval(render, 60_000);
 
@@ -244,14 +245,14 @@ const audio = document.getElementById("stream");
 const btn = document.getElementById("playbtn");
 const player = document.getElementById("player");
 const hint = document.getElementById("hint");
-const SRC = "/stream";           // proxied to Icecast mount
+const SRC = "https://stream.bestairadio.com/live";  // direct, not CF-proxied
 let on = false;
 btn.addEventListener("click", ()=>{
   if(!on){
     audio.src = SRC + "?t=" + Date.now();   // bust any stale connection
     audio.play().then(()=>{
       on = true; btn.textContent = "❚❚"; player.classList.add("playing");
-      hint.textContent = "live · KAOS-FM · the frequency is yours";
+      hint.textContent = "live · the frequency is yours";
     }).catch(()=>{
       hint.textContent = "⚠ stream offline — the frequency sleeps. check back soon.";
     });

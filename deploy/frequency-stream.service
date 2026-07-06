@@ -1,0 +1,14 @@
+[Unit]
+Description=The Frequency — streamer (buffer -> Icecast)
+After=network-online.target icecast2.service
+Wants=icecast2.service
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/kaos/stream.env
+ExecStart=/opt/kaos/app/deploy/player.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

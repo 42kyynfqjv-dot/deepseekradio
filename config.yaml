@@ -1,4 +1,4 @@
-# KAOS-FM configuration — models, budgets, tuning knobs.
+# The Frequency configuration — models, budgets, tuning knobs.
 # Prices are current OpenRouter $/M tokens (for the cost estimator only).
 
 models:
@@ -34,7 +34,7 @@ generation:
   buffer_target_minutes: 45
 
 news:
-  # Hourly "KAOS News": real headlines pulled from RSS, mangled by the writer
+  # Hourly "Frequency News": real headlines pulled from RSS, mangled by the writer
   # into the station's absurd 90-second top-of-the-hour bulletin.
   enabled: true
   feeds:
@@ -52,7 +52,7 @@ tts:
 stream:
   icecast_host: 127.0.0.1
   icecast_port: 8000
-  mount: /kaos.mp3
+  mount: /live
   bitrate: 96
 
 content:

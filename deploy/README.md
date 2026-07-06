@@ -1,4 +1,4 @@
-# Deploying KAOS-FM on the box
+# Deploying The Frequency on the box
 
 Target: the Netcup VPS (real x86, AVX2 — Kokoro runs at full speed).
 

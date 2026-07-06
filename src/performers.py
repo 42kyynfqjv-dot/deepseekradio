@@ -36,7 +36,7 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
     cast_text = "\n\n".join(_persona(n)[1] for n in daypart["cast"])
 
     system = (
-        "You are the performing cast of a KAOS-FM radio segment. Turn the beat "
+        "You are the performing cast of a radio segment on The Frequency. Turn the beat "
         "into natural, funny, spoken radio dialogue. Stay in character. Do NOT "
         "narrate stage directions — only spoken lines. Honor the content "
         "guardrail absolutely.\n\n" + bible + "\n\nCAST:\n" + cast_text

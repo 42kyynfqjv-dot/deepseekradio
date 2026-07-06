@@ -39,7 +39,7 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                   if daypart.get("guest") else "No guest today.")
 
     system = (
-        "You are the head writer for KAOS-FM, a 24/7 comedy radio station. "
+        "You are the head writer for The Frequency, a 24/7 comedy radio station. "
         "You write tight segment outlines that cheap performer models then turn "
         "into dialogue. Be funny, specific, and set up clear punchline targets. "
         "Honor the content guardrail absolutely.\n\n" + bible
