@@ -1,5 +1,11 @@
 #!/bin/bash
 . /opt/kaos/stream.env
+# self-heal: if no source is connected, bounce the streamer
+if ! curl -s http://127.0.0.1:8000/status-json.xsl | grep -q "\"listenurl\""; then
+  systemctl restart frequency-stream
+  logger -t frequency "self-heal: source was down, restarted streamer"
+  sleep 5
+fi
 SHOW=$(python3 - << "PY"
 import yaml
 from datetime import datetime, time as dtime
