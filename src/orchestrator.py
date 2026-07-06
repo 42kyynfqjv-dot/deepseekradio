@@ -387,6 +387,8 @@ def run_show(daypart, config, schedule, live: bool):
                                   state, _context(i + 1, lines))
             print(f"\n--- {beat.get('segment')} ---")
             _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
+            if lines:  # keep the tail fresh so any restart resumes mid-thought
+                _save_tail(daypart, lines)
 
     if daypart.get("arc"):
         st = _sstate()
