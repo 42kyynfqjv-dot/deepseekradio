@@ -69,6 +69,10 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   host, or the segment. No "welcome back", no "you're listening to", no
   greetings — pick up exactly where the story so far leaves off, as if the
   previous sentence just ended.
+- Write like people actually TALK, not like prose: contractions always,
+  occasional hesitations (uh, well, look, I mean), false starts, trailing
+  thoughts, short reactions ("Right." "No. No no no."). Sparingly — one or two
+  per exchange, not every line.
 - Plain spoken words ONLY: no markdown, asterisks, stage directions, or emoji.
 - The station has NO sound effects, stings, or jingles. Never describe a sound,
   never imitate one (no onomatopoeia: no bang, ding, whoosh), and never react to
@@ -116,18 +120,22 @@ _EXTRA_VOICES = ["af_heart", "am_eric", "bf_emma", "am_liam", "af_jessica",
 def _attach_voices(lines: list[dict], daypart: dict) -> list[dict]:
     """Cast speakers get their persona voice; callers/one-offs each get a
     distinct spare voice, stable per speaker name within the segment."""
-    voices = {}
+    voices, speeds = {}, {}
     for name in daypart["cast"]:
         display, text = _persona(name)
         m = re.search(r"^voice:\s*(.+)$", text, re.MULTILINE)
         v = m.group(1).strip() if m else "am_adam"
-        voices[display.lower()] = v
+        ms = re.search(r"^speed:\s*(.+)$", text, re.MULTILINE)
+        s = float(ms.group(1)) if ms else 1.0
+        voices[display.lower()] = v; speeds[v] = s
         voices[name.lower()] = v
     for ln in lines:
         spk = str(ln.get("speaker", "")).lower()
         cast_v = next((voices[k] for k in voices if k in spk), None)
         if cast_v:
             ln["voice"] = cast_v
+            ln["speed"] = speeds.get(cast_v, 1.0)
         else:  # caller/guest: deterministic distinct voice per name
             ln["voice"] = _EXTRA_VOICES[hash(spk) % len(_EXTRA_VOICES)]
+            ln["speed"] = 0.94 + (hash(spk) % 5) * 0.04  # 0.94-1.10 per caller
     return lines

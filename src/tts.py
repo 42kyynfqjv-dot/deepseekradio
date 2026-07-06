@@ -37,19 +37,28 @@ def _engine(sample_rate: int):
 
 def synth_segment(lines: list[dict], out_path: Path, cfg: dict) -> Path:
     """Render a list of {speaker, voice, text} lines into one WAV file."""
+    import random
+
     import numpy as np
 
     sr = cfg["tts"]["sample_rate"]
     kokoro = _engine(sr)
     chunks = []
+    prev_speaker = None
     for ln in lines:
         text = clean_for_speech(ln.get("text", "").strip())
         if not text:
             continue
         voice = ln.get("voice", cfg["tts"]["default_voice"])
-        samples, _ = kokoro.create(text, voice=voice, speed=1.0, lang="en-us")
+        # character pace with slight per-line jitter so delivery isn't metronomic
+        speed = ln.get("speed", 1.0) * random.uniform(0.98, 1.03)
+        samples, _ = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
         chunks.append(samples)
-        chunks.append(np.zeros(int(sr * 0.35)))  # beat of silence between lines
+        # conversational rhythm: quick continuation, longer on speaker change
+        spk = ln.get("speaker")
+        base = 0.5 if spk != prev_speaker else 0.22
+        chunks.append(np.zeros(int(sr * random.uniform(base * 0.7, base * 1.4))))
+        prev_speaker = spk
 
     audio = np.concatenate(chunks) if chunks else np.zeros(sr)
     audio = (audio * 32767).astype("<i2")
