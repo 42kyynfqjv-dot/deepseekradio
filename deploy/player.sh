@@ -106,11 +106,12 @@ feed() {
       done
     fi
     if [ -n "$f" ]; then
-      # host-announced ad break: marker file -> two spots, then back to the show
+      # host-announced ad break: marker file -> a real break (3 spots)
       case "$(basename "$f")" in *-break*)
         mv "$f" "$BUF/played/"
         if play_spot; then
           date +%s > "$LAST_SPOT_FILE"
+          play_spot && true
           play_spot && true
           ffmpeg -v quiet -i "$FILLER" -t 1.0 -f s16le -ar 24000 -ac 1 - </dev/null
         fi

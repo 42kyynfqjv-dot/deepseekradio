@@ -54,8 +54,13 @@ def _now():  # isolated for testing / faking
 
 
 def _current_daypart(schedule: dict, now: datetime) -> dict:
+    """Day-gated blocks (days: [Wednesday, ...]) are listed FIRST and win over
+    the everyday block sharing their window; on off days they don't exist."""
     t = now.time()
     for dp in schedule["dayparts"]:
+        days = dp.get("days")
+        if days and now.strftime("%A") not in days:
+            continue
         start = dtime.fromisoformat(dp["window"][0])
         end = dtime.fromisoformat(dp["window"][1])
         # handle windows that wrap past midnight (e.g. 22:00 -> 01:00)
@@ -81,9 +86,16 @@ def _minutes_left(daypart: dict, now=None) -> float:
 
 
 def _next_daypart(schedule: dict, daypart: dict) -> dict:
-    dps = schedule["dayparts"]
-    i = next((k for k, d in enumerate(dps) if d is daypart), 0)
-    return dps[(i + 1) % len(dps)]
+    """Whoever owns the air one minute after this window closes — respects
+    day gating, so the handoff names the right show on game nights."""
+    from datetime import timedelta
+    end = dtime.fromisoformat(daypart["window"][1])
+    probe = clock.air_now().replace(hour=end.hour, minute=end.minute,
+                                    second=0) + timedelta(minutes=1)
+    if end <= clock.air_now().time():   # window closes after midnight
+        probe += timedelta(days=1)
+    nxt = _current_daypart(schedule, probe)
+    return nxt if nxt is not daypart else schedule["dayparts"][0]
 
 
 def _throw_beat(daypart: dict, nxt: dict) -> dict:
@@ -359,6 +371,7 @@ def run_show(daypart, config, schedule, live: bool):
                           _context(0, opener_lines),
                           _tail_texts(opener_lines)) if beats else None
         threw = False
+        parts_since_break = 0
         for i, beat in enumerate(beats):
             # near the window's end ON AIR: throw to the next show instead of
             # starting another beat the boundary would cut off. Wall time is
@@ -400,6 +413,34 @@ def run_show(daypart, config, schedule, live: bool):
             _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
             if lines:  # keep the tail fresh so any restart resumes mid-thought
                 _save_tail(daypart, lines)
+            parts_since_break += 1
+            # host-announced ad break at real-radio cadence: every ~4 parts
+            # (~8-10 min of air). The host throws to it knowingly; the player
+            # turns the marker into spots. Not near a handoff, not on ad-free
+            # shows — and the player still enforces its 5-minute minimum.
+            if (parts_since_break >= 4 and daypart.get("sponsor") != "none"
+                    and _minutes_left(daypart, clock.air_now()) > 12):
+                try:
+                    target = daypart["_target_lines"]
+                    daypart["_target_lines"] = 4
+                    throw = {"segment": "Ad Throw", "ad_throw": True,
+                             "premise": "throwing to a short break",
+                             "beat": ("In one or two lines, in character, throw "
+                                      "to a short break — tease what's coming "
+                                      "after, no goodbyes."),
+                             "grounding": "", "callback": None,
+                             "_part": 0, "_guest": beat.get("_guest")}
+                    tl = perform_beat(throw, daypart, models, state,
+                                      _context(i + 1, lines) if i + 1 < len(beats)
+                                      else "", _tail_texts(lines))
+                    _emit(tl, f"{daypart['id']}-adthrow", config, live, fx=fx)
+                    daypart["_target_lines"] = target
+                    if live:
+                        _break_marker(daypart)
+                    parts_since_break = 0
+                except Exception as e:  # a failed throw must not stop the show
+                    print(f"  (ad throw skipped: {e})")
+                    daypart["_target_lines"] = target
 
     if daypart.get("arc"):
         st = _sstate()
@@ -408,9 +449,10 @@ def run_show(daypart, config, schedule, live: bool):
             _sstate_save(st)
     # persist any new lore the writer established (max 2 new jokes per show
     # so no single bit can flood the lore pool)
-    # the arc show's conspiracies must NEVER enter shared lore — they resurface
-    # as callbacks/running jokes in daytime shows and conspiracy-code them
-    arc_quarantine = bool(daypart.get("arc"))
+    # quarantined shows (the Watcher) must NEVER seed shared lore — their
+    # conspiracies resurface as daytime callbacks. Other arc shows (Center
+    # Ice) SHOULD: the whole station gets to care about the Otters.
+    arc_quarantine = bool(daypart.get("lore_quarantine"))
     lore.remember(state,
                   jokes=([] if arc_quarantine else (outline.get("new_jokes") or [])[:2]),
                   guest=outline.get("guest"),

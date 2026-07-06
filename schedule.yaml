@@ -5,6 +5,35 @@
 # Times are local station time, 24h. Blocks must cover the full day.
 
 dayparts:
+  # Day-gated blocks FIRST: they win their window on their days and don't
+  # exist on other days (the everyday block below covers the slot).
+  - id: center_ice
+    show: "Center Ice"
+    days: [Wednesday, Saturday]
+    window: ["20:00", "22:00"]
+    cast: [bucky, sal]
+    news: false               # you don't cut away from a live game
+    arc: >
+      This outline is ONE COMPLETE HOCKEY GAME broadcast live: the Municipal
+      Otters (the home team, perennially mediocre, beloved) versus ONE invented
+      visiting team (new every game — absurd but plausible town + mascot).
+      Structure the beats as a broadcast: warm pregame, first period, first
+      intermission (booth chatter or a 'guest'), second period, second
+      intermission, third period, and a postgame wrap naming three stars.
+      Track the SCORE and PERIOD explicitly in every beat description and
+      keep them consistent — the score only moves when a beat says a goal
+      happens. Games are close; the ending is decided in the final beats
+      (overtime allowed). Play is described with total professionalism while
+      the events themselves are gently absurd: penalties for excessive
+      apologizing, a zamboni subplot, a puck that goes missing. Never violent,
+      never gambling, no injuries.
+    energy: "live sports broadcast; professional urgency about an absurd league"
+    segments:
+      - "Pregame — lines, storylines, Sal's first unverifiable statistic"
+      - "The Periods — live play-by-play; goals, penalties, momentum"
+      - "Intermission — booth chatter, a rink-side 'interview'"
+      - "Postgame — final score, three stars, what it means for the standings"
+
   - id: morning_scramble
     show: "The Morning Scramble"
     window: ["06:00", "10:00"]
@@ -79,6 +108,7 @@ dayparts:
     show: "The Static Hour"
     window: ["01:00", "05:00"]
     cast: [watcher]
+    lore_quarantine: true     # his theories never enter shared station lore
     outline_beats: [6, 8]     # one rabbit hole = 33-50 min of air; 5-8 holes/night
     caller_policy:            # code-enforced, not prompt-suggested
       per_beat: 1             # one caller per beat, max
