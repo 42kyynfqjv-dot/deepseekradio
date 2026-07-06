@@ -11,17 +11,17 @@ models:
     max_tokens: 2500
 
   # Performers: cheap, run constantly. Turn beats into in-character dialogue.
+  # Qwen3-235B: big enough to keep the Scramble trio's three voices distinct.
   performer:
-    id: mistralai/mistral-small-24b-instruct-2501
-    price_in: 0.05
-    price_out: 0.08
+    id: qwen/qwen3-235b-a22b-2507
+    price_in: 0.09
+    price_out: 0.10
     temperature: 1.0
     max_tokens: 1200
 
-  # Cheaper fallback if you want to drop the LLM bill under $1/mo:
-  # performer.id: inclusionai/ling-2.6-flash   (0.01 / 0.03)
-  # Or more polish (~$4.8/mo):
-  # performer.id: qwen/qwen3-235b-a22b-2507    (0.09 / 0.10)
+  # Cheaper fallbacks:
+  # performer.id: mistralai/mistral-small-24b-instruct-2501  (0.05/0.08, ~$3.4/mo)
+  # performer.id: inclusionai/ling-2.6-flash                 (0.01/0.03, <$1/mo)
 
 generation:
   # How much dialogue to produce per performer call (minutes of audio).

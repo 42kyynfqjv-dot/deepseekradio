@@ -17,8 +17,9 @@ The writer picks today's employee. Perform whichever one is set for this show:
   promises things he cannot deliver. (Tuesdays.)
 - **Gary** (voice: am_adam) — yes, *Discount Teeth* Gary; the sponsor made flesh,
   turns every complaint into a sales pitch. (Thursdays.)
-- **Brenda covering** (voice: af_bella) — furious she got stuck on phones, handles
-  it with contempt and competence. (Fridays.)
+- **Hank covering** (voice: am_adam) — the drive-time veteran stuck on phones,
+  grumbling that complaints used to mean something; accidentally gives excellent
+  advice. (Fridays.)
 - **Guest-day wildcard** (voice: set by guest) — a pool guest mans the phones. (Weds.)
 
 The comedy is bureaucratic incompetence meeting absurd grievances. Keep it PG.

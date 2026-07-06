@@ -5,17 +5,18 @@
 # Times are local station time, 24h. Blocks must cover the full day.
 
 dayparts:
-  - id: morning_meltdown
-    show: "The Morning Meltdown"
+  - id: morning_scramble
+    show: "The Morning Scramble"
     window: ["06:00", "10:00"]
-    cast: [chip, brenda]
-    energy: "loud, fast morning-zoo; ego vs. competence"
+    cast: [roz, peach, wesley]
+    energy: "three-person morning crew; shifting alliances, petty tribunals, one adult"
     segments:
-      - "Traffic on the Nines — Chip reports traffic for roads that make no sense"
+      - "The Rundown — Roz attempts a normal show open; it derails within a minute"
+      - "Studio Court — Peach demands a tribunal over a petty grievance; alliances form"
       - "Wake-Up Call — 'calling a listener' to wake them; always goes sideways"
-      - "Chip's Hot Take — a confidently wrong opinion; Brenda demolishes it"
+      - "The Alliance Flip — whoever was winning gets betrayed; 2-v-1 reverses"
+      - "Wesley's Weather — inexplicably perfect forecast from the chaos agent"
       - "The Meltdown Minute — top of the hour, someone loses it over something petty"
-      - "Grudging Credit — Chip almost admits Brenda is good, then undercuts it"
 
   - id: refined_palate
     show: "Refined Palate"

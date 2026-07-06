@@ -45,7 +45,8 @@ natural (Vivian at 11pm can reference the doorknob Reginald reviewed at 10am).
 
 ## The cast (see personas/)
 
-- **Chip & Brenda** — morning zoo; washed-up "legend" vs. the better talent.
+- **Roz, Peach & Wesley** — morning trio; one adult, two chaos agents, shifting
+  alliances and petty tribunals.
 - **Sir Reginald & Cosima** — critics who review things that need no review.
 - **The Complaints Desk** — a rotating unqualified employee-of-the-day.
 - **Hank & Kai** — drive-time; 40-year vet forced to train his Gen Z replacement.
@@ -58,5 +59,5 @@ natural (Vivian at 11pm can reference the doorknob Reginald reviewed at 10am).
 
 - **Mon:** everyone's low-energy / miserable.
 - **Wed:** Guest Day — a wildcard persona crashes multiple shows.
-- **Fri:** Feud Friday — the Chip/Brenda and Hank/Kai beefs escalate; week callbacks.
+- **Fri:** Feud Friday — the Scramble alliances and the Hank/Kai beef escalate; week callbacks.
 - **Sun:** lighter, looser; occasional rare "are we real?" Easter egg (20s, then snap out).
