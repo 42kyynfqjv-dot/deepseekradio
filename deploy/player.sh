@@ -40,6 +40,13 @@ feed() {
   done
 }
 
+# if the encoder ever exits (icecast down, network), exit so systemd restarts
+# us cleanly — otherwise the feeder keeps the service alive-but-silent
 feed | ffmpeg -v warning -re -f s16le -ar 24000 -ac 1 -i - \
   -c:a libmp3lame -b:a 96k -content_type audio/mpeg -f mp3 \
-  "icecast://source:${ICECAST_PW}@127.0.0.1:8000/${MOUNT}"
+  -ice_name "The Frequency" \
+  -ice_description "A fully-AI radio station, live around the clock. bestairadio.com" \
+  -ice_genre "Comedy / Talk" -ice_url "https://bestairadio.com" \
+  "icecast://source:${ICECAST_PW}@127.0.0.1:8000/${MOUNT}" &
+wait $!
+exit 1
