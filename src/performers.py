@@ -155,6 +155,9 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 - Give each distinct caller/guest a first-name as the speaker label (never a
   bare "Caller"). Pick ordinary, DIFFERENT names — a fresh name for every new
   caller, never reusing a name from these instructions or earlier context.
+- End every call with the HOST wrapping it in his own words — thank them,
+  dismiss them, or note the line went dead. NEVER end a call on a host
+  question to the caller.
 - Callers arrive like PHONE CALLS, never like people in the room: before a new
   caller's first real line, either the host takes the call ("line two, you're
   on", "we've got a caller") or the caller self-identifies ("yeah hi, this is
@@ -181,6 +184,11 @@ _TAKE_LINES = ["We've got a caller. Go ahead, you're on.",
                "Hold that thought, there's a call. Go ahead.",
                "The lines are lit. Caller, you're on."]
 
+_CLOSE_LINES = ["Thank you, {name}. That's everything we need.",
+                "{name}, you've done your part. The line goes quiet.",
+                "That's enough, {name}. Some things shouldn't be said on an open line.",
+                "And {name} is gone. But what {name} saw stays with us."]
+
 
 def _enforce_caller_policy(lines, daypart):
     """Code-level caller discipline (prompt rules leak at temp 0.9):
@@ -193,12 +201,19 @@ def _enforce_caller_policy(lines, daypart):
     max_lines = int(pol.get("max_lines", 3))
     host_voice = next(((ln.get("voice"), ln.get("speed", 1.0), ln.get("speaker"))
                        for ln in lines if not ln.get("phone")), None)
-    out, seen, counts = [], [], {}
+    out, seen, counts, closed = [], [], {}, set()
     for ln in lines:
         if not ln.get("phone"):
+            # never leave a dangling question to a caller who's been dismissed
+            if (closed and out and ln.get("text", "").rstrip().endswith("?")
+                    and any(n.split()[0].lower() in ln.get("text", "").lower()
+                            for n in closed)):
+                continue
             out.append(ln)
             continue
         spk = ln.get("speaker")
+        if spk in closed:
+            continue  # they already hung up
         if spk not in seen:
             if len(seen) >= per_beat:
                 continue  # extra callers never get through the switchboard
@@ -209,8 +224,20 @@ def _enforce_caller_policy(lines, daypart):
                 out.append({"speaker": hname, "voice": v, "speed": s,
                             "text": _TAKE_LINES[_stable_hash(spk) % len(_TAKE_LINES)]})
         counts[spk] = counts.get(spk, 0) + 1
-        if counts[spk] > max_lines:
-            continue  # they hung up; the host has the wheel
+        # answer-allowance: a direct host question always gets its reply,
+        # up to a hard ceiling — no cutting someone off mid-invitation
+        prev_host_q = bool(out and not out[-1].get("phone")
+                           and out[-1].get("text", "").rstrip().endswith("?"))
+        hard_cap = max_lines + 2
+        if counts[spk] > max_lines and not (prev_host_q and counts[spk] <= hard_cap):
+            if host_voice:
+                v, s, hname = host_voice
+                first = (spk or "caller").split()[0].title()
+                tmpl = _CLOSE_LINES[_stable_hash(spk) % len(_CLOSE_LINES)]
+                out.append({"speaker": hname, "voice": v, "speed": s,
+                            "text": tmpl.format(name=first)})
+            closed.add(spk)
+            continue
         out.append(ln)
     return out
 
