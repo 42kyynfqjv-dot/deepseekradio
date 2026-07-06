@@ -5,6 +5,8 @@ Wants=network-online.target icecast2.service
 
 [Service]
 Type=simple
+User=kaos
+Group=kaos
 EnvironmentFile=/opt/kaos/stream.env
 ExecStart=/opt/kaos/app/deploy/player.sh
 Restart=always
