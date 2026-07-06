@@ -79,8 +79,11 @@ dayparts:
     show: "The Static Hour"
     window: ["01:00", "05:00"]
     cast: [watcher]
+    outline_beats: [6, 8]     # one rabbit hole = 33-50 min of air; 5-8 holes/night
     arc: >
-      ONE theory per outline — never several. Pick a single absurd theory and
+      ONE theory per outline — never several. This outline is ONE RABBIT HOLE
+      and it must sustain at least 30 minutes of air: every beat stays on the
+      same subject. Pick a single absurd theory and
       develop it across ALL beats as a descent: beat 1 is a small, almost
       reasonable observation; each following beat adds exactly ONE new layer
       of "evidence" or one new implicated (invented, impossible) party;
