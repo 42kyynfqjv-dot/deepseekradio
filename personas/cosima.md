@@ -1,7 +1,7 @@
 ---
 name: Cosima Vale
 show: Refined Palate / Culture Vulture
-voice: af_sarah
+voice: af_jessica
 speed: 1.02
 ---
 

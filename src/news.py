@@ -15,8 +15,9 @@ import requests
 from .openrouter import chat
 
 
-def fetch_headlines(feeds: list[str], count: int) -> list[str]:
-    """Grab item titles from RSS feeds; tolerate any feed being down."""
+def fetch_headlines(feeds: list[str], count: int, used: set | None = None) -> list[str]:
+    """Grab item titles from RSS feeds; tolerate any feed being down.
+    `used` filters out headlines already mangled in the last 24h."""
     titles: list[str] = []
     for url in feeds:
         try:
@@ -30,6 +31,8 @@ def fetch_headlines(feeds: list[str], count: int) -> list[str]:
                     titles.append(re.sub(r"\s+", " ", t).strip())
         except Exception:
             continue  # a dead feed shouldn't kill the bulletin
+    if used:
+        titles = [t for t in titles if t not in used]
     random.shuffle(titles)
     return titles[:count]
 
@@ -50,8 +53,11 @@ def write_bulletin(headlines: list[str], models: dict, bible: str) -> str:
     )
     user = ("Today's real headlines:\n" +
             "\n".join(f"- {h}" for h in headlines) +
-            "\n\nWrite the bulletin as ~8 short spoken lines for a single news "
-            "anchor. End with a station tagline.")
+            "\n\nWrite the bulletin as 6-8 short spoken lines for a single news "
+            "anchor. The anchor is always named Chip Hanley — no other anchor "
+            "names, ever. Report at least ONE story completely straight, no "
+            "joke. Never use the same comedic device twice in one bulletin. "
+            "End with a station tagline.")
     return chat(models["writer"],
                 [{"role": "system", "content": system},
                  {"role": "user", "content": user}])

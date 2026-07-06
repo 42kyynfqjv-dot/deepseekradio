@@ -113,6 +113,9 @@
     color:var(--dim);font-size:.85rem}
   footer .callsign{font-family:var(--mono);letter-spacing:.3em;color:var(--amber);margin-bottom:10px}
 
+  @media(prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+  }
   @media(max-width:640px){
     .slot{grid-template-columns:1fr;gap:6px}
     header{padding:48px 0 36px}
@@ -136,7 +139,7 @@
 
     <div class="player" id="player">
       <div class="row">
-        <button class="playbtn" id="playbtn" aria-label="Play stream">▶</button>
+        <button class="playbtn" id="playbtn" aria-label="Play live stream">▶</button>
         <div class="nowplaying">
           <div class="lab">NOW PLAYING</div>
           <div class="show" id="np-show">Tuning in…</div>
@@ -144,7 +147,7 @@
         </div>
         <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
-      <div class="hint" id="hint">▶ press play · live 24/7 · bestairadio.com</div>
+      <div class="hint" id="hint" role="status" aria-live="polite">▶ press play · live 24/7 · bestairadio.com</div>
       <audio id="stream" preload="none"></audio>
     </div>
   </div>
@@ -193,7 +196,7 @@
 </footer>
 
 <script>
-/* ── schedule (station time = UTC) ── */
+/* ── schedule (station time = America/New_York) ── */
 const SCHEDULE = [
   {start:6,  end:10, name:"The Morning Scramble",   cast:"Roz · Peach · Wesley",        desc:"Three hosts, shifting alliances, yogurt court."},
   {start:10, end:13, name:"Refined Palate",          cast:"Sir Reginald · Cosima",       desc:"Criticism of things that need no critic."},
@@ -206,25 +209,26 @@ const SCHEDULE = [
 ];
 
 const STATION_TZ = "America/New_York";
-function stationHour(){
-  return parseInt(new Intl.DateTimeFormat("en-US",
-    {timeZone: STATION_TZ, hour: "numeric", hour12: false}).format(new Date()), 10) % 24;
+function stationHM(){
+  const parts = new Intl.DateTimeFormat("en-US",
+    {timeZone: STATION_TZ, hour: "numeric", minute: "numeric", hour12: false})
+    .formatToParts(new Date());
+  const get = t => parseInt(parts.find(p => p.type === t).value, 10);
+  return (get("hour") % 24) * 60 + get("minute");
 }
-function tzShift(){
-  let d = new Date().getHours() - stationHour();
-  if (d > 12) d -= 24; if (d < -12) d += 24;
+function stationHour(){ return Math.floor(stationHM() / 60); }
+function tzShiftMin(){
+  const now = new Date();
+  let d = (now.getHours() * 60 + now.getMinutes()) - stationHM();
+  if (d > 720) d -= 1440; if (d < -720) d += 1440;
   return d;
 }
 function fmtViewer(stationH){
-  const h = ((stationH + tzShift()) % 24 + 24) % 24;
+  const m = (((stationH * 60 + tzShiftMin()) % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60), mm = m % 60;
   const ampm = h < 12 ? "AM" : "PM";
   const hr = h % 12 === 0 ? 12 : h % 12;
-  return `${hr}:00 ${ampm}`;
-}
-function currentShow(){
-  const h = stationHour();
-  return SCHEDULE.find(s => s.start<=h && h<(s.end%25===s.end?s.end:24) ) ||
-         SCHEDULE.find(s => s.end>24 && (h>=s.start || h<s.end-24)) || SCHEDULE[0];
+  return `${hr}:${String(mm).padStart(2, "0")} ${ampm}`;
 }
 function render(){
   const h = stationHour();
@@ -265,12 +269,13 @@ function connect(){
 }
 function setUI(playing, msg){
   btn.textContent = playing ? "❚❚" : "▶";
+  btn.setAttribute("aria-label", playing ? "Pause live stream" : "Play live stream");
   player.classList.toggle("playing", playing);
   hint.textContent = msg;
 }
 function reconnect(){
   if(!on || retryTimer) return;
-  const delay = Math.min(2000 * 2 ** retries, 30000);
+  const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
   retries++;
   setUI(false, "⟳ reconnecting to the frequency…");
   retryTimer = setTimeout(()=>{
@@ -281,8 +286,21 @@ function reconnect(){
 }
 // a live stream that errors, stalls, or "ends" isn't over — it hiccuped
 ["error","ended","stalled","abort"].forEach(ev=>audio.addEventListener(ev, reconnect));
-audio.addEventListener("pause", ()=>{ if(on && !audio.ended) reconnect(); });
-audio.addEventListener("playing", ()=>{ if(on){ retries = 0; setUI(true, "live · the frequency is yours"); } });
+let expectPause = false;
+audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
+audio.addEventListener("playing", ()=>{
+  if(on){
+    retries = 0;
+    clearTimeout(retryTimer); retryTimer = null;   // stop tearing down recovered streams
+    expectPause = false;
+    setUI(true, "live · the frequency is yours");
+  }
+});
+// OS media controls (lock screen, bluetooth) are the user speaking, not a stall
+if("mediaSession" in navigator){
+  navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; audio.pause(); setUI(false, "paused · press play to rejoin live"); });
+  navigator.mediaSession.setActionHandler("play", ()=>{ expectPause = false; connect().catch(reconnect); });
+}
 
 btn.addEventListener("click", ()=>{
   if(!on){

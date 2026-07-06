@@ -12,6 +12,8 @@ beat-by-beat, throttling whenever the buffer is more than
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -26,6 +28,22 @@ from .performers import perform_beat
 from .writer import write_outline
 
 NEWS_VOICE = "am_onyx"  # deep male anchor; news runs hourly so this weighs a lot
+_STATION_STATE = Path("station_state.json")
+# beats that are structurally banned: the show never opens or closes itself
+_BANNED_SEGMENT = re.compile(r"\b(intro|outro|monolog|open(ing)?|sign.?off|wrap|goodbye|farewell)\b", re.I)
+
+
+def _sstate() -> dict:
+    try:
+        return json.loads(_STATION_STATE.read_text())
+    except Exception:
+        return {}
+
+
+def _sstate_save(d: dict) -> None:
+    tmp = _STATION_STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d))
+    tmp.replace(_STATION_STATE)
 
 
 def _load(path): return yaml.safe_load(Path(path).read_text())
@@ -59,35 +77,48 @@ def _throttle(config: dict, live: bool):
         time.sleep(30)
 
 
-def _emit(lines: list[dict], label: str, config: dict, live: bool):
+def _emit(lines: list[dict], label: str, config: dict, live: bool, fx=None):
     """Print the dialogue; in live mode also synthesize into the buffer."""
     for ln in lines:
         print(f"  [{ln.get('speaker')}] {ln.get('text')}")
     if live and lines:
         from .tts import synth_segment
         out = buffer.next_path(label)
-        synth_segment(lines, out, config)
+        synth_segment(lines, out, config, fx=fx)
         print(f"  ♪ {out.name}  (buffer: {buffer.buffered_seconds()/60:.1f} min)")
 
 
 def _news_bulletin(config: dict, live: bool):
-    """Frequency News at the top of the show — real headlines, mangled."""
+    """Frequency News — real headlines, mangled. Cooldown survives restarts."""
     ncfg = config.get("news", {})
     if not ncfg.get("enabled"):
         return
+    st = _sstate()
+    if time.time() - st.get("last_news", 0) < 55 * 60:
+        print("  (news skipped: bulletin aired within the hour)")
+        return
     from .news import fetch_headlines, write_bulletin
-    heads = fetch_headlines(ncfg["feeds"], ncfg.get("headlines_per_bulletin", 4))
+    used = {h for h, ts in st.get("used_headlines", [])
+            if time.time() - ts < 24 * 3600}
+    heads = fetch_headlines(ncfg["feeds"], ncfg.get("headlines_per_bulletin", 4),
+                            used=used)
     script = write_bulletin(heads, config["models"], Path("station/bible.md").read_text())
     lines = [{"speaker": "Frequency News", "voice": NEWS_VOICE, "text": ln.strip()}
              for ln in script.splitlines() if ln.strip()]
     print("\n--- Frequency News ---")
     _emit(lines, "news", config, live)
+    st["last_news"] = time.time()
+    st["used_headlines"] = ([[h, ts] for h, ts in st.get("used_headlines", [])
+                             if time.time() - ts < 24 * 3600]
+                            + [[h, time.time()] for h in heads])
+    _sstate_save(st)
 
 
-def run_show(daypart, config, live: bool):
+def run_show(daypart, config, schedule, live: bool):
     models = config["models"]
     state = lore.load()
     weekday = _now().strftime("%A")
+    fx = daypart.get("id") if daypart.get("id") == "static_hour" else None
 
     print(f"\n{'='*70}\n  {daypart['show']}  ({daypart['window'][0]}-{daypart['window'][1]})"
           f"  —  {weekday}\n{'='*70}")
@@ -96,11 +127,13 @@ def run_show(daypart, config, live: bool):
     opener_lines = []
     try:
         daypart["_target_lines"] = 6
-        opener = {"segment": "Open", "premise": "settling back in mid-show",
-                  "beat": "a brief, in-character beat of welcome-back chatter; "
-                          "tease that more of the show is ahead"}
+        opener = {"segment": "Open", "premise": "mid-show, mid-thought",
+                  "beat": "resume mid-thought about something small and physical "
+                          "in the studio (the mug, the chair, the window). No "
+                          "greetings, no welcome-backs, no teases, no running "
+                          "jokes — just a quiet, ordinary beat of radio."}
         opener_lines = perform_beat(opener, daypart, models, state, "")
-        _emit(opener_lines, f"{daypart['id']}-open", config, live)
+        _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
     except Exception as e:
         print(f"  (opener skipped: {e})")
 
@@ -112,6 +145,13 @@ def run_show(daypart, config, live: bool):
     outline = write_outline(daypart, models, state, weekday)
     if outline.get("guest"):
         print(f"  GUEST: {outline['guest']}\n")
+    # drop structurally banned beats — the prompt ban demonstrably fails at temp 0.9
+    outline["beats"] = [b for b in outline.get("beats", [])
+                        if not _BANNED_SEGMENT.search(str(b.get("segment", "")))]
+    # persist premises IMMEDIATELY so anti-repetition survives restarts
+    lore.remember(state, premises=[b.get("premise") for b in outline["beats"]
+                                   if b.get("premise")])
+    lore.save(state)
 
     daypart["_target_lines"] = config["generation"].get("lines_per_beat", 22)
     parts = config["generation"].get("parts_per_beat", 3)
@@ -120,6 +160,7 @@ def run_show(daypart, config, live: bool):
     for b in outline.get("beats", []):
         for pi in range(parts):
             bb = dict(b)
+            bb["_part"] = pi
             if pi > 0:
                 bb["beat"] = (f"{b.get('beat')} (CONTINUE this same ongoing scene, "
                               f"part {pi+1} of {parts}: same characters and callers still "
@@ -130,34 +171,52 @@ def run_show(daypart, config, live: bool):
                               + ("" if pi < parts - 1 else ". You may gently land the bit now"))
             beats.append(bb)
 
+    used_names = set()
+
     def _context(i, prev_lines):
-        """True continuity: outline recap + the actual last lines spoken."""
+        """True continuity: outline recap + the actual last lines spoken,
+        plus a hard scene break whenever a NEW outline beat starts."""
         recap = "" if i == 0 else f"{beats[i-1].get('segment')}: {beats[i-1].get('beat')}\n"
         tail = "\n".join(f"{ln.get('speaker')}: {ln.get('text')}"
                           for ln in prev_lines[-6:])
-        return (recap + ("LAST LINES SPOKEN ON AIR (continue directly from these):\n"
-                         + tail if tail else "")).strip()
+        ctx = recap + ("LAST LINES SPOKEN ON AIR (continue directly from these):\n"
+                       + tail if tail else "")
+        if i > 0 and beats[i].get("_part", 0) == 0:
+            ctx += ("\nSCENE BREAK: the previous caller/guest hung up and is GONE "
+                    "— do not mention them. Open on the NEW beat with a new caller "
+                    "if the beat needs one.")
+            if used_names:
+                ctx += ("\nCaller names already used tonight (do NOT reuse): "
+                        + ", ".join(sorted(used_names)))
+        return ctx.strip()
 
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines)) if beats else None
         for i, beat in enumerate(beats):
+            # never generate past the daypart boundary — the next show owns it
+            if _current_daypart(schedule, _now()) is not daypart:
+                print("  (daypart ended — handing over to the next show)")
+                break
             _throttle(config, live)
             lines = fut.result()
+            for ln in lines:  # track caller names for the no-reuse blacklist
+                spk = str(ln.get("speaker", ""))
+                if ln.get("phone"):
+                    used_names.add(spk.split()[0] if spk else spk)
             if i + 1 < len(beats):
                 fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
                                   state, _context(i + 1, lines))
             print(f"\n--- {beat.get('segment')} ---")
-            _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live)
+            _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
 
-    # persist any new lore the writer established
+    # persist any new lore the writer established (max 2 new jokes per show
+    # so no single bit can flood the lore pool)
     lore.remember(state,
-                  jokes=outline.get("new_jokes"),
+                  jokes=(outline.get("new_jokes") or [])[:2],
                   guest=outline.get("guest"),
-                  callbacks=outline.get("callbacks_used"),
-                  premises=[b.get("premise") for b in outline.get("beats", [])
-                            if b.get("premise")])
+                  callbacks=outline.get("callbacks_used"))
     lore.save(state)
     print(f"\n  cost so far this run: {METER.summary()}")
 
@@ -175,7 +234,17 @@ def main(argv=None):
     while True:
         dp = _current_daypart(schedule, _now())
         try:
-            run_show(dp, config, live=args.live)
+            st = _sstate()
+            if args.live and time.time() - st.get("last_spots", 0) > 30 * 60:
+                from . import spots
+                spots.refresh(config, config["models"],
+                              Path("station/bible.md").read_text())
+                st["last_spots"] = time.time()
+                _sstate_save(st)
+        except Exception as e:
+            print(f"  (spot refresh skipped: {e})")
+        try:
+            run_show(dp, config, schedule, live=args.live)
         except Exception as e:  # a bad show must not kill the station
             print(f"!! show crashed, continuing: {e}")
             time.sleep(60)

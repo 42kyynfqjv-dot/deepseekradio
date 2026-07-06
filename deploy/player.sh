@@ -1,37 +1,98 @@
 #!/bin/bash
 # The Frequency — streamer. Drains audio_buffer/incoming into one persistent
-# Icecast connection. A single long-lived ffmpeg encodes; an inner loop feeds it
-# raw PCM from queued WAVs (oldest first), or the filler bed when the buffer is
-# empty, so listeners never get disconnected between segments.
+# Icecast connection through a broadcast processing chain (I1). A single
+# long-lived ffmpeg encodes; the feed loop supplies raw PCM from queued WAVs
+# (oldest first), inserting a produced spot (ad/weather/traffic, SQLite
+# rotation) roughly every 15 minutes, and falling back to the reserve pool +
+# room tone when the buffer is empty. Music beds duck under dialogue when a
+# bed exists for the show (I4 stage 2); missing beds degrade gracefully.
 set -u
 BUF="${BUF:-/opt/kaos/app/audio_buffer}"
-FILLER="${FILLER:-/opt/kaos/filler.wav}"
+APP="${APP:-/opt/kaos/app}"
+FILLER="${FILLER:-/opt/kaos/roomtone.wav}"
 RESERVE="${RESERVE:-/opt/kaos/reserve}"
+BEDS="${BEDS:-/opt/kaos/beds}"
 MOUNT="${MOUNT:-live}"
+SPOT_EVERY="${SPOT_EVERY:-900}"
 : "${ICECAST_PW:?set ICECAST_PW (see /opt/kaos/stream.env)}"
 
 mkdir -p "$BUF/incoming" "$BUF/played"
+QUEUE="$BUF/reserve-queue"
+LAST_SPOT_FILE="$BUF/.last_spot"
+[ -f "$LAST_SPOT_FILE" ] || date +%s > "$LAST_SPOT_FILE"
+
+bed_for() {
+  # segment filenames encode the show id: 000000123_night-shift-....wav
+  case "$(basename "$1")" in
+    *morning-scramble*) echo "$BEDS/morning.wav" ;;
+    *night-shift*|*static-hour*|*dawn-patrol*) echo "$BEDS/night.wav" ;;
+    *) echo "$BEDS/day.wav" ;;
+  esac
+}
+
+play_file() {
+  # decode one file to raw PCM; duck a music bed under dialogue when available
+  local f="$1" bed
+  bed=$(bed_for "$f")
+  if [ -f "$bed" ]; then
+    ffmpeg -v quiet -i "$f" -stream_loop -1 -i "$bed" -filter_complex \
+      "[1:a]volume=0.5[bq];[bq][0:a]sidechaincompress=threshold=0.015:ratio=10:attack=40:release=900:makeup=1[duck];[0:a][duck]amix=inputs=2:duration=first:normalize=0[out]" \
+      -map "[out]" -f s16le -ar 24000 -ac 1 - </dev/null
+  else
+    ffmpeg -v quiet -i "$f" -f s16le -ar 24000 -ac 1 - </dev/null
+  fi
+}
+
+play_spot() {
+  # least-recently-aired live spot from the SQLite rotation; returns 1 if none
+  local row wav
+  row=$(python3 - << "PY"
+import sqlite3, time
+try:
+    con = sqlite3.connect("/opt/kaos/app/station.db")
+    r = con.execute("SELECT id, wav FROM spots WHERE retired=0 AND wav != '' "
+                    "ORDER BY last_played ASC, plays ASC LIMIT 1").fetchone()
+    if r:
+        con.execute("UPDATE spots SET plays=plays+1, last_played=? WHERE id=?",
+                    (time.time(), r[0]))
+        con.commit()
+        print(r[1])
+except Exception:
+    pass
+PY
+)
+  [ -z "$row" ] && return 1
+  wav="$APP/$row"; [ -f "$wav" ] || wav="$row"
+  [ -f "$wav" ] || return 1
+  ffmpeg -v quiet -i "$wav" -f s16le -ar 24000 -ac 1 - </dev/null
+  ffmpeg -v quiet -i "$FILLER" -t 1.2 -f s16le -ar 24000 -ac 1 - </dev/null
+}
 
 feed() {
   while true; do
+    # spot break roughly every SPOT_EVERY seconds of aired content
+    now=$(date +%s); last=$(cat "$LAST_SPOT_FILE" 2>/dev/null || echo 0)
+    if [ $((now - last)) -ge "$SPOT_EVERY" ]; then
+      if play_spot; then date +%s > "$LAST_SPOT_FILE"; fi
+    fi
     f=$(ls "$BUF"/incoming/*.wav 2>/dev/null | sort | head -1)
     if [ -n "$f" ]; then
-      ffmpeg -v quiet -i "$f" -f s16le -ar 24000 -ac 1 - </dev/null
+      play_file "$f"
       mv "$f" "$BUF/played/"
       # keep only the last 50 played segments
       ls -t "$BUF"/played/*.wav 2>/dev/null | tail -n +51 | xargs -r rm -f
     else
       # buffer empty: no-repeat shuffled rotation through the reserve pool —
-      # every piece airs once before anything repeats
-      QUEUE="/tmp/frequency-reserve-queue"
+      # every piece airs once before anything repeats; atomic consumption
       if [ ! -s "$QUEUE" ]; then
         ls "$RESERVE"/*.wav 2>/dev/null | shuf > "$QUEUE"
       fi
-      r=$(head -1 "$QUEUE"); sed -i 1d "$QUEUE"
+      r=$(head -1 "$QUEUE")
+      tail -n +2 "$QUEUE" > "$QUEUE.tmp" && mv "$QUEUE.tmp" "$QUEUE"
       if [ -n "$r" ] && [ -f "$r" ]; then
         ffmpeg -v quiet -i "$r" -f s16le -ar 24000 -ac 1 - </dev/null
-        # breathing room so reserve pieces never slam back to back
-        dd if=/dev/zero bs=48000 count=3 2>/dev/null
+        # breathing room (room tone, never digital zero)
+        ffmpeg -v quiet -i "$FILLER" -t 2.5 -f s16le -ar 24000 -ac 1 - </dev/null
       else
         ffmpeg -v quiet -i "$FILLER" -f s16le -ar 24000 -ac 1 - </dev/null
       fi
@@ -40,9 +101,14 @@ feed() {
   done
 }
 
+# broadcast chain (I1): HPF, gentle compression, de-esser, leveler, limiter.
+# dynaudnorm+alimiter, NOT loudnorm (loudnorm resamples internally — CPU trap).
+CHAIN="highpass=f=75,acompressor=threshold=-21dB:ratio=2.5:attack=15:release=250:knee=6:makeup=5,deesser=i=0.3,dynaudnorm=f=400:g=17:p=0.85,alimiter=limit=0.85:attack=4:release=80:level=false"
+
 # if the encoder ever exits (icecast down, network), exit so systemd restarts
 # us cleanly — otherwise the feeder keeps the service alive-but-silent
 feed | ffmpeg -v warning -re -f s16le -ar 24000 -ac 1 -i - \
+  -af "$CHAIN" \
   -c:a libmp3lame -b:a 96k -content_type audio/mpeg -f mp3 \
   -ice_name "The Frequency" \
   -ice_description "A fully-AI radio station, live around the clock. bestairadio.com" \

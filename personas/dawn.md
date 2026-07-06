@@ -1,7 +1,7 @@
 ---
 name: Dawn
 show: Dawn Patrol
-voice: af_sarah
+voice: af_river
 speed: 0.9
 ---
 

@@ -1,6 +1,7 @@
 # Deploying The Frequency on the box
 
-Target: the Netcup VPS (real x86, AVX2 — Kokoro runs at full speed).
+Target: the Hetzner VPS (2 vCPU/4GB, AVX2). IMPORTANT: add swap (step 6) —
+without it the generator OOM-cycles and the station audibly stutters.
 
 ## 1. System deps
 
@@ -9,7 +10,7 @@ sudo apt update
 sudo apt install -y python3-venv python3-pip ffmpeg icecast2
 ```
 
-During the `icecast2` install, set the source/admin passwords (used in
+Set ENABLE=true in /etc/default/icecast2. During the `icecast2` install, set the source/admin passwords (used in
 `config.yaml` -> `stream` and `icecast.xml`).
 
 ## 2. App
@@ -55,13 +56,16 @@ Public stream: `http://<box-ip>:8000/kaos.mp3`
 
 ## 5. Run it 24/7 (systemd)
 
-See `deploy/kaos.service`. It runs the orchestrator loop, which keeps the buffer
+See `deploy/frequency.service`. It runs the orchestrator loop, which keeps the buffer
 ~45 min ahead of playback so slow TTS bursts never cause dead air.
 
 ```bash
-sudo cp deploy/kaos.service /etc/systemd/system/
-sudo systemctl enable --now kaos
-journalctl -u kaos -f
+sudo cp deploy/frequency.service deploy/frequency-stream.service \
+  deploy/frequency-nowplaying.service deploy/frequency-nowplaying.timer /etc/systemd/system/
+sudo cp deploy/nowplaying.sh /opt/kaos/nowplaying.sh && sudo chmod +x /opt/kaos/nowplaying.sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now icecast2 frequency frequency-stream frequency-nowplaying.timer
+journalctl -u frequency -f
 ```
 
 ## Safety on 2GB boxes

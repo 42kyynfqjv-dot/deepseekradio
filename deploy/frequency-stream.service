@@ -1,7 +1,7 @@
 [Unit]
 Description=The Frequency — streamer (buffer -> Icecast)
 After=network-online.target icecast2.service
-Wants=icecast2.service
+Wants=network-online.target icecast2.service
 
 [Service]
 Type=simple

@@ -14,16 +14,23 @@ def estimate(config: dict) -> dict:
     m = config["models"]
     g = config["generation"]
 
-    # Performers: one call per segment, each ~context_tokens in + spoken out.
-    seg_min = g["segment_minutes"]
-    calls = MIN_PER_MONTH / seg_min
-    out_per_call = seg_min * g["words_per_minute"] * 1.33  # words -> tokens
+    # Performers: one call per PART (lines_per_beat lines ≈ 2 min of air each).
+    lines_per_part = g.get("lines_per_beat", 22)
+    min_per_part = lines_per_part * 12 / g["words_per_minute"]  # ~12 words/line
+    calls = MIN_PER_MONTH / max(min_per_part, 0.5)
+    out_per_call = lines_per_part * 16  # tokens per line incl. JSON overhead
     in_per_call = g["context_tokens"]
 
     perf = m["performer"]
     perf_in = calls * in_per_call
     perf_out = calls * out_per_call
     perf_usd = perf_in / 1e6 * perf["price_in"] + perf_out / 1e6 * perf["price_out"]
+
+    # Script doctor: one cheap call per part, in ≈ the lines twice + rules.
+    pol_usd = 0.0
+    if "polish" in m:
+        pol = m["polish"]
+        pol_usd = (calls * (out_per_call + 700)) / 1e6 * pol["price_in"] +                   (calls * out_per_call) / 1e6 * pol["price_out"]
 
     # Writer: ~once per show. 8 shows/day * 30 = 240; round to 300 for weekly extras.
     wr = m["writer"]
@@ -45,7 +52,8 @@ def estimate(config: dict) -> dict:
         "performer_usd": perf_usd,
         "writer_usd": wr_usd,
         "news_usd": news_usd,
-        "total_usd": perf_usd + wr_usd + news_usd,
+        "polish_usd": pol_usd,
+        "total_usd": perf_usd + wr_usd + news_usd + pol_usd,
     }
 
 
@@ -57,6 +65,8 @@ def main():
     print(f"  head writer {e['writer_model']:<45} ${e['writer_usd']:.2f}")
     if e["news_usd"]:
         print(f"  hourly news {e['writer_model']:<45} ${e['news_usd']:.2f}")
+    if e.get("polish_usd"):
+        print(f"  script dr.  {config['models']['polish']['id']:<45} ${e['polish_usd']:.2f}")
     print(f"  {'-'*62}")
     print(f"  LLM total{'':<48}${e['total_usd']:.2f}/mo")
     print("  + Kokoro TTS (self-hosted): $0   + server: your Netcup box")

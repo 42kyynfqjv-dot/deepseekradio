@@ -1,0 +1,7 @@
+[Unit]
+Description=Push current show to Icecast metadata + self-heal the source
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+[Install]
+WantedBy=timers.target

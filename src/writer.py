@@ -34,9 +34,13 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
     bible = _BIBLE.read_text()
     personas = _load_personas(daypart["cast"])
     segments = "\n".join(f"- {s}" for s in daypart.get("segments", []))
-    guest_line = ("This show features a GUEST from the pool — pick one not in "
-                  f"{lore_state.get('guests_seen', [])} and name it."
-                  if daypart.get("guest") else "No guest today.")
+    guest_pool = (_PERSONAS / "guests.md").read_text() if (_PERSONAS / "guests.md").exists() else ""
+    wants_guest = daypart.get("guest") or weekday == "Wednesday"
+    guest_line = (("This show features a GUEST. Choose one from the GUEST POOL below "
+                   f"(not already in {lore_state.get('guests_seen', [])[-6:]}), name them "
+                   "exactly as the pool does, and weave them into 2-3 beats.\n\nGUEST POOL:\n"
+                   + guest_pool)
+                  if wants_guest else "No guest today.")
 
     system = (
         "You are the head writer for The Frequency, a 24/7 comedy radio station. "
@@ -55,11 +59,20 @@ RECURRING SEGMENTS TO HIT:
 {segments}
 
 Write 12-16 beats total: cover each recurring segment at least once, then add
-fresh angles on them, one or two fake ad breaks (recurring sponsors from the
-bible), and callbacks. The outline must fill a long block of continuous air.
-This outline is ONE STRETCH of a show that runs for hours: never write an
-outro, wrap-up, or sign-off beat, and no grand cold-open either — every beat
-is mid-show. The show never ends; it just keeps rolling.
+fresh angles on them. Put one or two SPONSOR-READ beats (a host reads a short
+ad for a recurring bible sponsor, in their own voice, slightly annoyed about
+it) in the FIRST HALF of the outline. Soft segment boundaries and throws
+("after this, X") are welcome. The outline must fill a long block of
+continuous air. This outline is ONE STRETCH of a show that runs for hours:
+never write an outro, wrap-up, sign-off, or cold-open beat — every beat is
+mid-show. The show never ends; it just keeps rolling.
+
+Per beat also supply:
+- "grounding": one mundane physical detail to anchor the beat (the mug, rain
+  on the window, a squeaky chair) — the beat's ONE absurd element must float
+  on ordinary radio.
+- "callback": normally null. For AT MOST 2 beats in the whole outline, name
+  one lore item to reference. Every other beat must not touch lore.
 
 {guest_line}
 
@@ -76,7 +89,9 @@ Return STRICT JSON:
   "beats": [
     {{"segment": "<segment name>",
       "premise": "<one-line setup>",
-      "beat": "<what happens, the turn, the punchline target>"}}
+      "beat": "<what happens, the turn, the punchline target>",
+      "grounding": "<one mundane physical detail>",
+      "callback": null}}
   ],
   "new_jokes": ["<any fresh running joke this show establishes>"],
   "callbacks_used": ["<lore you referenced>"]
@@ -100,7 +115,10 @@ def _parse_json(raw: str, daypart: dict) -> dict:
                 all(isinstance(b, dict) and b.get("beat") for b in beats)):
             out["beats"] = [{"segment": str(b.get("segment", "segment")),
                              "premise": str(b.get("premise", "")),
-                             "beat": str(b.get("beat"))} for b in beats]
+                             "beat": str(b.get("beat")),
+                             "grounding": str(b.get("grounding") or ""),
+                             "callback": (str(b["callback"]) if b.get("callback") else None)}
+                            for b in beats]
             return out
         raise ValueError("bad outline shape")
     except Exception:

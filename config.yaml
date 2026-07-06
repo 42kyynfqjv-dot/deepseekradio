@@ -19,6 +19,14 @@ models:
     temperature: 0.9
     max_tokens: 2400
 
+  # Script doctor: cheap low-temp mechanical edit pass on every beat (I5).
+  polish:
+    id: mistralai/mistral-small-24b-instruct-2501
+    price_in: 0.05
+    price_out: 0.08
+    temperature: 0.3
+    max_tokens: 1800
+
   # Cheaper fallbacks:
   # performer.id: mistralai/mistral-small-24b-instruct-2501  (0.05/0.08, ~$3.4/mo)
   # performer.id: inclusionai/ling-2.6-flash                 (0.01/0.03, <$1/mo)
@@ -26,8 +34,8 @@ models:
 generation:
   # How much dialogue to produce per performer call (minutes of audio).
   segment_minutes: 5
-  # Rolling context fed back to performers (tokens). 4.5k = richer continuity.
-  context_tokens: 4500
+  # Measured average input per performer call (bible+personas+rules+context).
+  context_tokens: 3000
   # Words per minute of speech, for pacing + cost estimates.
   words_per_minute: 145
   # Spoken lines per beat (bigger = more audio per LLM call = steadier buffer).

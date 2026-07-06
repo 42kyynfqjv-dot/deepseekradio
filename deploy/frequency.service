@@ -8,6 +8,9 @@ Type=simple
 WorkingDirectory=/opt/kaos/app
 EnvironmentFile=/opt/kaos/app/.env
 Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/New_York
+User=kaos
+Group=kaos
 ExecStart=/opt/kaos/.venv/bin/python -m src.orchestrator --live
 Restart=always
 RestartSec=15

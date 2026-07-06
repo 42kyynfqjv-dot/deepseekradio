@@ -1,0 +1,5 @@
+[Unit]
+Description=Update Icecast now-playing metadata (and self-heal the streamer)
+[Service]
+Type=oneshot
+ExecStart=/opt/kaos/nowplaying.sh
