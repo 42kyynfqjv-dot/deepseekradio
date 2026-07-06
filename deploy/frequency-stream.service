@@ -4,6 +4,7 @@ After=network-online.target icecast2.service
 Wants=network-online.target icecast2.service
 
 [Service]
+PrivateTmp=true
 Type=simple
 User=kaos
 Group=kaos
