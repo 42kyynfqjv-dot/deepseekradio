@@ -106,13 +106,20 @@ feed() {
       done
     fi
     if [ -n "$f" ]; then
-      # host-announced ad break: marker file -> a real break (3 spots)
+      # host-announced ad break: marker file -> a real break (3 spots), or a
+      # station bumper if no spot is ready — a throw must NEVER land on nothing
       case "$(basename "$f")" in *-break*)
         mv "$f" "$BUF/played/"
         if play_spot; then
           date +%s > "$LAST_SPOT_FILE"
           play_spot && true
           play_spot && true
+          ffmpeg -v quiet -i "$FILLER" -t 1.0 -f s16le -ar 24000 -ac 1 - </dev/null
+        else
+          # guard biting or empty pool: back the host's "we'll be right back"
+          # with a bumper + breath so it reads as a real break, not a false ending
+          bb=$(ls "$RESERVE"/bumper*.wav 2>/dev/null | shuf -n1)
+          [ -n "$bb" ] && ffmpeg -v quiet -i "$bb" -f s16le -ar 24000 -ac 1 - </dev/null
           ffmpeg -v quiet -i "$FILLER" -t 1.0 -f s16le -ar 24000 -ac 1 - </dev/null
         fi
         continue

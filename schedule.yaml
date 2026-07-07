@@ -113,6 +113,7 @@ dayparts:
     show: "The Static Hour"
     window: ["01:00", "05:00"]
     cast: [watcher]
+    ad_interval_min: 22       # overnight runs sparse — long, immersive rabbit holes
     lore_quarantine: true     # his theories never enter shared station lore
     outline_beats: [6, 8]     # one rabbit hole = 33-50 min of air; 5-8 holes/night
     caller_policy:            # code-enforced, not prompt-suggested

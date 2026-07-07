@@ -346,6 +346,12 @@ def run_show(daypart, config, schedule, live: bool):
                                   + ("" if pi < parts - 1 else ". You may gently land the bit now"))
             beats.append(bb)
 
+    # the guest is sent off ONCE, on their final beat — never mid-interview,
+    # so the host can't say goodbye and then re-engage the same guest
+    _gidx = [j for j, gb in enumerate(beats) if gb.get("_guest")]
+    if _gidx:
+        beats[_gidx[-1]]["_guest_last"] = True
+
     day_key = f"{clock.air_now():%Y-%m-%d}"
     if st.get("callers_day") != day_key:
         st["callers_day"], st["callers_today"] = day_key, []
@@ -363,11 +369,11 @@ def run_show(daypart, config, schedule, live: bool):
             ctx += ("\nCaller names already used today anywhere on the station "
                     "(do NOT reuse any): " + ", ".join(sorted(used_names)))
         if i > 0 and beats[i].get("_part", 0) == 0:
-            if (daypart.get("guest_role") in ("host", "persistent")
-                    and beats[i].get("_guest")):
+            if beats[i].get("_guest"):
                 ctx += ("\nSCENE BREAK: any previous CALLER is gone — but "
                         f"tonight's guest ({beats[i]['_guest']}) is STILL in the "
-                        "studio; keep them present and speaking.")
+                        "studio, mid-interview; keep them present and speaking, and "
+                        "do NOT thank, wrap, or say goodbye to the guest here.")
             else:
                 ctx += ("\nSCENE BREAK: the previous caller/guest hung up and is "
                         "GONE — do not mention them. Open on the NEW beat with a "
@@ -428,11 +434,14 @@ def run_show(daypart, config, schedule, live: bool):
             if lines:  # keep the tail fresh so any restart resumes mid-thought
                 _save_tail(daypart, lines)
             parts_since_break += 1
-            # host-announced ad break at real-radio cadence: every ~4 parts
-            # (~8-10 min of air). The host throws to it knowingly; the player
-            # turns the marker into spots. Not near a handoff, not on ad-free
-            # shows — and the player still enforces its 5-minute minimum.
-            if (parts_since_break >= 4 and daypart.get("sponsor") != "none"
+            # host-announced ad break at a per-show, real-radio cadence
+            # (ad_interval_min in schedule.yaml; ~2.2 min of air per part).
+            # Default ~10 min; the Static Hour runs sparse (~22). The host
+            # throws to it knowingly; the player turns the marker into spots
+            # (and always backs it with a bumper if no spot is ready). Not near
+            # a handoff, not on ad-free shows.
+            _ad_parts = max(3, round(daypart.get("ad_interval_min", 10) / 2.2))
+            if (parts_since_break >= _ad_parts and daypart.get("sponsor") != "none"
                     and _minutes_left(daypart, clock.air_now()) > 12):
                 try:
                     target = daypart["_target_lines"]

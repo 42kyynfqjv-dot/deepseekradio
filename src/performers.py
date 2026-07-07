@@ -80,8 +80,18 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                  "No callbacks this beat — do NOT reference any running joke or lore.")
     grounding = beat.get("grounding")
     grounding_line = f"GROUNDING DETAIL (mundane anchor, use it): {grounding}" if grounding else ""
-    guest_line = (f"TONIGHT'S GUEST: {beat['_guest']} — use exactly this name as "
-                  "the guest's speaker label." if beat.get("_guest") else "")
+    if not beat.get("_guest"):
+        guest_line = ""
+    elif beat.get("_guest_last"):
+        guest_line = (f"TONIGHT'S GUEST: {beat['_guest']} — use exactly this name as "
+                      "the guest's speaker label. This is the guest's FINAL beat: the "
+                      "host may warmly thank and send them off ONCE, at the very end — "
+                      "not before.")
+    else:
+        guest_line = (f"TONIGHT'S GUEST: {beat['_guest']} — use exactly this name as "
+                      "the guest's speaker label. The guest is MID-INTERVIEW and STAYS: "
+                      "do NOT thank them for coming, wrap up, dismiss them, or say any "
+                      "goodbye to the guest — the conversation continues past this beat.")
     if beat.get("no_bit") or daypart.get("absurdity") == "none":
         absurdity_line = ("- NO BIT: zero impossible or absurd elements in this "
                           "beat — sincere, plain radio.")
