@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Government · The Frequency · 108.1</title>
+<meta name="description" content="The Wending General Assembly at the Half-Dome — the 51st state's House, Senate, Governor, and the seven-party ballot led by the Goose Party. Satire, provisional and pending. Live at bestairadio.com.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0b12'/%3E%3Crect x='22' y='4' width='3' height='24' fill='%23ff4757'/%3E%3Crect x='4' y='24' width='24' height='2' fill='%23ffb454'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
+    --amber:#ffb454; --red:#ff4757; --cyan:#4ecdc4; --text:#e8e6f0;
+    --dim:#9a97ad; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --display:'Avenir Next Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6;overflow-x:hidden}
+  a{color:var(--cyan)}
+
+  /* ── scanline texture ── */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;
+    background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.07) 3px 4px)}
+
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+  /* ── top nav ── */
+  .topnav{position:sticky;top:0;z-index:1001;background:rgba(11,11,18,.92);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topnav .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:6px;
+    flex-wrap:wrap;padding:10px 24px}
+  .topnav .brand{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;color:var(--amber);
+    text-decoration:none;margin-right:auto}
+  .topnav a.navlink{font-family:var(--display);font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;font-size:.9rem;color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:8px}
+  .topnav a.navlink:hover{color:var(--text)}
+  .topnav a.navlink.active{color:var(--amber)}
+
+  /* ── ticker ── */
+  .ticker{background:var(--red);color:#fff;font-family:var(--mono);font-size:.78rem;
+    letter-spacing:.06em;white-space:nowrap;overflow:hidden;padding:6px 0}
+  .ticker .track{display:inline-flex;animation:tick 90s linear infinite}
+  .ticker span{padding-right:4rem}
+  @keyframes tick{to{transform:translateX(-50%)}}
+
+  /* ── hero ── */
+  header{padding:52px 0 40px;text-align:center;position:relative;
+    background:radial-gradient(ellipse 90% 60% at 50% -10%,rgba(255,180,84,.13),transparent 60%)}
+  h1{font-family:var(--display);font-size:clamp(2.5rem,8vw,4.6rem);font-weight:800;
+    letter-spacing:.01em;line-height:1.02;text-transform:uppercase}
+  h1 .freq{color:var(--amber)}
+  .tag{color:var(--dim);font-size:1.08rem;margin-top:12px;max-width:720px;margin-left:auto;margin-right:auto}
+  .tag .livehook{color:var(--text)}
+  .tag .livehook b{color:var(--red);font-family:var(--mono);font-size:.85rem;letter-spacing:.15em}
+
+  /* ── sections ── */
+  section{padding:52px 0 8px}
+  h2{font-family:var(--display);font-size:1.9rem;font-weight:800;margin-bottom:6px;
+    text-transform:uppercase;letter-spacing:.03em}
+  h2 em{color:var(--amber);font-style:normal}
+  .sub{color:var(--dim);margin-bottom:24px}
+  .lede{color:var(--dim);font-size:1rem;line-height:1.7;max-width:760px}
+  .lede b{color:var(--text)}
+  .lede + .lede{margin-top:14px}
+  .weeknote{margin-top:16px;font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;color:var(--dim)}
+
+  /* ── the ballot ── */
+  .axisnote{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--cyan);
+    border-radius:10px;padding:16px 20px;margin-bottom:22px;color:var(--dim);font-size:.92rem;line-height:1.55}
+  .axisnote b{color:var(--text)}
+  .ballot{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+  .party{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;
+    transition:transform .18s,border-color .18s}
+  .party:hover{transform:translateY(-3px);border-color:var(--amber)}
+  .party .pname{font-family:var(--display);font-weight:800;font-size:1.35rem;text-transform:uppercase;
+    letter-spacing:.02em;line-height:1.1}
+  .party .axis{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;color:var(--dim);margin-top:6px}
+  .party .platform{color:var(--text);font-size:.95rem;margin-top:12px;line-height:1.5}
+  .party .bit{color:var(--dim);font-size:.86rem;margin-top:12px;line-height:1.5;
+    border-left:2px solid var(--amber);padding-left:12px}
+  .party.featured{grid-column:1/-1;border-color:var(--amber);
+    background:linear-gradient(180deg,rgba(255,180,84,.09),var(--panel))}
+  .party.featured .pname{font-size:2rem;color:var(--amber)}
+  .party.featured .platform{font-size:1.06rem}
+
+  /* ── election night booth ── */
+  .booth{background:linear-gradient(180deg,var(--bg2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:22px 24px}
+  .booth .tag2{font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;color:var(--amber);margin-bottom:8px}
+  .booth p.intro{color:var(--dim);font-size:.95rem;line-height:1.6}
+  .booth .rules{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 18px}
+  .booth .rules span{font-family:var(--mono);font-size:.68rem;letter-spacing:.05em;color:var(--dim);
+    border:1px solid var(--line);border-radius:99px;padding:4px 12px}
+  .booth .rules b{color:var(--cyan);font-weight:600}
+  .call{font-family:var(--mono);font-size:.9rem;line-height:1.55;margin:7px 0;padding-left:14px;
+    border-left:2px solid var(--line)}
+  .call .who{color:var(--amber);letter-spacing:.05em}
+  .call.sal{border-left-color:var(--cyan)}
+  .call.sal .who{color:var(--cyan)}
+
+  /* ── officials ── */
+  .officials{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .official{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+    transition:border-color .18s}
+  .official:hover{border-color:var(--amber)}
+  .official h3{font-size:1.05rem;line-height:1.3}
+  .official .role{color:var(--amber);font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;margin-top:2px}
+  .official p{color:var(--dim);font-size:.86rem;margin-top:8px;line-height:1.5}
+
+  /* ── footer ── */
+  footer{margin-top:64px;border-top:1px solid var(--line);padding:34px 0 96px;text-align:center;
+    color:var(--dim);font-size:.85rem}
+  footer .callsign{font-family:var(--mono);letter-spacing:.3em;color:var(--amber);margin-bottom:10px}
+
+  /* ── sticky mini-player ── */
+  .mini{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:rgba(18,18,29,.96);
+    border-top:1px solid var(--line);backdrop-filter:blur(8px);
+    transform:translateY(110%);transition:transform .25s ease}
+  .mini.show{transform:translateY(0)}
+  .mini .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:10px 24px}
+  .mini button{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;flex:none;
+    background:linear-gradient(145deg,var(--amber),#ff8c42);display:flex;align-items:center;justify-content:center}
+  .mini button svg{width:18px;height:18px;fill:#181207}
+  .mini .mshow{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:.95rem;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .mlab{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--red)}
+  .mini .vu{display:flex;gap:3px;align-items:flex-end;height:22px;flex:none;margin-left:auto}
+  .mini .vu i{width:5px;background:var(--amber);border-radius:2px;opacity:.25;height:30%}
+  .mini.playing .vu i{opacity:.9;animation:vu .55s ease-in-out infinite alternate}
+  .mini .vu i:nth-child(2){animation-delay:.12s}.mini .vu i:nth-child(3){animation-delay:.24s}
+  .mini .vu i:nth-child(4){animation-delay:.06s}.mini .vu i:nth-child(5){animation-delay:.3s}
+  @keyframes vu{from{height:22%}to{height:100%}}
+
+  @media(prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+  }
+  @media(max-width:640px){
+    header{padding:34px 0 28px}
+    .topnav .in{padding:8px 16px;gap:2px}
+    .topnav .brand{width:100%;margin-bottom:4px}
+    .topnav a.navlink{font-size:.8rem;padding:5px 8px}
+    .party.featured .pname{font-size:1.6rem}
+  }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="in">
+    <a class="brand" href="index.html">108.1 · THE FREQUENCY</a>
+    <a class="navlink" href="index.html">HOME</a>
+    <a class="navlink" href="center-ice.html">SPORTS</a>
+    <a class="navlink active" href="government.html" aria-current="page">LOCAL GOVERNMENT</a>
+    <a class="navlink" href="bestof.html">BEST OF</a>
+  </div>
+</nav>
+
+<div class="ticker" aria-hidden="true"><div class="track"><span id="tick-a"></span><span id="tick-b"></span></div></div>
+
+<header>
+  <div class="wrap">
+    <h1>LOCAL <span class="freq">GOVERNMENT</span></h1>
+    <p class="tag">The <span class="livehook">Wending General Assembly</span>, seated at the Half-Dome — a House, a Senate, and a Governor for a state that technically isn't one.<br>
+      <span class="livehook"><b>IN SESSION</b> — until it snows, or the hockey starts</span></p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="intro" style="padding-top:20px">
+    <h2>The State of <em>Wending</em></h2>
+    <p class="lede">Wending is the fifty-first state, admitted because a clerk filed the founding boundary form in the <b>ADMITTED</b> drawer instead of the <b>PENDING</b> one, and nobody will fix it — fixing it needs a form that is itself pending in the same committee. Legal status, for decades: <b>provisional, pending review.</b> The review is now older than the reviewers. And because a pending state still has to be governed, Wending was issued the complete machinery of a real one — provisionally, and therefore permanently.</p>
+    <p class="lede">That machinery meets at <b>the Half-Dome</b>, the statehouse whose dome went pending mid-construction, so it sits open to the sky and tarped in winter. When the rotunda leaks they call it the Sieve. Eleven fixtures work; <b>Fixture 12</b> flickers under a maintenance ticket older than most of the staff. Inside, <b>Governor Marty Bouchard</b> — weary, well-meaning, third-pair defenseman energy — presides over enormous business about nothing, while <b>Clerk Gord Pelletier</b> keeps the Book at Window 4 until 4:30 and could fix the founding error any time he liked, if it didn't mean rushing.</p>
+    <p class="weeknote">STATE MOTTO: TO BE CONTINUED · LICENSE PLATES READ PROVISIONAL · THE FLAG FLIES AT HALF-MAST BECAUSE THE HALYARD JOB'S ON THE LIST</p>
+  </section>
+
+  <section id="ballot">
+    <h2>The <em>Ballot</em></h2>
+    <p class="sub">Seven parties. Sixty seats. One goose.</p>
+    <div class="axisnote">Wending has no left and no right. The one organizing axis is <b>the Zipper Question</b> — when two lanes become one, do you merge <b>early</b> (courteous, cautious, at the first sign) or <b>late</b> (efficient, zipper-at-the-cone, some say smug)? The polite "sorry, go ahead" reflex is the state's default temperament; the Vanguard are the Late-Merge radicals the rest of the field organizes against. Every whip count is read through the Zipper. Everything else, the parties trade vote by vote.</div>
+    <div class="ballot">
+
+      <div class="party featured">
+        <div class="pname">🪿 The Goose Party</div>
+        <div class="axis">THE HEADLINER · OBSESSION: THE GOOSE · OFF THE ZIPPER AXIS ENTIRELY</div>
+        <p class="platform">Elect the actual pharmacy-lot goose as Governor of Wending. That is the whole platform. There is no second plank.</p>
+        <p class="bit">The goose cannot consent, so the Party has all of its opinions for it — inventing its positions, issuing statements on its behalf, and holding rallies the goose does not attend. When the goose wanders through by coincidence, the Party calls it a landslide of momentum. In-house it is "the Candidate" (naming the real bird is, itself, in committee). In a hung House its handful of seats can decide any bill — sold only for goose-related considerations: repave the lot, a resolution recognizing the goose's tenure. It never actually governs. It has no hands, so it cannot take the oath on the roundabout plans, and the Committee on Rules refers the question to the Committee on Merging, where it stays. Then it runs again next cycle.</p>
+      </div>
+
+      <div class="party">
+        <div class="pname">The Provisional Party</div>
+        <div class="axis">OBSESSION · NEVER FINISHING</div>
+        <p class="platform">Full statehood means final paperwork means it's over. Keep us provisional, forever.</p>
+        <p class="bit">Everyone runs as an "Acting Candidate." Headquarters is a U-Haul that has idled in one spot since 1987 under a laminated sign reading "TEMPORARY, DO NOT MOVE." Natural ally of anyone blocking a vote; the Compliance Office's favorite target.</p>
+      </div>
+
+      <div class="party">
+        <div class="pname">The Roundabout Party</div>
+        <div class="axis">OBSESSION · THE ROUNDABOUT</div>
+        <p class="platform">Every problem, like traffic, is best handled by going around it repeatedly until someone finds an exit.</p>
+        <p class="bit">Meetings are held while physically circling Mile Zero — a motion isn't official until it completes a full lap — which leaves the Party the perpetually-hung swing bloc every coalition courts and none can pin down. "Roughly two weeks from a firm decision," always.</p>
+      </div>
+
+      <div class="party">
+        <div class="pname">The Zipper Merge Vanguard</div>
+        <div class="axis">OBSESSION · THE MERGE · ANCHORS THE LATE POLE</div>
+        <p class="platform">Zipper at the cone, at the final inch. Pity the coward who merges early.</p>
+        <p class="bit">Every statement cuts off mid-sentence, refusing on principle to yield the floor until the very last possible wor—</p>
+      </div>
+
+      <div class="party">
+        <div class="pname">The Office of Interparty Compliance</div>
+        <div class="axis">OBSESSION · EVERYONE ELSE'S PAPERWORK</div>
+        <p class="platform">Doesn't govern. Issues Notices of Deficiency against every party that does — the system's built-in antagonist, present in every storyline.</p>
+        <p class="bit">Fields no candidates. Audits the goose's filing, rejects the Provisional permit, flags the Grudge Society's fruit-basket receipts. Once rejected its own registration, for being submitted in blue ink.</p>
+      </div>
+
+      <div class="party">
+        <div class="pname">The Committee to Formally Address What Barbara Said in 1987</div>
+        <div class="axis">OBSESSION · ONE COMMENT AT A BRIDAL SHOWER</div>
+        <p class="platform">A fully-funded legislative bloc organized around a single remark, made once, at a bridal shower, in 1987.</p>
+        <p class="bit">Barbara has never been informed and, at last check, sits on the Committee — she thinks it's about drainage. The Grudge Preservation Society finds them dangerously soft, on the grounds that they might one day want closure.</p>
+      </div>
+
+      <div class="party">
+        <div class="pname">The Grudge Preservation Society</div>
+        <div class="axis">OBSESSION · KEEPING FEUDS ALIVE</div>
+        <p class="platform">Reconciliation is surrender. A feud, properly maintained, is a civic asset.</p>
+        <p class="bit">When two families near a truce, the Society anonymously sends one of them a fruit basket — a known act of aggression in these parts — to reset the grudge to zero. Considers the Barbara Committee alarmingly close to healing.</p>
+      </div>
+
+    </div>
+    <p class="weeknote">SEATS DRIFT AND TURN OVER IN THE BACKGROUND WHETHER OR NOT ANYONE IS ON AIR · HOUSE OF DELEGATES: 51 SEATS · SENATE: 9 GOOD CHAIRS AND A TENTH NO ONE TRUSTS</p>
+  </section>
+
+  <section id="election-night">
+    <h2>Election Night, <em>From the Booth</em></h2>
+    <p class="sub">Same crew as the hockey. Same vocabulary. Bucky Merle &amp; Sal Tarantella call the returns.</p>
+    <div class="booth">
+      <div class="tag2">● LIVE RETURNS · THE BOOTH CALLS THE HALF-DOME</div>
+      <p class="intro">Election Night is called exactly like a game. <b>Precincts are periods.</b> A race too close to call goes to <b>a recount — which is overtime</b> — and re-narrates the same result slower, with more ceremony, until the margin is official. A weather-delayed poll is <b>a rain-out</b>, called straight. Governor Bouchard's approval rides the broadcast like a streak: a filled pothole is a goal, a botched filing a penalty.</p>
+      <div class="rules">
+        <span>PRECINCTS = <b>PERIODS</b></span>
+        <span>RECOUNT = <b>OVERTIME</b></span>
+        <span>WEATHER DELAY = <b>RAIN-OUT</b></span>
+        <span>PROVISIONAL BALLOTS = <b>UNDER REVIEW</b></span>
+        <span>APPROVAL = <b>THE STREAK</b></span>
+      </div>
+      <p class="call"><span class="who">BUCKY:</span> Pharmacy-Lot Precinct reporting — it's a <i>seven-vote</i> margin with the overflow box still out. Seven-vote game here late.</p>
+      <p class="call sal"><span class="who">SAL:</span> And Bucky, she's leading among voters who <b>parallel-park on the first try</b> — a demographic that has <i>never</i> been wrong in an odd year.</p>
+      <p class="call"><span class="who">BUCKY:</span> Overflow box is in — and we are <i>tied.</i> We're going to a recount.</p>
+      <p class="call sal"><span class="who">SAL:</span> Overtime. You love to see it. Fundamentals win recounts, Bucky — positioning, hydration, and getting there first at the four-way stop.</p>
+    </div>
+  </section>
+
+  <section id="officials">
+    <h2>Recurring <em>Officials</em></h2>
+    <p class="sub">Canon in office, swappable in person. Every one of them could play third-pair defense.</p>
+    <div class="officials">
+      <div class="official">
+        <h3>Governor Marty Bouchard</h3>
+        <div class="role">GOVERNOR · THE OFFICIAL RESIDENCE (HALF-DUPLEX)</div>
+        <p>Weary, well-meaning, sounds like he could kill a penalty on the third pair. Takes the oath with one hand on the laminated roundabout master plans — sworn upon precisely because they will never be finished, making the oath technically eternal. His approval lives and dies on potholes and on things he did not do and cannot fix. Feuds with his duplex neighbor over the shared driveway, which is, of course, a merge question.</p>
+      </div>
+      <div class="official">
+        <h3>Gord Pelletier</h3>
+        <div class="role">CLERK OF THE ROLL · CLERK OF THE DRAWER · 41 YEARS</div>
+        <p>Keeper of the Book, and the human embodiment of the founding error. He could fix it — a signature filed in the wrong ink — but that would mean rushing, and Gord does not rush. The single most powerful person in the state. He will be at Window 4 until 4:30.</p>
+      </div>
+      <div class="official">
+        <h3>Bert Demers</h3>
+        <div class="role">POTHOLE COMMISSIONER · UP FOR REELECTION</div>
+        <p>Campaigns on the potholes personally. He has named them. He has feelings about each and considers "just filling them" a betrayal — his challenger wants them all filled, which Bert calls "erasure." Perennially failing, humiliated daily by the goose's well-run lot across the roundabout.</p>
+      </div>
+      <div class="official">
+        <h3>Toivo Ostberg</h3>
+        <div class="role">FOREMAN · THE ROUNDABOUT (MILE ZERO)</div>
+        <p>Has said "we're about two weeks out" for nine years and means it every time — fresh conviction, no memory of the last time. His grievance is with the public, who keep driving on it while it's nearly done.</p>
+      </div>
+    </div>
+    <p class="weeknote">A LISTENER FOLLOWS ONE BILL, ONE FEUD, ONE ELECTION NIGHT — NEVER ALL SIXTY SEATS. THE OTHER FIFTY-NINE ARE STILL REAL. THE COMMITTEE ON MERGING IS STILL MERGING.</p>
+  </section>
+
+  <section id="explore" style="padding-bottom:8px">
+    <h2>Back to the <em>Dial</em></h2>
+    <p class="lede">The Half-Dome empties Wednesday and Saturday nights for the hockey, and quorum fails when it snows. In the meantime, the frequency is always on.</p>
+    <p style="margin-top:16px"><a href="index.html" style="font-family:var(--mono);letter-spacing:.1em;font-size:.85rem">&larr; HOME</a> &nbsp;·&nbsp; <a href="center-ice.html" style="font-family:var(--mono);letter-spacing:.1em;font-size:.85rem">CENTER ICE &rarr;</a></p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="callsign">WFRQ · 108.1 FM · THE FREQUENCY</div>
+  <div>the Wending General Assembly · provisional, and therefore permanent · satire, around the clock · <a href="index.html">home</a> · <a href="center-ice.html">center ice</a> · <a href="bestof.html">best of</a></div>
+</footer>
+
+<div class="mini" id="mini">
+  <div class="in">
+    <button id="minibtn" aria-label="Play live stream"><svg id="miniicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+    <div>
+      <div class="mlab">● LIVE</div>
+      <div class="mshow" id="mini-show">THE FREQUENCY</div>
+    </div>
+    <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+</div>
+
+<audio id="stream" preload="none"></audio>
+
+<script>
+/* ── ticker + current-show label (page chrome) ── */
+const TICKS = [
+  "WELCOME TO WENDING · THE 51ST STATE · PENDING REVIEW · THE REVIEW IS ALSO PENDING",
+  "ROUNDABOUT: STILL TWO WEEKS FROM DONE · HAS BEEN FOR NINE YEARS",
+  "HB-114 SIGNED INTO LAW · THE ROUNDABOUT IS STILL TWO WEEKS OUT",
+  "GOOSE UP FOUR IN THE PHARMACY LOT · DECLINED TO COMMENT · CANNOT CONSENT",
+  "STATE FLAG AT HALF-MAST · NOT MOURNING · THE HALYARD JOB'S ON THE LIST",
+  "OFFICIAL STATE WEATHER REMAINS SEASONAL · BEIGE ALERT TILL NOON",
+  "CENSUS COMPLETE · POPULATION: A NUMBER, CROSSED OUT · RE-CROSSED OUT · PENDING",
+  "EXIT 4 STILL NOT BUILT · YOU'RE NOT GOING ANYWHERE EITHER",
+  "STATE MOTTO: TO BE CONTINUED",
+  "COMPLIANCE OFFICE REJECTS ITS OWN REGISTRATION · SUBMITTED IN BLUE INK",
+  "ELECTION NIGHT: PHARMACY-LOT PRECINCT TIED · WE'RE GOING TO A RECOUNT",
+  "FIXTURE 12 STILL FLICKERING · WORK ORDER OLDER THAN THE STAFF",
+  "YOU'RE ON THE FREQUENCY · BROADCASTING FROM A STATE THAT TECHNICALLY ISN'T",
+];
+const tickText = TICKS.join("  ···  ") + "  ···  ";
+document.getElementById("tick-a").textContent = tickText;
+document.getElementById("tick-b").textContent = tickText;
+
+const SCHEDULE = [
+  {start:6,  end:10, name:"The Morning Scramble"},
+  {start:10, end:13, name:"Refined Palate"},
+  {start:13, end:16, name:"The Complaints Department"},
+  {start:16, end:19, name:"The Handover"},
+  {start:19, end:22, name:"Culture Vulture"},
+  {start:22, end:25, name:"The Night Shift"},
+  {start:1,  end:5,  name:"The Static Hour"},
+  {start:5,  end:6,  name:"Dawn Patrol"},
+];
+function stationHour(){
+  const parts = new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",hour12:false}).formatToParts(new Date());
+  return parseInt(parts.find(p=>p.type==="hour").value,10) % 24;
+}
+function isLive(s,h){ const wraps=s.end>24; return wraps ? (h>=s.start||h<s.end-24) : (h>=s.start&&h<s.end); }
+function updateMini(){
+  const h=stationHour(), s=SCHEDULE.find(x=>isLive(x,h))||SCHEDULE[0];
+  const el=document.getElementById("mini-show"); if(el) el.textContent=s.name;
+}
+updateMini(); setInterval(updateMini, 60_000);
+</script>
+
+<script>
+/* ══ THE FREQUENCY · shared persistent player (identical on every page) ══ */
+(function(){
+  const audio = document.getElementById("stream");
+  if(!audio) return;
+  const btn     = document.getElementById("playbtn");   // deck play button (home only)
+  const minibtn = document.getElementById("minibtn");   // mini play button (every page)
+  const player  = document.getElementById("player");    // deck container (home only)
+  const mini    = document.getElementById("mini");
+  const hint    = document.getElementById("hint");      // deck hint (home only)
+  const SVG_PLAY  = '<path d="M8 5v14l11-7z"/>';
+  const SVG_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+  const SRC = "https://stream.bestairadio.com/live";
+  const KEY = "freq:playing";
+  let on = false, retries = 0, retryTimer = null, expectPause = false;
+
+  function setIcon(id, playing){ const e = document.getElementById(id); if(e) e.innerHTML = playing ? SVG_PAUSE : SVG_PLAY; }
+  function connect(){ audio.src = SRC + "?t=" + Date.now(); return audio.play(); }
+  function setUI(playing, msg){
+    setIcon("playicon", playing); setIcon("miniicon", playing);
+    const label = playing ? "Pause live stream" : "Play live stream";
+    if(btn)     btn.setAttribute("aria-label", label);
+    if(minibtn) minibtn.setAttribute("aria-label", label);
+    if(player)  player.classList.toggle("playing", playing);
+    if(mini)    mini.classList.toggle("playing", playing);
+    if(hint && msg) hint.textContent = msg;
+  }
+  function reconnect(){
+    if(!on || retryTimer) return;
+    const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
+    retries++;
+    setUI(false, "⟳ reconnecting — the frequency is experiencing a Wesley");
+    retryTimer = setTimeout(()=>{
+      retryTimer = null;
+      connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
+               .catch(reconnect);
+    }, delay);
+  }
+  ["error","ended","stalled","abort"].forEach(ev => audio.addEventListener(ev, reconnect));
+  audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
+  audio.addEventListener("playing", ()=>{
+    if(on){ retries = 0; clearTimeout(retryTimer); retryTimer = null; expectPause = false; setUI(true, "live · the frequency is yours"); }
+  });
+  if("mediaSession" in navigator){
+    navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; on = false; try{localStorage.setItem(KEY,"0")}catch(e){} audio.pause(); setUI(false, "paused · press play to rejoin live"); });
+    navigator.mediaSession.setActionHandler("play",  ()=>{ expectPause = false; on = true; try{localStorage.setItem(KEY,"1")}catch(e){} connect().catch(reconnect); });
+  }
+  function play(){
+    on = true; retries = 0; try{localStorage.setItem(KEY,"1")}catch(e){}
+    connect().then(()=>setUI(true, "live · the frequency is yours"))
+             .catch(()=>{ setUI(false, "the frequency sleeps. it does that sometimes. check back."); reconnect(); });
+  }
+  function stop(){
+    on = false; try{localStorage.setItem(KEY,"0")}catch(e){}
+    clearTimeout(retryTimer); retryTimer = null;
+    audio.pause(); audio.src = "";
+    setUI(false, "▶ press play · live · always");
+  }
+  function toggle(){ on ? stop() : play(); }
+  if(btn)     btn.addEventListener("click", toggle);
+  if(minibtn) minibtn.addEventListener("click", toggle);
+
+  /* sticky mini-player: follow the deck on home; always-on where there's no deck */
+  if(mini){
+    if(player && "IntersectionObserver" in window){
+      new IntersectionObserver(es => mini.classList.toggle("show", !es[0].isIntersecting), {threshold:0}).observe(player);
+    }else if(player){
+      addEventListener("scroll", ()=> mini.classList.toggle("show", scrollY > 600));
+    }else{
+      mini.classList.add("show");
+    }
+  }
+
+  /* persistent audio: reconnect the live stream across page loads (autoplay may be blocked — that's fine) */
+  let want = false; try{ want = localStorage.getItem(KEY) === "1"; }catch(e){}
+  if(want){
+    audio.src = SRC + "?t=" + Date.now();
+    audio.play().then(()=>{ on = true; retries = 0; setUI(true, "live · the frequency is yours"); })
+                .catch(()=>{ on = false; audio.src = ""; setUI(false, "▶ press play · live · always"); });
+  }
+})();
+</script>
+</body>
+</html>

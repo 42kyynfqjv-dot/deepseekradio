@@ -25,11 +25,67 @@
   .clip p{font-size:.9rem;margin:3px 0}
   .clip b{color:var(--cyan);font-weight:600;font-family:var(--mono);font-size:.8rem}
   footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:.7rem;letter-spacing:.15em;padding:40px 0 30px}
+
+  /* ── shared chrome: scanline · top nav · ticker · mini-player ── */
+  body{overflow-x:hidden}
+  main{padding-bottom:110px}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;
+    background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.07) 3px 4px)}
+  .topnav{position:sticky;top:0;z-index:1001;background:rgba(11,11,18,.92);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topnav .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:6px;
+    flex-wrap:wrap;padding:10px 24px}
+  .topnav .brand{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;color:var(--amber);
+    text-decoration:none;margin-right:auto}
+  .topnav a.navlink{font-family:var(--display);font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;font-size:.9rem;color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:8px}
+  .topnav a.navlink:hover{color:var(--text)}
+  .topnav a.navlink.active{color:var(--amber)}
+  .ticker{background:var(--red);color:#fff;font-family:var(--mono);font-size:.78rem;
+    letter-spacing:.06em;white-space:nowrap;overflow:hidden;padding:6px 0}
+  .ticker .track{display:inline-flex;animation:tick 90s linear infinite}
+  .ticker span{padding-right:4rem}
+  @keyframes tick{to{transform:translateX(-50%)}}
+  .mini{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:rgba(18,18,29,.96);
+    border-top:1px solid var(--line);backdrop-filter:blur(8px);
+    transform:translateY(110%);transition:transform .25s ease}
+  .mini.show{transform:translateY(0)}
+  .mini .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:10px 24px}
+  .mini button{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;flex:none;
+    background:linear-gradient(145deg,var(--amber),#ff8c42);display:flex;align-items:center;justify-content:center}
+  .mini button svg{width:18px;height:18px;fill:#181207}
+  .mini .mshow{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:.95rem;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .mlab{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--red)}
+  .mini .vu{display:flex;gap:3px;align-items:flex-end;height:22px;flex:none;margin-left:auto}
+  .mini .vu i{width:5px;background:var(--amber);border-radius:2px;opacity:.25;height:30%}
+  .mini.playing .vu i{opacity:.9;animation:vu .55s ease-in-out infinite alternate}
+  .mini .vu i:nth-child(2){animation-delay:.12s}.mini .vu i:nth-child(3){animation-delay:.24s}
+  .mini .vu i:nth-child(4){animation-delay:.06s}.mini .vu i:nth-child(5){animation-delay:.3s}
+  @keyframes vu{from{height:22%}to{height:100%}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  @media(max-width:640px){
+    .topnav .in{padding:8px 16px;gap:2px}
+    .topnav .brand{width:100%;margin-bottom:4px}
+    .topnav a.navlink{font-size:.8rem;padding:5px 8px}
+  }
 </style>
 </head>
 <body>
+
+<nav class="topnav">
+  <div class="in">
+    <a class="brand" href="index.html">108.1 · THE FREQUENCY</a>
+    <a class="navlink" href="index.html">HOME</a>
+    <a class="navlink" href="center-ice.html">SPORTS</a>
+    <a class="navlink" href="government.html">LOCAL GOVERNMENT</a>
+    <a class="navlink active" href="bestof.html" aria-current="page">BEST OF</a>
+  </div>
+</nav>
+<div class="ticker" aria-hidden="true"><div class="track"><span id="tick-a"></span><span id="tick-b"></span></div></div>
+
 <main>
-  <a class="back" href="/">&larr; THE FREQUENCY · 108.1</a>
+  <a class="back" href="index.html">&larr; THE FREQUENCY · 108.1</a>
   <h1>BEST <em>OF</em></h1>
   <p class="sub">YESTERDAY'S FINEST MOMENTS · CURATED NIGHTLY · TRANSCRIPTS MAY CONTAIN OPINIONS ABOUT FICUS</p>
   <div id="days">Loading the archive…</div>
@@ -45,6 +101,144 @@ fetch('/data/bestof.json').then(r=>r.json()).then(d=>{
       }</div>`).join('')
   ).join('')||'First highlights land tomorrow morning.';
 }).catch(()=>{document.getElementById('days').textContent='First highlights land tomorrow morning.'});
+</script>
+
+<div class="mini" id="mini">
+  <div class="in">
+    <button id="minibtn" aria-label="Play live stream"><svg id="miniicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+    <div>
+      <div class="mlab">● LIVE</div>
+      <div class="mshow" id="mini-show">THE FREQUENCY</div>
+    </div>
+    <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+</div>
+<audio id="stream" preload="none"></audio>
+
+<script>
+/* ── ticker + current-show label (page chrome) ── */
+const TICKS = [
+  "WELCOME TO WENDING · THE 51ST STATE · PENDING REVIEW · THE REVIEW IS ALSO PENDING",
+  "ROUNDABOUT: STILL TWO WEEKS FROM DONE · HAS BEEN FOR NINE YEARS",
+  "HB-114 SIGNED INTO LAW · THE ROUNDABOUT IS STILL TWO WEEKS OUT",
+  "GOOSE UP FOUR IN THE PHARMACY LOT · DECLINED TO COMMENT · CANNOT CONSENT",
+  "STATE FLAG AT HALF-MAST · NOT MOURNING · THE HALYARD JOB'S ON THE LIST",
+  "OFFICIAL STATE WEATHER REMAINS SEASONAL · BEIGE ALERT TILL NOON",
+  "IF YOU HEARD IT, IT HAPPENED · TRANSCRIPTS MAY CONTAIN OPINIONS ABOUT FICUS",
+  "EXIT 4 STILL NOT BUILT · YOU'RE NOT GOING ANYWHERE EITHER",
+  "STATE MOTTO: TO BE CONTINUED",
+  "GARY'S DISCOUNT TEETH — NOW WITH FEWER",
+  "ELECTION NIGHT: PHARMACY-LOT PRECINCT TIED · WE'RE GOING TO A RECOUNT",
+  "FIXTURE 12 STILL FLICKERING · WORK ORDER OLDER THAN THE STAFF",
+  "YOU'RE ON THE FREQUENCY · BROADCASTING FROM A STATE THAT TECHNICALLY ISN'T",
+];
+const tickText = TICKS.join("  ···  ") + "  ···  ";
+document.getElementById("tick-a").textContent = tickText;
+document.getElementById("tick-b").textContent = tickText;
+
+const SCHEDULE = [
+  {start:6,  end:10, name:"The Morning Scramble"},
+  {start:10, end:13, name:"Refined Palate"},
+  {start:13, end:16, name:"The Complaints Department"},
+  {start:16, end:19, name:"The Handover"},
+  {start:19, end:22, name:"Culture Vulture"},
+  {start:22, end:25, name:"The Night Shift"},
+  {start:1,  end:5,  name:"The Static Hour"},
+  {start:5,  end:6,  name:"Dawn Patrol"},
+];
+function stationHour(){
+  const parts = new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",hour12:false}).formatToParts(new Date());
+  return parseInt(parts.find(p=>p.type==="hour").value,10) % 24;
+}
+function isLive(s,h){ const wraps=s.end>24; return wraps ? (h>=s.start||h<s.end-24) : (h>=s.start&&h<s.end); }
+function updateMini(){
+  const h=stationHour(), s=SCHEDULE.find(x=>isLive(x,h))||SCHEDULE[0];
+  const el=document.getElementById("mini-show"); if(el) el.textContent=s.name;
+}
+updateMini(); setInterval(updateMini, 60_000);
+</script>
+
+<script>
+/* ══ THE FREQUENCY · shared persistent player (identical on every page) ══ */
+(function(){
+  const audio = document.getElementById("stream");
+  if(!audio) return;
+  const btn     = document.getElementById("playbtn");   // deck play button (home only)
+  const minibtn = document.getElementById("minibtn");   // mini play button (every page)
+  const player  = document.getElementById("player");    // deck container (home only)
+  const mini    = document.getElementById("mini");
+  const hint    = document.getElementById("hint");      // deck hint (home only)
+  const SVG_PLAY  = '<path d="M8 5v14l11-7z"/>';
+  const SVG_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+  const SRC = "https://stream.bestairadio.com/live";
+  const KEY = "freq:playing";
+  let on = false, retries = 0, retryTimer = null, expectPause = false;
+
+  function setIcon(id, playing){ const e = document.getElementById(id); if(e) e.innerHTML = playing ? SVG_PAUSE : SVG_PLAY; }
+  function connect(){ audio.src = SRC + "?t=" + Date.now(); return audio.play(); }
+  function setUI(playing, msg){
+    setIcon("playicon", playing); setIcon("miniicon", playing);
+    const label = playing ? "Pause live stream" : "Play live stream";
+    if(btn)     btn.setAttribute("aria-label", label);
+    if(minibtn) minibtn.setAttribute("aria-label", label);
+    if(player)  player.classList.toggle("playing", playing);
+    if(mini)    mini.classList.toggle("playing", playing);
+    if(hint && msg) hint.textContent = msg;
+  }
+  function reconnect(){
+    if(!on || retryTimer) return;
+    const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
+    retries++;
+    setUI(false, "⟳ reconnecting — the frequency is experiencing a Wesley");
+    retryTimer = setTimeout(()=>{
+      retryTimer = null;
+      connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
+               .catch(reconnect);
+    }, delay);
+  }
+  ["error","ended","stalled","abort"].forEach(ev => audio.addEventListener(ev, reconnect));
+  audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
+  audio.addEventListener("playing", ()=>{
+    if(on){ retries = 0; clearTimeout(retryTimer); retryTimer = null; expectPause = false; setUI(true, "live · the frequency is yours"); }
+  });
+  if("mediaSession" in navigator){
+    navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; on = false; try{localStorage.setItem(KEY,"0")}catch(e){} audio.pause(); setUI(false, "paused · press play to rejoin live"); });
+    navigator.mediaSession.setActionHandler("play",  ()=>{ expectPause = false; on = true; try{localStorage.setItem(KEY,"1")}catch(e){} connect().catch(reconnect); });
+  }
+  function play(){
+    on = true; retries = 0; try{localStorage.setItem(KEY,"1")}catch(e){}
+    connect().then(()=>setUI(true, "live · the frequency is yours"))
+             .catch(()=>{ setUI(false, "the frequency sleeps. it does that sometimes. check back."); reconnect(); });
+  }
+  function stop(){
+    on = false; try{localStorage.setItem(KEY,"0")}catch(e){}
+    clearTimeout(retryTimer); retryTimer = null;
+    audio.pause(); audio.src = "";
+    setUI(false, "▶ press play · live · always");
+  }
+  function toggle(){ on ? stop() : play(); }
+  if(btn)     btn.addEventListener("click", toggle);
+  if(minibtn) minibtn.addEventListener("click", toggle);
+
+  /* sticky mini-player: follow the deck on home; always-on where there's no deck */
+  if(mini){
+    if(player && "IntersectionObserver" in window){
+      new IntersectionObserver(es => mini.classList.toggle("show", !es[0].isIntersecting), {threshold:0}).observe(player);
+    }else if(player){
+      addEventListener("scroll", ()=> mini.classList.toggle("show", scrollY > 600));
+    }else{
+      mini.classList.add("show");
+    }
+  }
+
+  /* persistent audio: reconnect the live stream across page loads (autoplay may be blocked — that's fine) */
+  let want = false; try{ want = localStorage.getItem(KEY) === "1"; }catch(e){}
+  if(want){
+    audio.src = SRC + "?t=" + Date.now();
+    audio.play().then(()=>{ on = true; retries = 0; setUI(true, "live · the frequency is yours"); })
+                .catch(()=>{ on = false; audio.src = ""; setUI(false, "▶ press play · live · always"); });
+  }
+})();
 </script>
 </body>
 </html>

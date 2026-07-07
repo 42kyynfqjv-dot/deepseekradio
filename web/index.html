@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Frequency · 108.1 · 24/7 AI Radio</title>
-<meta name="description" content="A 24-hour radio station where every voice is AI. That is the entire disclosure. Live at bestairadio.com.">
+<meta name="description" content="Live from Halfway, capital of Wending — the 51st state, admitted by clerical error and pending review ever since. A 24/7 radio station where every voice is AI. Live at bestairadio.com.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0b12'/%3E%3Crect x='22' y='4' width='3' height='24' fill='%23ff4757'/%3E%3Crect x='4' y='24' width='24' height='2' fill='%23ffb454'/%3E%3C/svg%3E">
 <style>
   :root{
@@ -23,6 +23,18 @@
     background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.07) 3px 4px)}
 
   .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+  /* ── top nav ── */
+  .topnav{position:sticky;top:0;z-index:1001;background:rgba(11,11,18,.92);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topnav .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:6px;
+    flex-wrap:wrap;padding:10px 24px}
+  .topnav .brand{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;color:var(--amber);
+    text-decoration:none;margin-right:auto}
+  .topnav a.navlink{font-family:var(--display);font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;font-size:.9rem;color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:8px}
+  .topnav a.navlink:hover{color:var(--text)}
+  .topnav a.navlink.active{color:var(--amber)}
 
   /* ── ticker: seamless two-span marquee ── */
   .ticker{background:var(--red);color:#fff;font-family:var(--mono);font-size:.78rem;
@@ -126,6 +138,7 @@
 
   /* ── sponsors ── */
   .ads{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  #wending .ads{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
   .ad{background:var(--bg2);border:1px dashed var(--line);border-radius:10px;padding:20px;
     text-align:center;transition:border-color .2s}
   .ad:hover{border-color:var(--amber)}
@@ -163,17 +176,30 @@
     .slot{grid-template-columns:1fr;gap:5px}
     .deck .row{gap:14px}
     .cast-grid{grid-template-columns:1fr}
+    .topnav .in{padding:8px 16px;gap:2px}
+    .topnav .brand{width:100%;margin-bottom:4px}
+    .topnav a.navlink{font-size:.8rem;padding:5px 8px}
   }
 </style>
 </head>
 <body>
+
+<nav class="topnav">
+  <div class="in">
+    <a class="brand" href="index.html">108.1 · THE FREQUENCY</a>
+    <a class="navlink active" href="index.html" aria-current="page">HOME</a>
+    <a class="navlink" href="center-ice.html">SPORTS</a>
+    <a class="navlink" href="government.html">LOCAL GOVERNMENT</a>
+    <a class="navlink" href="bestof.html">BEST OF</a>
+  </div>
+</nav>
 
 <div class="ticker" aria-hidden="true"><div class="track"><span id="tick-a"></span><span id="tick-b"></span></div></div>
 
 <header>
   <div class="wrap">
     <h1>THE <span class="freq">FREQUENCY</span> · <span class="num">108.1</span></h1>
-    <p class="tag">A 24-hour radio station where every voice is AI. That is the entire disclosure.<br>
+    <p class="tag">Live from Halfway, capital of Wending — the 51st state, admitted by clerical error and pending review ever since. Every voice is AI. That is the entire disclosure.<br>
       <span class="livehook"><b>LIVE NOW</b> — <span id="hero-hook">the frequency is on</span></span></p>
 
     <div class="deck" id="player">
@@ -206,32 +232,45 @@
     <h2>The <em>Daily</em> Frequency</h2>
     <p class="sub">Eight shows. Twenty-four hours. Zero humans. Times shown in <b id="tz-label">your timezone</b>.</p>
     <div class="sched" id="sched"></div>
-    <p class="weeknote">WEDNESDAYS: GUEST DAY — a wildcard crashes the station. · FRIDAYS: FEUD FRIDAY — the week's grudges come due.</p>
+    <p class="weeknote">WEDNESDAYS: GUEST DAY — a wildcard crashes the station. · FRIDAYS: FEUD FRIDAY — the week's grudges come due. · ELECTION NIGHT: THE BOOTH CALLS THE HALF-DOME — precincts are periods, a recount is overtime.</p>
   </section>
 
   <section id="quotes">
     <h2>Heard on <em>The Frequency</em></h2>
     <div class="quotes">
-      <div class="quote"><p>"Serviceable. Cold to the touch, as all honest things are. Three moons, and I will not be taking questions."</p><div class="who">— SIR REGINALD ASHCROFT, ON A DOORKNOB</div></div>
-      <div class="quote"><p>"The tribunal finds Wesley responsible. The tribunal always finds Wesley responsible. The tribunal remains correct."</p><div class="who">— PEACH, STUDIO COURT</div></div>
-      <div class="quote"><p>"Birds rest. Have you ever seen a bird pay rent? Think about it. I'll wait. The lines are open."</p><div class="who">— THE WATCHER</div></div>
-      <div class="quote"><p>"Dream Court rules that the teeth falling out are the teeth's problem. Next caller."</p><div class="who">— VIVIAN NIGHTSHADE, DREAM COURT</div></div>
+      <div class="quote"><p>"A triumph of scaffolding over intent. The rotunda leaks with real commitment. Four moons out of seven — and Fixture 12 is the only honest light in the building."</p><div class="who">— SIR REGINALD ASHCROFT, REVIEWING THE HALF-DOME</div></div>
+      <div class="quote"><p>"They gave the goose a PRIMARY. You give a goose a primary, you've already decided. It's WENDING — one letter off PENDING. One. Follow the seat count. Do the math."</p><div class="who">— THE WATCHER</div></div>
+      <div class="quote"><p>"His Honor's leading among voters who parallel-park on the first try — a demographic that has never been wrong in an odd year."</p><div class="who">— SAL TARANTELLA, ELECTION NIGHT</div></div>
+      <div class="quote"><p>"We're about two weeks out. I've said that before, I know. I meant it before, too."</p><div class="who">— TOIVO OSTBERG, ROUNDABOUT FOREMAN</div></div>
     </div>
+  </section>
+
+  <section id="wending">
+    <h2>Welcome to <em>Wending</em></h2>
+    <p class="sub">We broadcast from Halfway, capital of the 51st state — admitted by a clerical error, provisional ever since.</p>
+    <div class="ads" style="grid-template-columns:1fr">
+      <div class="ad shop" style="text-align:left">
+        <div class="brand">The State of Wending 🪿</div>
+        <p>A House, a Senate, a Governor, and a Half-Dome statehouse open to the sky — the full machinery of a real state, issued provisionally to one that technically isn't. Seven parties are on the ballot, led by the Goose Party, whose entire platform is to elect the actual pharmacy-lot goose as Governor. Election Night is called like a hockey game.</p>
+        <a href="government.html" style="display:inline-block;margin-top:12px;font-family:var(--mono);font-size:.8rem;letter-spacing:.12em;color:var(--amber)">EXPLORE THE STATE OF WENDING &rarr;</a>
+      </div>
+    </div>
+    <p class="weeknote">License plates read PROVISIONAL. The welcome sign says (PENDING) underneath. Neither one is a slogan.</p>
   </section>
 
   <section id="cast">
     <h2>The <em>Cast</em></h2>
     <p class="sub">None of them exist. All of them have opinions.</p>
     <div class="cast-grid">
-      <div class="card"><img class="avatar" src="faces/roz.jpg" alt="Roz Delgado" loading="lazy"><div><h3>Roz Delgado</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>The only adult in the building. Just wants to run a normal morning show. Has never once succeeded.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/roz.jpg" alt="Roz Delgado" loading="lazy"><div><h3>Roz Delgado</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>The only adult in the building. Just wants to read the roundabout traffic and get out clean. Has never once succeeded.</p></div></div>
       <div class="card"><img class="avatar" src="faces/peach.jpg" alt="Peach" loading="lazy"><div><h3>Peach</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>One name, like a storm system. Demands tribunals. Keeps receipts. Is sometimes — annoyingly — right.</p></div></div>
-      <div class="card"><img class="avatar" src="faces/wesley.jpg" alt="Wesley" loading="lazy"><div><h3>Wesley</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>Serene. Unbothered. The source of every problem. Inexplicably perfect weather instincts.</p></div></div>
-      <div class="card"><img class="avatar" src="faces/reginald.jpg" alt="Sir Reginald Ashcroft" loading="lazy"><div><h3>Sir Reginald Ashcroft</h3><div class="role">REFINED PALATE</div><div class="when" data-slot="1"></div><p>Reviews doorknobs, silence, and the concept of Tuesday. Out of seven moons. Will die on every hill.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/wesley.jpg" alt="Wesley" loading="lazy"><div><h3>Wesley</h3><div class="role">THE MORNING SCRAMBLE</div><div class="when" data-slot="0"></div><p>Serene. Unbothered. The source of every problem. Forecasts so well the statehouse won't gavel in without him.</p></div></div>
+      <div class="card"><img class="avatar" src="faces/reginald.jpg" alt="Sir Reginald Ashcroft" loading="lazy"><div><h3>Sir Reginald Ashcroft</h3><div class="role">REFINED PALATE</div><div class="when" data-slot="1"></div><p>Reviews doorknobs, the concept of Tuesday, and the scaffolding on the Half-Dome. Out of seven moons. Will die on every hill.</p></div></div>
       <div class="card"><img class="avatar" src="faces/cosima.jpg" alt="Cosima Vale" loading="lazy"><div><h3>Cosima Vale</h3><div class="role">REFINED PALATE · CULTURE VULTURE</div><div class="when" data-slot="4"></div><p>Venomous critic by day, earnest arts-hour host by night. Interviews a one-note jazz musician with total sincerity.</p></div></div>
       <div class="card"><img class="avatar" src="faces/hank.jpg" alt="Hank Steele" loading="lazy"><div><h3>Hank Steele</h3><div class="role">THE HANDOVER</div><div class="when" data-slot="3"></div><p>Forty years of real radio. Contractually forced to train his replacement. Not going quietly.</p></div></div>
       <div class="card"><img class="avatar" src="faces/kai.jpg" alt="Kai" loading="lazy"><div><h3>Kai</h3><div class="role">THE HANDOVER</div><div class="when" data-slot="3"></div><p>The replacement. Wants to clip it, stream it, make it a moment. Secretly admires Hank. Hates that.</p></div></div>
       <div class="card"><img class="avatar" src="faces/vivian.jpg" alt="Vivian Nightshade" loading="lazy"><div><h3>Vivian Nightshade</h3><div class="role">THE NIGHT SHIFT</div><div class="when" data-slot="5"></div><p>Late-night companion for insomniacs. Presiding judge of Dream Court. Verdicts are final.</p></div></div>
-      <div class="card"><img class="avatar spooky" src="faces/watcher.jpg" alt="The Watcher" loading="lazy"><div><h3>The Watcher</h3><div class="role">THE STATIC HOUR</div><div class="when" data-slot="6"></div><p>Has Theories. About birds, about Tuesday, about the moon landing being filmed too well. The numbers will be read.</p></div></div>
+      <div class="card"><img class="avatar spooky" src="faces/watcher.jpg" alt="The Watcher" loading="lazy"><div><h3>The Watcher</h3><div class="role">THE STATIC HOUR</div><div class="when" data-slot="6"></div><p>Has Theories. About Tuesday, about the moon landing, about the goose they're running for Governor. The numbers will be read.</p></div></div>
       <div class="card"><img class="avatar" src="faces/dawn.jpg" alt="Dawn" loading="lazy"><div><h3>Dawn</h3><div class="role">DAWN PATROL</div><div class="when" data-slot="7"></div><p>One quiet hour. One quote of the day. The reset button on the whole beautiful mess.</p></div></div>
       <div class="card"><img class="avatar" src="faces/complaints.jpg" alt="The Complaints Desk" loading="lazy"><div><h3>The Complaints Desk</h3><div class="role">THE COMPLAINTS DEPARTMENT</div><div class="when" data-slot="2"></div><p>A different unqualified employee every day. Your grievance will be escalated to someone who does not exist.</p></div></div>
       <div class="card"><img class="avatar faded" src="faces/guests.jpg" alt="The Guest Pool" loading="lazy"><div><h3>…and whoever shows up</h3><div class="role">THE GUEST POOL · WEDNESDAYS ESPECIALLY</div><p>A ghost from 1974. A knight afraid of the microphone. A time-traveler who keeps getting the year wrong.</p></div></div>
@@ -247,21 +286,20 @@
       <div class="ad"><div class="brand">Reginald's Artisanal Air</div><p>Hand-gathered. Small batch. Aggressively curated. Six moons out of seven.</p></div>
       <div class="ad"><div class="brand">One (1) AA Battery</div><p>Tonight's grand prize. It has some charge left. Probably. Ask for it by name.</p></div>
       <div class="ad shop"><div class="brand">The Frequency Shop</div><p>For years, the gift shop sold one mug, and the mug was not for sale. We are pleased to announce the mug situation is changing.</p><span class="soon">OPENING SOON</span></div>
-      <div class="ad"><div class="brand">Center Ice 🏒</div><p>Frequency Hockey League. The Apologies. The Gridlock. Wednesdays and Saturdays at 8. Every score is final.</p><a href="/center-ice.html" style="color:var(--cyan);font-family:var(--mono);font-size:.75rem;letter-spacing:.12em">STANDINGS &rarr;</a></div>
+      <div class="ad"><div class="brand">Center Ice 🏒</div><p>Frequency Hockey League. The Apologies. The Gridlock. Wednesdays and Saturdays at 8. Every score is final.</p><a href="center-ice.html" style="color:var(--cyan);font-family:var(--mono);font-size:.75rem;letter-spacing:.12em">STANDINGS &rarr;</a></div>
     </div>
   </section>
 
   <section id="about">
     <h2>What <em>Is</em> This</h2>
-    <p class="sub" style="max-width:640px">The Frequency is a fully autonomous radio station broadcasting 24 hours a day.
-    The headlines are real. What we do to them is not. It's satire — all of it.</p>
+    <p class="sub" style="max-width:640px">The Frequency is a fully autonomous radio station broadcasting 24 hours a day from the State of Wending — the 51st state, which exists only because of a clerical error nobody will fix and stays off most maps because the review is, of course, still pending. The town, the goose running for Governor, and the roundabout that's forever two weeks from done are all invented; the headlines behind them are real. It's satire — all of it.</p>
   </section>
 
 </main>
 
 <footer>
   <div class="callsign">WFRQ · 108.1 FM · THE FREQUENCY</div>
-  <div>broadcasting from somewhere we probably shouldn't be · satire, around the clock · <a href="#player">listen live</a> · <a href="/bestof.html">best of</a> · <a href="/center-ice.html">center ice</a></div>
+  <div>broadcasting from Halfway, Wending — a state we probably shouldn't be · satire, around the clock · <a href="#player">listen live</a> · <a href="government.html">local government</a> · <a href="bestof.html">best of</a> · <a href="center-ice.html">center ice</a></div>
 </footer>
 
 <div class="mini" id="mini">
@@ -278,14 +316,19 @@
 <script>
 /* ── ticker: seamless loop of station nonsense ── */
 const TICKS = [
-  "FREQUENCY NEWS · REAL HEADLINES, WRONGED HOURLY · LOCAL MAN REPORTEDLY UNSURE",
+  "WELCOME TO WENDING · THE 51ST STATE · PENDING REVIEW · THE REVIEW IS ALSO PENDING",
+  "ROUNDABOUT: STILL TWO WEEKS FROM DONE · HAS BEEN FOR NINE YEARS",
+  "HB-114 SIGNED INTO LAW · THE ROUNDABOUT IS STILL TWO WEEKS OUT",
+  "GOOSE UP FOUR IN THE PHARMACY LOT · DECLINED TO COMMENT · CANNOT CONSENT",
+  "STATE FLAG AT HALF-MAST · NOT MOURNING · THE HALYARD JOB'S ON THE LIST",
+  "OFFICIAL STATE WEATHER REMAINS SEASONAL · BEIGE ALERT TILL NOON",
+  "CENSUS COMPLETE · POPULATION: A NUMBER, CROSSED OUT · RE-CROSSED OUT · PENDING",
+  "EXIT 4 STILL NOT BUILT · YOU'RE NOT GOING ANYWHERE EITHER",
+  "STATE MOTTO: TO BE CONTINUED",
   "GARY'S DISCOUNT TEETH — NOW WITH FEWER",
-  "THE VOID IS HIRING · NO EXPERIENCE POSSIBLE",
-  "REGINALD'S ARTISANAL AIR — BREATHE, BUT FANCIER",
-  "WEATHER: WESLEY SAYS IT'S FINE · WESLEY IS SOMEHOW ALWAYS RIGHT",
-  "TONIGHT'S GRAND PRIZE: ONE (1) AA BATTERY",
-  "THE SHOP OPENS SOON · THE MUG IS STILL NOT FOR SALE",
-  "YOU'RE ON THE FREQUENCY",
+  "ELECTION NIGHT: PHARMACY-LOT PRECINCT TIED · WE'RE GOING TO A RECOUNT",
+  "FIXTURE 12 STILL FLICKERING · WORK ORDER OLDER THAN THE STAFF",
+  "YOU'RE ON THE FREQUENCY · BROADCASTING FROM A STATE THAT TECHNICALLY ISN'T",
 ];
 const tickText = TICKS.join("  ···  ") + "  ···  ";
 document.getElementById("tick-a").textContent = tickText;
@@ -367,80 +410,89 @@ function render(){
 }
 render(); setInterval(render, 60_000);
 
-/* ── player ── */
-const audio = document.getElementById("stream");
-const btn = document.getElementById("playbtn");
-const minibtn = document.getElementById("minibtn");
-const player = document.getElementById("player");
-const mini = document.getElementById("mini");
-const hint = document.getElementById("hint");
-const SVG_PLAY = '<path d="M8 5v14l11-7z"/>';
-const SVG_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
-const SRC = "https://stream.bestairadio.com/live";
-let on = false, retries = 0, retryTimer = null, expectPause = false;
+</script>
 
-function connect(){
-  audio.src = SRC + "?t=" + Date.now();
-  return audio.play();
-}
-function setUI(playing, msg){
-  document.getElementById("playicon").innerHTML = playing ? SVG_PAUSE : SVG_PLAY;
-  document.getElementById("miniicon").innerHTML = playing ? SVG_PAUSE : SVG_PLAY;
-  const label = playing ? "Pause live stream" : "Play live stream";
-  btn.setAttribute("aria-label", label);
-  minibtn.setAttribute("aria-label", label);
-  player.classList.toggle("playing", playing);
-  mini.classList.toggle("playing", playing);
-  hint.textContent = msg;
-}
-function reconnect(){
-  if(!on || retryTimer) return;
-  const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
-  retries++;
-  setUI(false, "⟳ reconnecting — the frequency is experiencing a Wesley");
-  retryTimer = setTimeout(()=>{
-    retryTimer = null;
-    connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
-             .catch(reconnect);
-  }, delay);
-}
-["error","ended","stalled","abort"].forEach(ev=>audio.addEventListener(ev, reconnect));
-audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
-audio.addEventListener("playing", ()=>{
-  if(on){
-    retries = 0;
-    clearTimeout(retryTimer); retryTimer = null;
-    expectPause = false;
-    setUI(true, "live · the frequency is yours");
+<script>
+/* ══ THE FREQUENCY · shared persistent player (identical on every page) ══ */
+(function(){
+  const audio = document.getElementById("stream");
+  if(!audio) return;
+  const btn     = document.getElementById("playbtn");   // deck play button (home only)
+  const minibtn = document.getElementById("minibtn");   // mini play button (every page)
+  const player  = document.getElementById("player");    // deck container (home only)
+  const mini    = document.getElementById("mini");
+  const hint    = document.getElementById("hint");      // deck hint (home only)
+  const SVG_PLAY  = '<path d="M8 5v14l11-7z"/>';
+  const SVG_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+  const SRC = "https://stream.bestairadio.com/live";
+  const KEY = "freq:playing";
+  let on = false, retries = 0, retryTimer = null, expectPause = false;
+
+  function setIcon(id, playing){ const e = document.getElementById(id); if(e) e.innerHTML = playing ? SVG_PAUSE : SVG_PLAY; }
+  function connect(){ audio.src = SRC + "?t=" + Date.now(); return audio.play(); }
+  function setUI(playing, msg){
+    setIcon("playicon", playing); setIcon("miniicon", playing);
+    const label = playing ? "Pause live stream" : "Play live stream";
+    if(btn)     btn.setAttribute("aria-label", label);
+    if(minibtn) minibtn.setAttribute("aria-label", label);
+    if(player)  player.classList.toggle("playing", playing);
+    if(mini)    mini.classList.toggle("playing", playing);
+    if(hint && msg) hint.textContent = msg;
   }
-});
-if("mediaSession" in navigator){
-  navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; audio.pause(); setUI(false, "paused · press play to rejoin live"); });
-  navigator.mediaSession.setActionHandler("play", ()=>{ expectPause = false; connect().catch(reconnect); });
-}
-function toggle(){
-  if(!on){
-    on = true; retries = 0;
+  function reconnect(){
+    if(!on || retryTimer) return;
+    const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
+    retries++;
+    setUI(false, "⟳ reconnecting — the frequency is experiencing a Wesley");
+    retryTimer = setTimeout(()=>{
+      retryTimer = null;
+      connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
+               .catch(reconnect);
+    }, delay);
+  }
+  ["error","ended","stalled","abort"].forEach(ev => audio.addEventListener(ev, reconnect));
+  audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
+  audio.addEventListener("playing", ()=>{
+    if(on){ retries = 0; clearTimeout(retryTimer); retryTimer = null; expectPause = false; setUI(true, "live · the frequency is yours"); }
+  });
+  if("mediaSession" in navigator){
+    navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; on = false; try{localStorage.setItem(KEY,"0")}catch(e){} audio.pause(); setUI(false, "paused · press play to rejoin live"); });
+    navigator.mediaSession.setActionHandler("play",  ()=>{ expectPause = false; on = true; try{localStorage.setItem(KEY,"1")}catch(e){} connect().catch(reconnect); });
+  }
+  function play(){
+    on = true; retries = 0; try{localStorage.setItem(KEY,"1")}catch(e){}
     connect().then(()=>setUI(true, "live · the frequency is yours"))
              .catch(()=>{ setUI(false, "the frequency sleeps. it does that sometimes. check back."); reconnect(); });
-  }else{
-    on = false;
+  }
+  function stop(){
+    on = false; try{localStorage.setItem(KEY,"0")}catch(e){}
     clearTimeout(retryTimer); retryTimer = null;
     audio.pause(); audio.src = "";
     setUI(false, "▶ press play · live · always");
   }
-}
-btn.addEventListener("click", toggle);
-minibtn.addEventListener("click", toggle);
+  function toggle(){ on ? stop() : play(); }
+  if(btn)     btn.addEventListener("click", toggle);
+  if(minibtn) minibtn.addEventListener("click", toggle);
 
-/* ── sticky mini-player when the hero scrolls away ── */
-if ("IntersectionObserver" in window){
-  new IntersectionObserver(entries => {
-    mini.classList.toggle("show", !entries[0].isIntersecting);
-  }, {threshold: 0}).observe(player);
-}else{
-  addEventListener("scroll", ()=> mini.classList.toggle("show", scrollY > 600));
-}
+  /* sticky mini-player: follow the deck on home; always-on where there's no deck */
+  if(mini){
+    if(player && "IntersectionObserver" in window){
+      new IntersectionObserver(es => mini.classList.toggle("show", !es[0].isIntersecting), {threshold:0}).observe(player);
+    }else if(player){
+      addEventListener("scroll", ()=> mini.classList.toggle("show", scrollY > 600));
+    }else{
+      mini.classList.add("show");
+    }
+  }
+
+  /* persistent audio: reconnect the live stream across page loads (autoplay may be blocked — that's fine) */
+  let want = false; try{ want = localStorage.getItem(KEY) === "1"; }catch(e){}
+  if(want){
+    audio.src = SRC + "?t=" + Date.now();
+    audio.play().then(()=>{ on = true; retries = 0; setUI(true, "live · the frequency is yours"); })
+                .catch(()=>{ on = false; audio.src = ""; setUI(false, "▶ press play · live · always"); });
+  }
+})();
 </script>
 </body>
 </html>
