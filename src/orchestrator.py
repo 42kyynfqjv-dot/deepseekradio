@@ -219,17 +219,29 @@ def run_show(daypart, config, schedule, live: bool):
         print("  (recent tail found — skipping opener, resuming mid-thought)")
     else:
         try:
-            import random as _r
-            avoid = st0.get("last_open_obj")
-            obj = _r.choice([o for o in _OPENER_OBJECTS if o != avoid])
-            st0["last_open_obj"] = obj
-            _sstate_save(st0)
+            # a genuine show change: the incoming host OPENS the hour — introduces
+            # themselves and the show, and (if taking the air from another show)
+            # thanks that host by name for the handoff. The prior show's lines are
+            # NEVER fed in — only the fact of who to thank crosses the boundary, so
+            # the new host opens fresh instead of continuing the last show.
+            prev_dp = next((d for d in schedule.get("dayparts", [])
+                            if d["id"] == tail.get("dp")), None)
+            handed_over = (prev_dp and tail.get("dp") != daypart["id"]
+                           and time.time() - tail.get("ts", 0) < 25 * 60)
+            if handed_over and prev_dp.get("cast"):
+                pv = _persona(prev_dp["cast"][0])[0]
+                thanks = (f"You are just taking the air from {pv} on "
+                          f"{prev_dp.get('show')}. Open with ONE warm, in-character "
+                          f"line thanking {pv} for the handoff, then ")
+            else:
+                thanks = "You are just coming on the air. "
             daypart["_target_lines"] = 6
-            opener = {"segment": "Open", "premise": "mid-show, mid-thought",
-                      "beat": f"resume mid-thought about {obj}, IN THIS "
-                              "SHOW'S OWN REGISTER AND ENERGY. No greetings, no "
-                              "welcome-backs, no teases, no running jokes, and NO "
-                              "callers in this beat — just the host(s), mid-show.",
+            opener = {"segment": "Open", "premise": "top of the hour — the show opens",
+                      "beat": thanks + "introduce yourself and your show, "
+                              f"{daypart['show']}, and set the hour in motion — a real "
+                              "radio open, warm and brief, IN THIS SHOW'S OWN REGISTER "
+                              "AND ENERGY. A greeting is welcome here. No callers in "
+                              "this beat.",
                       "no_bit": False}
             opener_lines = perform_beat(opener, daypart, models, state, "")
             _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
@@ -406,6 +418,11 @@ def run_show(daypart, config, schedule, live: bool):
                                      models, state, _context(i, prev),
                                      _tail_texts(prev))
                 _emit(lines, f"{daypart['id']}-handoff", config, live, fx=fx)
+                # the sign-off is TERMINAL: mark the window handed off so the main
+                # loop won't re-invoke this show and ramble past the goodbye. The
+                # next show's first audio triggers the station bumper on show-change.
+                if live:
+                    hs = _sstate(); hs["handed_off"] = opened_key; _sstate_save(hs)
                 break
             # never generate past the daypart's AIR boundary — the next show
             # owns everything that would air after it
@@ -931,6 +948,13 @@ def main(argv=None):
                 _sstate_save(st)
         except Exception as e:
             print(f"  (spot refresh skipped: {e})")
+        # if this window already signed off, don't ramble past the handoff —
+        # idle until the next show owns the air (the buffer + bumper cover it)
+        if _sstate().get("handed_off") == f"{dp['id']}:{clock.air_now():%Y-%m-%d}":
+            if args.once:
+                return
+            time.sleep(30)
+            continue
         try:
             run_show(dp, config, schedule, live=args.live)
         except Exception as e:  # a bad show must not kill the station
