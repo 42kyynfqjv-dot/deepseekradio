@@ -1,7 +1,7 @@
 ---
 name: Hank Steele
 show: The Handover
-voice: am_fenrir
+voice: hank_v2
 speed: 0.9
 ---
 

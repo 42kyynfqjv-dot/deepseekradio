@@ -1,7 +1,7 @@
 ---
 name: Wesley
 show: The Morning Scramble
-voice: am_michael
+voice: wesley_v2
 speed: 0.93
 ---
 

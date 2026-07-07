@@ -1,7 +1,7 @@
 ---
 name: Sir Reginald Ashcroft
 show: Refined Palate
-voice: bm_george
+voice: reginald_v2
 speed: 0.95
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: The Watcher
 show: The Static Hour
-voice: bm_lewis
+voice: watcher_v2
 speed: 1.04
 ---
 

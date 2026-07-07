@@ -1,7 +1,7 @@
 ---
 name: Bucky Merle
 show: Center Ice
-voice: am_michael
+voice: bucky_v2
 speed: 1.12
 ---
 

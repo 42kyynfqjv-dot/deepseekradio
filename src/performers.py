@@ -400,6 +400,9 @@ _VALID_VOICES = {"af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica",
                  "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa",
                  "bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel",
                  "bm_fable", "bm_george", "bm_lewis"}
+# minted premium host voices (KVoiceWalk -> injected into voices.bin, not stock)
+_VALID_VOICES |= {"hank_v2", "sal_v2", "kai_v2", "wesley_v2", "bucky_v2",
+                  "reginald_v2", "watcher_v2"}
 
 # spare voices for callers/guests — kept disjoint from every cast voice
 # (cast uses: af_bella, af_sarah, af_jessica, af_river, af_sky, af_nicole,

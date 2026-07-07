@@ -1,7 +1,7 @@
 ---
 name: Kai
 show: The Handover
-voice: am_puck
+voice: kai_v2
 speed: 1.1
 ---
 
