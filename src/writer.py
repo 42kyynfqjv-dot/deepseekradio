@@ -112,8 +112,10 @@ RECURRING SEGMENTS TO HIT:
 {beat_shape}
 
 Per beat also supply:
-- "grounding": one mundane physical detail to anchor the beat (the mug, rain
-  on the window, a squeaky chair).
+- "grounding": one mundane physical detail to anchor the beat. VARY these hard
+  across the outline — a fresh, specific object each time, never the same stock
+  prop show after show (not another toaster/cat/mug/clock). Nothing on the
+  worn-out list below.
 - "callback": normally null. For AT MOST 2 beats in the whole outline, name
   one lore item to reference. Every other beat must not touch lore.
 - "no_bit": normally false. Set true for sincerely straight beats (a wind-down,
@@ -128,6 +130,11 @@ STATION LORE (call back to these where natural):
 
 PREMISES ALREADY AIRED RECENTLY — do NOT reuse or lightly reskin any of these:
 {chr(10).join('- ' + p for p in lore_state.get('recent_premises', [])[-60:]) or '(none yet)'}
+
+WORN-OUT SUBJECTS & PROPS — these have shown up too often lately and are now
+STALE. Do NOT build a beat around them and do NOT use them as grounding; reach
+for something genuinely different this show:
+{', '.join(lore.overused(lore_state)) or '(none yet)'}
 
 Return STRICT JSON:
 {{

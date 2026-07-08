@@ -297,9 +297,13 @@ def run_show(daypart, config, schedule, live: bool):
     # drop structurally banned beats — the prompt ban demonstrably fails at temp 0.9
     outline["beats"] = [b for b in outline.get("beats", [])
                         if not _BANNED_SEGMENT.search(str(b.get("segment", "")))]
-    # persist premises IMMEDIATELY so anti-repetition survives restarts
-    lore.remember(state, premises=[b.get("premise") for b in outline["beats"]
-                                   if b.get("premise")])
+    # persist premises AND grounding props IMMEDIATELY so anti-repetition
+    # (including the worn-out-subject ban) survives restarts
+    lore.remember(state,
+                  premises=[b.get("premise") for b in outline["beats"]
+                            if b.get("premise")],
+                  grounding=[b.get("grounding") for b in outline["beats"]
+                             if b.get("grounding")])
     lore.save(state)
 
     daypart["_target_lines"] = daypart.get(

@@ -80,6 +80,15 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                  "No callbacks this beat — do NOT reference any running joke or lore.")
     grounding = beat.get("grounding")
     grounding_line = f"GROUNDING DETAIL (mundane anchor, use it): {grounding}" if grounding else ""
+    # callers/guests are invented HERE, not by the writer — so the worn-out
+    # subjects have to be banned at performance time too, or every caller keeps
+    # phoning in about the same toaster/cat/clock
+    from . import lore
+    _worn = lore.overused(lore_state)
+    worn_line = (("WORN-OUT — these subjects/props have aired too much lately; do "
+                  "NOT have a caller, guest, or host bring any of them up, and pick "
+                  "a fresh concrete thing instead: " + ", ".join(_worn))
+                 if _worn else "")
     if not beat.get("_guest"):
         guest_line = ""
     elif beat.get("_guest_last"):
@@ -147,6 +156,7 @@ BEAT TO PLAY: {beat.get('beat')}
 {grounding_line}
 {guest_line}
 {lore_line}
+{worn_line}
 {monologue_line}
 
 STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
