@@ -1,3 +1,9 @@
+{
+	servers {
+		protocols h1
+	}
+}
+
 bestairadio.com, www.bestairadio.com {
 	tls internal
 	root * /var/www/bestairadio
@@ -7,8 +13,4 @@ stream.bestairadio.com {
 	reverse_proxy 127.0.0.1:8000 {
 		flush_interval -1
 	}
-}
-http://116.202.13.97 {
-	root * /var/www/bestairadio
-	file_server
 }
