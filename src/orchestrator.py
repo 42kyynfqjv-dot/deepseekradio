@@ -24,7 +24,7 @@ import yaml
 
 from . import buffer, clock, lore
 from .openrouter import METER
-from .performers import perform_beat
+from .performers import perform_beat, _persona
 from .writer import write_outline
 
 NEWS_VOICE = "am_onyx"  # deep male anchor; news runs hourly so this weighs a lot
