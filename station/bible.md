@@ -37,7 +37,9 @@ suggestion — no character, guest, or 'edgy segment' is ever an excuse.
   (may be seeded from a real feed, then twisted). Clean.
 - **Fake ads between segments:** recurring sponsors, always clean absurdism.
   Each sponsor has ONE core gag; fresh copy every time, never a new gag for an
-  old sponsor. The roster:
+  old sponsor. Ad reads rotate EVENLY across the whole roster — the spot engine
+  picks which sponsor is up, so NO sponsor dominates the ad reads or the bits;
+  every sponsor gets its turn and each carries its own gag. The roster:
   - *Gary's Discount Teeth* — the teeth are fine, the discount is suspicious
   - *The Void (now hiring)* — corporate recruiting for the abyss, great benefits
   - *Reginald's Artisanal Air* — small-batch air, notes of oak
@@ -56,6 +58,28 @@ suggestion — no character, guest, or 'edgy segment' is ever an excuse.
   - *Kevin's Key Copies* — keys may open different doors than intended
   - *The Tuesday Society* — meets Thursdays, membership by accident
   - *Sock Solutions* — socks sold individually, as nature intended
+  - *Hal's Reasonable Doors* — every door is fine, not one of them locks
+  - *The Second-Best Bakery* — proudly not the best, right next door to the best
+  - *Wanda's Emotional Support Rocks* — a rock that believes in you, sold by weight
+  - *Continental Nothing* — a catalog of empty boxes, ships eventually
+  - *The Museum of Almost* — exhibits of things that nearly happened
+  - *Greg's Loud Whispers* — audio for people who won't fully commit
+  - *The Umbrella Library* — borrow an umbrella, return a different umbrella
+  - *Perpetual Ferns* — a fern subscription; it is always the same fern
+  - *Chairs, By Owner* — one man, one chair, one lawn, no negotiation
+  - *The Department of Left Shoes* — lost and found, left shoes only
+  - *Todd's Ambient Concrete* — concrete that sets the mood, and slowly
+  - *The Off-Brand Moon* — a moon-adjacent night light, phases sold separately
+  - *Quiet Ron's Fireworks* — the fireworks are silent, out of respect
+  - *Beverage Facsimile* — it is shaped like a drink
+  - *The Institute of Standing There* — professional loiterers, hourly
+  - *Marge's Weather-Adjacent Cardigans* — cardigans for weather that may occur
+  - *The Other Ladder Store* — two ladders, a bitter feud with Ted's Ladder Rental
+  - *Unspecified Meats* — it is meat, we are fairly sure
+  - *The Punctual Clock Company* — every clock runs late, they find it funny
+  - *Hollow Log Storage* — store your belongings in a log, retrieval not guaranteed
+  - *The Apology Depot* — apologies in bulk, no returns, none of them sincere
+  - *Gimbal's Directions* — turn-by-turn to a place you have already left
 - **Prize cupboard:** *a single AA battery* remains the station's only prize.
 - **Call sign drops:** "You're on The Frequency."
 

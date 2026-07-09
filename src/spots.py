@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -46,8 +47,34 @@ def _db() -> sqlite3.Connection:
         created REAL NOT NULL,
         plays INTEGER DEFAULT 0,
         last_played REAL DEFAULT 0,
-        retired INTEGER DEFAULT 0)""")
+        retired INTEGER DEFAULT 0,
+        tag TEXT DEFAULT '')""")
+    if "tag" not in {r[1] for r in con.execute("PRAGMA table_info(spots)")}:
+        con.execute("ALTER TABLE spots ADD COLUMN tag TEXT DEFAULT ''")
+    con.commit()
     return con
+
+
+# ------------------------------------------------------------ sponsor roster
+# Parse the sponsor roster straight from the bible so it stays the single
+# source of truth. Roster lines look like:  "  - *Name* — one core gag"
+# (single-asterisk italic; the bold `**cast**` bullets never match).
+_ROSTER_RE = re.compile(r"^\s*-\s*\*([^*]+)\*\s*[—-]+\s*(.+?)\s*$")
+
+
+def _roster(bible: str) -> list[tuple[str, str]]:
+    return [(m.group(1).strip(), m.group(2).strip())
+            for line in bible.splitlines()
+            if (m := _ROSTER_RE.match(line))]
+
+
+def _pick_sponsors(con, roster: list[tuple[str, str]], n: int) -> list[tuple[str, str]]:
+    """Least-recently-used rotation: the n sponsors whose last spot is oldest
+    (never-aired sponsors, last=0, come first). Stable sort keeps roster order
+    on ties, so the whole roster cycles evenly and none dominates."""
+    used = dict(con.execute(
+        "SELECT tag, MAX(created) FROM spots WHERE tag != '' GROUP BY tag").fetchall())
+    return sorted(roster, key=lambda s: used.get(s[0], 0.0))[:n]
 
 
 def _real_forecast() -> str:
@@ -75,13 +102,6 @@ def _real_forecast() -> str:
 
 
 _BRIEFS = {
-    "ad": """Write {n} DIFFERENT 15-25 second radio ads for The Frequency's recurring
-fictional sponsors. Use the SPONSOR ROSTER from the station bible: each ad a
-DIFFERENT sponsor, chosen at random from the roster — do not favor the first
-few. Honor each sponsor's ONE core gag; never invent a new gag for an old
-sponsor. You may invent at most ONE brand-new equally absurd clean sponsor per
-batch. Each ad: single announcer, 4-6 short spoken lines, deadpan, PG, ends
-with the sponsor name. Fresh copy every time — no recycled taglines.""",
     "weather": """Write {n} DIFFERENT 15-20 second Frequency weather spots. Here is the REAL
 current forecast: {forecast}. Keep the real numbers roughly right (temperature,
 rain chance) so the forecast is genuinely useful, but deliver it in the
@@ -94,8 +114,26 @@ announcer, 4-6 short lines each, deadpan, PG.""",
 }
 
 
-def _generate(kind: str, n: int, models: dict, bible: str) -> list[dict]:
-    brief = _BRIEFS[kind].format(n=n, forecast=_real_forecast() if kind == "weather" else "")
+def _generate(kind: str, n: int, models: dict, bible: str, con) -> list[dict]:
+    picks: list[tuple[str, str]] = []
+    if kind == "ad":
+        # code picks the sponsors (LRU rotation) so none dominates — the writer
+        # only writes the copy for the ones it's handed, one ad per sponsor.
+        picks = _pick_sponsors(con, _roster(bible), n)
+        if not picks:
+            return []
+        spec = "\n".join(f"{i + 1}. {name} — {gag}"
+                         for i, (name, gag) in enumerate(picks))
+        brief = (f"Write {len(picks)} DIFFERENT 15-25 second radio ads for The "
+                 f"Frequency, ONE ad for EACH of these specific sponsors, IN THIS "
+                 f"ORDER. Honor each sponsor's ONE core gag exactly as given — never "
+                 f"invent a new gag, and do NOT invent any new sponsor. Each ad: "
+                 f"single announcer, 4-6 short spoken lines, deadpan, PG, ending on "
+                 f"the sponsor's name. Fresh copy, no recycled taglines.\n\n"
+                 f"SPONSORS (one ad each, in order):\n{spec}")
+    else:
+        brief = _BRIEFS[kind].format(
+            n=n, forecast=_real_forecast() if kind == "weather" else "")
     user = brief + """
 
 Return STRICT JSON: {"spots": [{"lines": ["<spoken line>", ...]}, ...]}"""
@@ -108,9 +146,13 @@ Return STRICT JSON: {"spots": [{"lines": ["<spoken line>", ...]}, ...]}"""
     if txt.startswith("```"):
         txt = txt.split("```", 2)[1].lstrip("json").strip()
     try:
-        return json.loads(txt).get("spots", [])[:n]
+        spots = json.loads(txt).get("spots", [])[:n]
     except Exception:
         return []
+    for i, sp in enumerate(spots):     # tag each ad with the sponsor it's for
+        if isinstance(sp, dict) and i < len(picks):
+            sp["_tag"] = picks[i][0]
+    return spots
 
 
 def refresh(config: dict, models: dict, bible: str) -> None:
@@ -130,16 +172,16 @@ def refresh(config: dict, models: dict, bible: str) -> None:
             con.commit()
             if live >= min_live:
                 continue
-            for spot in _generate(kind, batch, models, bible):
+            for spot in _generate(kind, batch, models, bible, con):
                 lines = [str(x) for x in spot.get("lines", []) if str(x).strip()]
                 if not lines:
                     continue
                 h = int(hashlib.md5(lines[0].encode()).hexdigest(), 16)
                 voice = _SPOT_VOICES[h % len(_SPOT_VOICES)]
                 cur = con.execute(
-                    "INSERT INTO spots (kind, script, voice, wav, created) "
-                    "VALUES (?,?,?,?,?)",
-                    (kind, json.dumps(lines), voice, "", now))
+                    "INSERT INTO spots (kind, script, voice, wav, created, tag) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (kind, json.dumps(lines), voice, "", now, spot.get("_tag", "")))
                 sid = cur.lastrowid
                 wav = SPOT_DIR / f"{kind}_{sid}.wav"
                 from .tts import synth_segment
