@@ -118,8 +118,8 @@ def test_full_game():
 def test_cramped_window():
     tmp = Path(tempfile.mkdtemp())
     try:
-        # 21:52: ~8 air-min left -> must scramble to the horn immediately
-        _run(tmp, datetime(2026, 7, 8, 21, 52))
+        # 22:52: ~8 air-min left (window ends 23:00) -> scramble to the horn now
+        _run(tmp, datetime(2026, 7, 8, 22, 52))
         date = "2026-07-08"
         st = season._load()
         check("cramped game still recorded", st["games"][date].get("recorded") is True)
