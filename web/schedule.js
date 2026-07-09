@@ -4,6 +4,10 @@
  * …) that pre-empt the base on their days. To add a takeover, append one entry
  * to TAKEOVERS — it slots into the grid and the now/next readout automatically.
  * Mirrors src/schedule.yaml (day-gated blocks win their window on their days).
+ *
+ * CACHE: Cloudflare caches this file ~4h. After editing it, bump the ?v=N on
+ * the <script src="/schedule.js?v=N"> include in every HTML page (the pages
+ * are served uncached, so the new version propagates immediately).
  */
 (function (root) {
   var F = {};
