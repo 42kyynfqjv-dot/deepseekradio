@@ -74,7 +74,12 @@ def _pick_sponsors(con, roster: list[tuple[str, str]], n: int) -> list[tuple[str
     on ties, so the whole roster cycles evenly and none dominates."""
     used = dict(con.execute(
         "SELECT tag, MAX(created) FROM spots WHERE tag != '' GROUP BY tag").fetchall())
-    return sorted(roster, key=lambda s: used.get(s[0], 0.0))[:n]
+    # primary key = recency (LRU); tie-break = stable hash so a cold rotation
+    # (no history yet) spreads across the roster instead of favoring the top few.
+    def _key(s):
+        return (used.get(s[0], 0.0),
+                int(hashlib.md5(s[0].encode()).hexdigest(), 16))
+    return sorted(roster, key=_key)[:n]
 
 
 def _real_forecast() -> str:
