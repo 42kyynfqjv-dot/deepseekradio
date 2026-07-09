@@ -199,6 +199,7 @@ load();
   </div>
 </div>
 <audio id="stream" preload="none"></audio>
+<script src="/schedule.js"></script>
 
 <script>
 /* ── ticker + current-show label (page chrome) ── */
@@ -221,23 +222,9 @@ const tickText = TICKS.join("  ···  ") + "  ···  ";
 document.getElementById("tick-a").textContent = tickText;
 document.getElementById("tick-b").textContent = tickText;
 
-const SCHEDULE = [
-  {start:6,  end:10, name:"The Morning Scramble"},
-  {start:10, end:13, name:"Refined Palate"},
-  {start:13, end:16, name:"The Complaints Department"},
-  {start:16, end:19, name:"The Handover"},
-  {start:19, end:22, name:"Culture Vulture"},
-  {start:22, end:25, name:"The Night Shift"},
-  {start:1,  end:5,  name:"The Static Hour"},
-  {start:5,  end:6,  name:"Dawn Patrol"},
-];
-function stationHour(){
-  const parts = new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",hour12:false}).formatToParts(new Date());
-  return parseInt(parts.find(p=>p.type==="hour").value,10) % 24;
-}
-function isLive(s,h){ const wraps=s.end>24; return wraps ? (h>=s.start||h<s.end-24) : (h>=s.start&&h<s.end); }
 function updateMini(){
-  const h=stationHour(), s=SCHEDULE.find(x=>isLive(x,h))||SCHEDULE[0];
+  const F=window.FREQ; if(!F) return;                    // shared schedule.js
+  const s=F.currentShow(F.stationDay(), F.stationHour()); // takeover-aware
   const el=document.getElementById("mini-show"); if(el) el.textContent=s.name;
 }
 updateMini(); setInterval(updateMini, 60_000);

@@ -222,6 +222,7 @@
       </div>
       <div class="hint" id="hint" role="status" aria-live="polite">▶ press play · live · always</div>
       <audio id="stream" preload="none"></audio>
+<script src="/schedule.js"></script>
     </div>
   </div>
 </header>
@@ -334,27 +335,10 @@ const tickText = TICKS.join("  ···  ") + "  ···  ";
 document.getElementById("tick-a").textContent = tickText;
 document.getElementById("tick-b").textContent = tickText;
 
-/* ── schedule (station time = America/New_York) ── */
-const SCHEDULE = [
-  {start:6,  end:10, name:"The Morning Scramble",    hook:"Studio Court is in session. Alliances shift by the segment.",              who:"ROZ · PEACH · WESLEY"},
-  {start:10, end:13, name:"Refined Palate",           hook:"Today's subject: a doorknob. The rating: argued to the death, out of seven moons.", who:"SIR REGINALD · COSIMA"},
-  {start:13, end:16, name:"The Complaints Department",hook:"Your grievance, escalated to someone who does not exist.",                 who:"EMPLOYEE OF THE DAY"},
-  {start:16, end:19, name:"The Handover",             hook:"Forty years of real radio trains its replacement. Live. Against its will.", who:"HANK · KAI"},
-  {start:19, end:22, name:"Culture Vulture",          hook:"Earnest interviews with impossible people.",                                who:"COSIMA + TONIGHT'S GUEST"},
-  {start:22, end:25, name:"The Night Shift",          hook:"Dream Court is in session. Verdicts are final.",                            who:"VIVIAN NIGHTSHADE"},
-  {start:1,  end:5,  name:"The Static Hour",          hook:"Tonight's Theory, your calls, and The Numbers. The numbers will be read.",  who:"THE WATCHER"},
-  {start:5,  end:6,  name:"Dawn Patrol",              hook:"One quiet hour. One quote. No bit.",                                        who:"DAWN"},
-];
-
-const STATION_TZ = "America/New_York";
-function stationHM(){
-  const parts = new Intl.DateTimeFormat("en-US",
-    {timeZone: STATION_TZ, hour: "numeric", minute: "numeric", hour12: false})
-    .formatToParts(new Date());
-  const get = t => parseInt(parts.find(p => p.type === t).value, 10);
-  return (get("hour") % 24) * 60 + get("minute");
-}
-function stationHour(){ return Math.floor(stationHM() / 60); }
+/* ── schedule — data + day-gating live in shared /schedule.js (window.FREQ) ── */
+const F = window.FREQ;
+function stationHM(){ return F.stationHM(); }
+function stationHour(){ return F.stationHour(); }
 function tzShiftMin(){
   const now = new Date();
   let d = (now.getHours() * 60 + now.getMinutes()) - stationHM();
@@ -368,29 +352,30 @@ function fmtViewer(stationH){
   const hr = h % 12 === 0 ? 12 : h % 12;
   return `${hr}:${String(mm).padStart(2, "0")} ${ampm}`;
 }
-function isLive(s, h){
-  const wraps = s.end > 24;
-  return wraps ? (h >= s.start || h < s.end - 24) : (h >= s.start && h < s.end);
-}
+const BADGE = "margin-left:8px;font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:1px 5px;vertical-align:middle";
 function render(){
-  const h = stationHour();
+  const day = F.stationDay(), h = stationHour();
+  const lineup = F.effective(day);        // today's lineup, takeovers spliced in
+  const live = F.currentShow(day, h);
   const grid = document.getElementById("sched");
   grid.innerHTML = "";
-  let liveShow = null, liveIdx = 0;
-  SCHEDULE.forEach((s, i) => {
-    const live = isLive(s, h);
-    if (live){ liveShow = s; liveIdx = i; }
+  let liveIdx = 0;
+  lineup.forEach((s, i) => {
+    const on = s.name === live.name && s.start === live.start;
+    if (on) liveIdx = i;
     const el = document.createElement("div");
-    el.className = "slot" + (live ? " now" : "");
-    el.innerHTML = `<div class="time">${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}</div>
+    el.className = "slot" + (on ? " now" : "") + (s._takeover ? " takeover" : "");
+    const badge = s._takeover
+      ? `<span style="${BADGE}">${s.days.map(d => d.slice(0,3).toUpperCase()).join(" · ")}</span>`
+      : "";
+    el.innerHTML = `<div class="time">${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}${badge}</div>
       <div><div class="name">${s.name}</div><div class="hook">${s.hook}</div><div class="who">${s.who}</div></div>
       <span class="livechip">● LIVE</span>`;
     grid.appendChild(el);
   });
-  liveShow = liveShow || SCHEDULE[0];
-  const nxt = SCHEDULE[(liveIdx + 1) % SCHEDULE.length];
-  document.getElementById("np-show").textContent = liveShow.name;
-  document.getElementById("np-hook").textContent = liveShow.hook;
+  const nxt = lineup[(liveIdx + 1) % lineup.length];
+  document.getElementById("np-show").textContent = live.name;
+  document.getElementById("np-hook").textContent = live.hook;
   // live segment title straight from the player (best-effort garnish)
   fetch("/data/now.json").then(r=>r.json()).then(n=>{
     if(n.airing && Date.now()/1000 - n.ts < 600)
@@ -399,12 +384,12 @@ function render(){
   }).catch(()=>{});
   document.getElementById("np-next").textContent =
     `UP NEXT · ${fmtViewer(nxt.start)} — ${nxt.name}. ${nxt.hook.split(".")[0]}.`;
-  document.getElementById("hero-hook").textContent = liveShow.hook;
-  document.getElementById("mini-show").textContent = liveShow.name;
+  document.getElementById("hero-hook").textContent = live.hook;
+  document.getElementById("mini-show").textContent = live.name;
   document.getElementById("tz-label").textContent =
     Intl.DateTimeFormat().resolvedOptions().timeZone.replace("_", " ");
   document.querySelectorAll(".when").forEach(el => {
-    const s = SCHEDULE[parseInt(el.dataset.slot, 10)];
+    const s = F.SCHEDULE[parseInt(el.dataset.slot, 10)];
     if (s) el.textContent = `DAILY · ${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}`;
   });
 }
