@@ -525,6 +525,12 @@ def run_center_ice(daypart, config, schedule, live: bool):
     that true through crashes, restarts, and short windows."""
     from . import livegame, season
     from .scoreguard import build_facts, enforce_scoreboard
+    from .nameguard import enforce_names
+
+    # the league's invented name pools: any of these is in-universe and must
+    # never be scrubbed as a "real" name, even off tonight's roster
+    pool_ok = frozenset(w.lower()
+                        for w in livegame.FIRST_NAMES + livegame.LAST_NAMES)
 
     models = config["models"]
     state = lore.load()
@@ -807,11 +813,28 @@ def run_center_ice(daypart, config, schedule, live: bool):
                                        weekday, False)
             pf0 = _facts([], None, mode="postgame",
                          final=[fin["h"], fin["a"]], shots=fin["shots"])
+            # ONE-TIME outage return: a goose chewed a feeder line and took us
+            # off air. Owns its own sentinel so it airs exactly once, ever.
+            goose = ""
+            _ret = Path("data/.outage_return")
+            if not _ret.exists():
+                goose = ("WE JUST CAME BACK FROM AN UNPLANNED OUTAGE — a goose "
+                         "chewed clean through a feeder wire and knocked us off "
+                         "the air for a bit. OPEN with a brief, warm, in-character "
+                         "'we're back — a goose got the wire, of all things — and "
+                         "we are glad to be here' (one or two lines, own it with a "
+                         "laugh, do NOT dwell), THEN go to the phones. ")
+                try:
+                    _ret.parent.mkdir(exist_ok=True)
+                    _ret.write_text("1")
+                except Exception:
+                    pass
             # a code-built bridge covers the writer's 1-3 min latency
             yield _beat("Phones", "the lines stay lit",
-                        "The postgame call-in continues. FINAL (authoritative, "
-                        f"never contradict): {hn} {fin['h']}, {an} {fin['a']}. "
-                        "One caller, one strong opinion, the booth pushes back.",
+                        goose + "The postgame call-in continues. FINAL "
+                        f"(authoritative, never contradict): {hn} {fin['h']}, "
+                        f"{an} {fin['a']}. One caller, one strong opinion, the "
+                        "booth pushes back.",
                         pf0, label="callin-bridge", lines=14)
             try:
                 outline = outline_fut.result(timeout=240)
@@ -875,6 +898,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 _throttle(config, live)
                 raw = fut.result()
                 lines = enforce_scoreboard(raw, bi["facts"]) if bi["facts"] else raw
+                lines = enforce_names(lines, bi["facts"], extra_ok=pool_ok)
                 aired.extend(bi["events"])
                 if lines:
                     last_lines = lines

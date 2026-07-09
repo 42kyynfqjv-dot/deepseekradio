@@ -116,7 +116,18 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                           "mundane parts are what make the absurd part land.")
     monologue_line = ("- THIS BEAT IS A MONOLOGUE: one voice runs long; the caps "
                       "below do not apply to them." if beat.get("monologue") else "")
-    register_line = ("" if daypart.get("arc") else
+    if daypart.get("arc") == "live sports broadcast":
+        register_line = (
+            "- FICTIONAL LEAGUE ONLY (hard rule): this is an entirely invented "
+            "hockey league. NEVER name a real-world team (Canadiens, Bruins, "
+            "Maple Leafs, and the like), a real player past or present, the NHL, "
+            "the Stanley Cup, or any real league, arena, trophy, or broadcaster "
+            "— not even in comparison, nostalgia, or a caller's aside. Every name "
+            "you speak must be one already given to you in the beat or roster, or "
+            "one you plainly invent. If you catch yourself reaching for a real "
+            "hockey name, invent a fictional one instead.")
+    else:
+        register_line = ("" if daypart.get("arc") else
                      "- NOT the conspiracy show, NOT a mystical one: no paranormal, "
                      "prophecy, hidden patterns, cover-ups, auras, spirits, "
                      "energies, omens, or anything where an object, plant, or "
