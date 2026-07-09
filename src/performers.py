@@ -432,6 +432,60 @@ _EXTRA_VOICES = ["af_heart", "am_eric", "bf_emma", "am_liam", "bm_daniel",
                  "af_nova", "bf_alice", "am_onyx", "af_kore", "bf_isabella",
                  "am_echo", "bf_lily", "bm_fable", "af_alloy", "af_aoede"]
 
+# gender-pinned spare pools: a caller/guest voice should match the apparent
+# gender of the name (kokoro prefix af_/bf_ = female, am_/bm_ = male). Unknown
+# or ambiguous names fall back to the full pool — no regression, just no misgendered
+# callers (e.g. "Darla" no longer lands on a male voice).
+_EXTRA_F = [v for v in _EXTRA_VOICES if v[:2] in ("af", "bf")]
+_EXTRA_M = [v for v in _EXTRA_VOICES if v[:2] in ("am", "bm")]
+
+_FEMALE_NAMES = frozenset((
+    "mary patricia jennifer linda elizabeth barbara susan jessica sarah karen "
+    "nancy lisa betty margaret sandra ashley kimberly emily donna michelle carol "
+    "amanda dorothy melissa deborah stephanie rebecca sharon laura cynthia amy "
+    "angela shirley anna brenda pamela emma nicole helen samantha katherine "
+    "christine rachel carolyn janet catherine maria heather diane ruth julie "
+    "olivia joyce virginia victoria lauren christina joan evelyn judith megan "
+    "andrea cheryl hannah jacqueline martha gloria teresa ann sara madison "
+    "frances kathryn janice abigail alice judy sophia grace denise amber doris "
+    "marilyn danielle beverly isabella diana natalie brittany charlotte marie "
+    "kayla lori darla wanda marge mildred vivian roz peach dawn cosima gladys "
+    "ethel bernadette nadine lorraine wendy bonnie tammy rhonda gail colleen "
+    "bertha agnes edna mabel opal vera della cora nora eleanor"
+).split())
+
+_MALE_NAMES = frozenset((
+    "james robert john michael david william richard joseph thomas charles "
+    "christopher daniel matthew anthony mark donald steven paul andrew joshua "
+    "kenneth kevin brian george timothy ronald edward jason jeffrey jacob gary "
+    "nicholas eric jonathan stephen larry justin scott brandon frank benjamin "
+    "gregory samuel raymond patrick alexander jack dennis jerry tyler aaron "
+    "henry douglas peter adam nathan zachary walter kyle harold carl jeremy "
+    "gerald keith roger arthur lawrence christian albert joe ethan austin willie "
+    "billy bruce wayne ralph roy eugene louis philip bobby johnny bradley doug "
+    "marty gord wally yvon norm stu merle bucky sal hank kai wesley reginald gil "
+    "bernard ted craig todd greg ron hal pete stanley cliff chuck lars sven "
+    "boone moose vern earl floyd herb marv orville roscoe guy gilles anders "
+    "toivo remy petr randy curtis bert olaf"
+).split())
+
+
+def _gender_of(speaker: str):
+    """'f'/'m' from the first recognizable given name in the label, else None."""
+    for tok in re.findall(r"[a-z]+", speaker.lower()):
+        if tok in _FEMALE_NAMES:
+            return "f"
+        if tok in _MALE_NAMES:
+            return "m"
+    return None
+
+
+def _spare_voice(speaker: str) -> str:
+    """A stable spare voice, gender-pinned to the name when we can tell."""
+    g = _gender_of(speaker)
+    pool = _EXTRA_F if g == "f" else _EXTRA_M if g == "m" else _EXTRA_VOICES
+    return pool[_stable_hash(speaker) % len(pool)]
+
 
 def _attach_voices(lines: list[dict], daypart: dict,
                    guest: str | None = None) -> list[dict]:
@@ -470,12 +524,12 @@ def _attach_voices(lines: list[dict], daypart: dict,
         elif named_hit and named_hit[0] in _VALID_VOICES:
             v, s = named_hit
             if v in voices.values():  # never share a voice with a live co-host
-                v = _EXTRA_VOICES[_stable_hash(spk) % len(_EXTRA_VOICES)]
+                v = _spare_voice(spk)
             ln["voice"] = v
             ln["speed"] = s
-        else:  # caller: stable distinct voice + telephone treatment
+        else:  # caller: stable distinct voice (gender-pinned) + telephone treatment
             h = _stable_hash(spk)
-            ln["voice"] = _EXTRA_VOICES[h % len(_EXTRA_VOICES)]
+            ln["voice"] = _spare_voice(spk)
             ln["speed"] = 0.94 + (h % 5) * 0.04  # 0.94-1.10 per caller
             ln["phone"] = True
     return lines
