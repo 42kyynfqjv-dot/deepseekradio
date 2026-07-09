@@ -10,7 +10,7 @@ dayparts:
   - id: center_ice
     show: "Center Ice"
     days: [Wednesday, Saturday]
-    window: ["20:00", "22:00"]
+    window: ["20:00", "23:00"]
     cast: [bucky, sal]
     news: false               # you don't cut away from a live game
     # The game is FULLY LIVE: src/livegame.py rolls it with fresh entropy in

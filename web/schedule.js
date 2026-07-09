@@ -23,7 +23,7 @@
   // day-gated takeovers — pre-empt the base lineup on their days/windows.
   // `days` are full weekday names in station time.
   F.TAKEOVERS = [
-    {start:20, end:22, days:["Wednesday","Saturday"], name:"Center Ice",
+    {start:20, end:23, days:["Wednesday","Saturday"], name:"Center Ice",
      hook:"Live hockey from a league that shouldn't exist. Absurd teams, real urgency.",
      who:"BUCKY · SAL"},
   ];
@@ -69,20 +69,25 @@
 
   // the effective lineup for `day`: base blocks with takeovers spliced in
   // place (a base block overlapping a takeover is trimmed/split around it).
+  // Takeovers are same-day (non-wrapping); base blocks may wrap past midnight
+  // (end > 24) — for those only the pre-midnight segment [start,24) can be hit.
   F.effective = function (day) {
     function clone(o) { var c = {}; for (var k in o) c[k] = o[k]; return c; }
     var blocks = F.SCHEDULE.map(clone);
     F.TAKEOVERS.forEach(function (t) {
       if (t.days.indexOf(day) === -1) return;
       var out = [], inserted = false;
-      blocks.forEach(function (b) {
-        var overlaps = b.end <= 24 && b.start < t.end && b.end > t.start;
-        if (!overlaps) { out.push(b); return; }
-        if (b.start < t.start) { var pre = clone(b); pre.end = t.start; out.push(pre); }
+      function pushTakeover() {
         if (!inserted) { var tk = clone(t); tk._takeover = true; out.push(tk); inserted = true; }
+      }
+      blocks.forEach(function (b) {
+        var segEnd = b.end > 24 ? 24 : b.end;          // pre-midnight extent
+        if (!(b.start < t.end && t.start < segEnd)) { out.push(b); return; }
+        if (b.start < t.start) { var pre = clone(b); pre.end = t.start; out.push(pre); }
+        pushTakeover();
         if (b.end > t.end) { var post = clone(b); post.start = t.end; out.push(post); }
       });
-      if (!inserted) { var tk2 = clone(t); tk2._takeover = true; out.push(tk2); }
+      pushTakeover();   // takeover on a day with no overlapping base block
       blocks = out;
     });
     return blocks;
