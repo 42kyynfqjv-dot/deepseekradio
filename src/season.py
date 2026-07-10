@@ -596,6 +596,37 @@ def _around_rows(st: dict, slate: list) -> list:
                  for pid, p in pl.get("players", {}).items()}
         by_pair = {(g.get("home"), g.get("away")): g
                    for g in shard.get("games", [])}
+        # during a broadcast, the site reveals other games on the BOOTH'S
+        # clock (air-anchor.json, written at show open) — never a final the
+        # desk is still calling live
+        cursor = None
+        anchor = v2.load_side("air-anchor.json")
+        if anchor and anchor.get("date") == st["sim_through"] and \
+                0 <= time.time() - anchor.get("t0", 0) < 5 * 3600:
+            cursor = int(time.time() - anchor["t0"])
+        if cursor is not None:
+            from .league import briefs as _lgb
+            out_rows = []
+            for row, (h, a, *_r) in zip(rows, slate):
+                g = by_pair.get((h, a))
+                if not g or "drop" not in g:
+                    out_rows.append(row)
+                    continue
+                rv = _lgb.reveal(g, g["drop"], cursor)
+                if rv.get("status") == "upcoming":
+                    continue          # not puck-dropped yet in listener time
+                row["score"] = rv.get("score", row["score"])
+                row["status"] = rv.get("status")
+                if rv.get("status") == "live":
+                    row["ot"] = False
+                    row["period"] = rv.get("period")
+                    row["clock"] = rv.get("clock")
+                    sc = rv.get("scorers_so_far") or []
+                    row["scorers"] = [names.get(s, s) for s in sc][:3]
+                    out_rows.append(row)
+                    continue
+                out_rows.append(row)
+            return out_rows
         for row, (h, a, *_r) in zip(rows, slate):
             g = by_pair.get((h, a))
             if not g:

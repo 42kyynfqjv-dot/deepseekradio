@@ -636,6 +636,13 @@ def run_center_ice(daypart, config, schedule, live: bool):
     pbp = _cast_meta(daypart, 0)
     allow = season.context_pairs(game)
     t_open = time.time()      # the reveal clock's broadcast anchor (G1)
+    try:  # publish the anchor so the WEBSITE reveals other games on the SAME
+        # clock as the booth — the site must never show a final the desk is
+        # still calling as in-progress
+        from .league import engine as _lge0
+        _lge0.save_side("air-anchor.json", {"date": date, "t0": t_open})
+    except Exception:
+        pass
     lines_target = int(daypart.get("lines_per_beat", 22))
     parts_per = max(1, int(daypart.get("parts_per_beat", 2)))
     slot_cost = parts_per * 2.1 + 0.5        # air-min per chunk incl. breaks
