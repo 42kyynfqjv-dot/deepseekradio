@@ -82,5 +82,35 @@ p2 = SW.prompt_line({"name": "Darla", "status": "wrapped", "lines_used": 9})
 check("CLEAR" in p2 and "CANNOT return" in p2, "wrapped prompt forbids return")
 check("CLEAR" in SW.prompt_line(None), "no-state prompt is clear")
 
+# --- announcement discipline ------------------------------------------------
+# the reported stutter: announce, re-announce, THEN the caller — one survives
+stutter = [H("We've got a caller on line two."),
+           H("Hold that thought — there's a caller!"),
+           C("Hi Vivian, it's about my mailbox."),
+           H("Tell me about the mailbox.")]
+out6, _ = SW.enforce(stutter, None, host=HOST)
+ann = [ln for ln in out6 if not ln.get("phone") and not ln.get("_enforced")
+       and ("caller" in ln["text"].lower())]
+check(len(ann) == 1, f"exactly one announcement survives (got {len(ann)})")
+check(out6[0].get("_enforced") is True, "the earlier duplicate is replaced")
+check(out6[2]["text"].startswith("Hi Vivian"), "the call itself untouched")
+
+# a single clean announcement + caller is never touched
+clean = [H("Caller on line one — you're on."), C("Hey, long-time listener.")]
+out7, _ = SW.enforce(clean, None, host=HOST)
+check(not any(ln.get("_enforced") for ln in out7), "clean announce untouched")
+
+# an undelivered trailing tease is still replaced
+tease = [H("Anyway, the tribunal continues."),
+         H("Hold that thought — there's a caller!")]
+out8, _ = SW.enforce(tease, None, host=HOST)
+check(out8[1].get("_enforced") is True, "undelivered tease replaced")
+check("tribunal" in out8[0]["text"], "non-tease line untouched")
+
+# soft forward-looking teases are legit (the wrap's 'phone lines are opening')
+soft = [H("Stick around — the phone lines are opening after the break.")]
+out9, _ = SW.enforce(soft, None, host=HOST)
+check(not out9[0].get("_enforced"), "soft forward tease untouched")
+
 print(f"\nswitchboard {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
