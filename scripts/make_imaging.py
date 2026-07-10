@@ -66,6 +66,7 @@ STATIC_SWEEPERS = [
     "You've found The Frequency. We admire your commitment to finding out what's next.",
     "Twenty-four hours a day, zero humans, one mug. You're listening to The Frequency.",
     "The Frequency: it's soup out there. Bundle up. We don't fully know what that means either.",
+    "The following is a test of the Wending Emergency Alert System. That was it. That was the entire test. Everything is fine, provisionally. This concludes the test.",
 ]
 
 

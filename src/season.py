@@ -413,6 +413,17 @@ def pregame_brief(game: dict) -> str:
     )
 
 
+def slate_scores(day: str) -> list[str]:
+    """Human-readable finals from the day's off-air slate — the intermission
+    and scores-desk sheet. Every pair here is already guard-whitelisted via
+    context_pairs()."""
+    st = _load()
+    out = []
+    for hk, ak, hg, ag, ot in st["slates"].get(day, []):
+        out.append(f"{_ALL[ak]} {ag}, {_ALL[hk]} {hg}{' (OT)' if ot else ''}")
+    return out
+
+
 def context_pairs(game: dict) -> list:
     """Score pairs legitimately mentionable tonight with outside context —
     around-the-league finals and the last broadcast — for the scoreguard."""

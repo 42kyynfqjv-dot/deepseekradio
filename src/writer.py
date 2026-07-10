@@ -99,7 +99,9 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                      "descending/widening from there.\n")
     pacing = daypart.get("pacing")
     pacing_line = f"\nPACING (hard rule for this show): {pacing}\n" if pacing else ""
-    user = f"""Write the outline for this show. Today is {weekday}.
+    extra = daypart.get("_extra_context")
+    extra_line = f"\nREAL-WORLD GROUNDING (use it, keep numbers roughly right):\n{extra}\n" if extra else ""
+    user = f"""Write the outline for this show. Today is {weekday}.{extra_line}
 
 SHOW: {daypart['show']}
 ENERGY: {daypart['energy']}{pacing_line}{arc_line}

@@ -149,11 +149,26 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     heads = fetch_headlines(ncfg["feeds"], ncfg.get("headlines_per_bulletin", 4),
                             used=used)
     coming = daypart["show"] if daypart else ""
-    script = write_bulletin(heads, config["models"],
-                            Path("station/bible.md").read_text(),
-                            coming_up=coming)
+    bible = Path("station/bible.md").read_text()
+    script = write_bulletin(heads, config["models"], bible, coming_up=coming)
     lines = [{"speaker": "Frequency News", "voice": NEWS_VOICE, "text": ln.strip()}
              for ln in script.splitlines() if ln.strip()]
+    # radio furniture: the legal ID + this hour's billboard sponsor lead the
+    # bulletin — code-picked (date+hour seeded) so the LLM never chooses
+    try:
+        from .spots import _roster
+        import random as _rnd
+        roster = _roster(bible)
+        if roster:
+            name, gag = _rnd.Random(f"billboard:{clock.air_now():%Y-%m-%d-%H}"
+                                    ).choice(roster)
+            lines.insert(0, {"speaker": "Station ID", "voice": NEWS_VOICE,
+                             "text": f"W-F-R-Q, one oh eight point one, Halfway "
+                                     f"— it's about {clock.spoken_air_time()}. "
+                                     f"This is The Frequency. This hour is "
+                                     f"brought to you by {name} — {gag}."})
+    except Exception:
+        pass
     print("\n--- Frequency News ---")
     _emit(lines, "news", config, live)
     st["last_news"] = time.time()
@@ -269,6 +284,14 @@ def run_show(daypart, config, schedule, live: bool):
             print(f"  (arc tick skipped: {e})")
     opened_key = f"{daypart['id']}:{clock.air_now():%Y-%m-%d}"
     first_of_window = st.get("opened") != opened_key
+    if daypart.get("id") == "morning_scramble":
+        try:  # Wesley's forecast is the REAL one, twisted in the delivery
+            from .spots import _real_forecast
+            daypart["_extra_context"] = (
+                "Wesley's forecast uses TODAY'S REAL weather (keep the numbers "
+                "roughly right; the delivery is all his): " + _real_forecast())
+        except Exception:
+            pass
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
     # short beat generates and airs so a cold start never goes quiet
     with ThreadPoolExecutor(max_workers=1) as wpool:
@@ -526,6 +549,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
     from . import livegame, season
     from .scoreguard import build_facts, enforce_scoreboard
     from .nameguard import enforce_names
+    from .sfx import tag_sfx
 
     # the league's invented name pools: any of these is in-universe and must
     # never be scrubbed as a "real" name, even off tonight's roster
@@ -585,12 +609,12 @@ def run_center_ice(daypart, config, schedule, live: bool):
                            period=period, clock_lo=lo, clock_hi=hi)
 
     def _beat(seg, premise, text, facts, *, label, lines=None, events=(),
-              mark=(), brk=False, part=0):
+              mark=(), brk=False, part=0, interview=False):
         return {"beat": {"segment": seg, "premise": premise, "beat": text,
                          "grounding": "", "callback": None, "no_bit": False,
                          "monologue": False, "_part": part},
                 "facts": facts, "label": label,
-                "lines": lines or lines_target,
+                "lines": lines or lines_target, "interview": interview,
                 "events": list(events), "mark": list(mark), "brk": brk}
 
     def _board_txt(b):
@@ -714,7 +738,11 @@ def run_center_ice(daypart, config, schedule, live: bool):
             rem_min = (livegame.REG_SECS - min(s["secs"],
                                                livegame.REG_SECS)) / 60.0
             slots = max(1, int((air_left - 10) // slot_cost))
-            cramped = (not _owns_air() or air_left < 14
+            # NHL-real: you never abandon a game in the third period or OT —
+            # it SPILLS past the window and the next show starts late (the
+            # buffer covers the gap; the site shows the game still live).
+            in_late = s["secs"] >= 2 * livegame.PERIOD_SECS
+            cramped = (not in_late) and (not _owns_air() or air_left < 14
                        or (s["secs"] < livegame.REG_SECS
                            and rem_min / slots > 10))
             if cramped:
@@ -754,22 +782,45 @@ def run_center_ice(daypart, config, schedule, live: bool):
             if ends_period and eng.final is None:
                 bd = eng.state()["board"]
                 f = _facts([], bd, mode="neutral")
-                for pi in range(parts_per):
-                    what = (("booth chatter and one rink-side voice; the "
-                             f"subplot develops: {game['subplot']}")
-                            if period == 1 else
-                            ("Sal delivers one magnificent unverifiable "
-                             "statistic; a quick look around the league"))
-                    cont = ("" if pi == 0 else
-                            f" (CONTINUE the intermission, part {pi+1} of "
-                            f"{parts_per}, same scene.)")
+                # a real intermission: report -> scores desk -> walk-off guest
+                pgoals = [e for e in aired if e.get("type") == "goal"
+                          and e.get("period") == period]
+                recap = ("\n".join(_ev_text(e) for e in pgoals)
+                         or "No goals this period — carry it on chances and saves.")
+                slate = season.slate_scores(date)
+                desk = ("; ".join(slate[:5]) if slate else "")
+                color = (f"the booth color subplot develops: {game['subplot']}"
+                         if period == 1 else
+                         "Sal delivers one magnificent unverifiable statistic")
+                yield _beat(
+                    f"Intermission {period}", "the intermission report",
+                    f"INTERMISSION {period} REPORT. SCOREBOARD (authoritative, "
+                    f"the game is PAUSED at exactly this): {_board_txt(bd)}.\n"
+                    f"First, recap THIS period — these are the ONLY goals:\n"
+                    f"{recap}\nThen the AROUND THE LEAGUE scores desk — tonight's "
+                    "results, authoritative, read three or four of them "
+                    f"naturally: {desk or '(no other games tonight)'}.\n"
+                    f"Then {color}. You do NOT know anything about the rest of "
+                    "this game.",
+                    f, label=f"int{period}", part=0)
+                if parts_per > 1:
+                    star = (pgoals[-1]["scorer"] if pgoals else
+                            game["rosters"]["home"]["skaters"][period % 3])
+                    team = (game[pgoals[-1]["team"]] if pgoals
+                            else game["home"])
                     yield _beat(
-                        f"Intermission {period}", "intermission",
-                        f"INTERMISSION {period}. SCOREBOARD (authoritative, "
-                        f"the game is PAUSED at exactly this): {_board_txt(bd)}. "
-                        f"{what}.{cont} You do NOT know anything about the "
-                        "rest of the game.",
-                        f, label=f"int{period}", part=pi)
+                        f"Intermission {period}", "the walk-off interview",
+                        f"INTERMISSION {period}, RINK-SIDE. SCOREBOARD "
+                        f"(authoritative): {_board_txt(bd)}. The booth throws "
+                        f"down to rink-side reporter Donna Marsh, standing with "
+                        f"{star} of the {team}. She asks three or four short "
+                        f"questions about THIS period only; {star} answers in "
+                        "warm hockey-cliche deadpan (pucks in deep, one shift "
+                        "at a time) with ONE oddly specific human detail. Then "
+                        "back up to the booth. You do NOT know anything about "
+                        "the rest of the game.",
+                        f, label=f"int{period}", part=1, lines=14,
+                        interview=True)
 
         # the horn: fold the result NOW (site display is air-gated), then wrap
         fin = eng.final
@@ -795,10 +846,35 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 "Final Horn", "the final horn",
                 f"THE FINAL HORN. FINAL (authoritative): {hn} {fin['h']}, "
                 f"{an} {fin['a']}{how}. Shots: {hn} {fin['shots'][0]}, {an} "
-                f"{fin['shots'][1]}. Three stars: {', '.join(fin['stars'])}. "
-                f"Wrap the game and the subplot ({game['subplot']}), what it "
-                "means for the standings — then tease that the phone lines "
-                "are opening.", pf, label="wrap", brk=True)
+                f"{fin['shots'][1]}. Wrap the game and the subplot "
+                f"({game['subplot']}), what it means for the standings — then "
+                "tease the three stars and that the phone lines are opening.",
+                pf, label="wrap", brk=True)
+            stars = fin.get("stars") or []
+            if len(stars) >= 3:
+                yield _beat(
+                    "Three Stars", "three stars and the walk-off",
+                    "POSTGAME AT THE GLASS. FINAL (authoritative, never "
+                    f"contradict): {hn} {fin['h']}, {an} {fin['a']}{how}.\n"
+                    "First the PA-style three-stars announcement, read in "
+                    f"REVERSE order — third star: {stars[2]}; second star: "
+                    f"{stars[1]}; FIRST star: {stars[0]}.\nThen rink-side "
+                    f"reporter Donna Marsh grabs the first star, {stars[0]}, "
+                    "for the walk-off interview: three or four short "
+                    "questions about tonight; answers in warm hockey-cliche "
+                    "deadpan with ONE oddly specific human detail. Back to "
+                    "the booth to tease the phone lines.",
+                    pf, label="stars", lines=16, interview=True)
+            if game.get("coaches"):     # arrives with the league engine
+                wside = "home" if fin["h"] > fin["a"] else "away"
+                yield _beat(
+                    "Coach's Corner", "the winning coach presser",
+                    f"POSTGAME PRESSER. FINAL (authoritative): {hn} {fin['h']}, "
+                    f"{an} {fin['a']}{how}. Winning head coach "
+                    f"{game['coaches'][wside]} takes four or five questions — "
+                    "measured, cliche-armored, quietly petty about one thing. "
+                    "Donna Marsh asks the last question. Then back to the booth.",
+                    pf, label="presser", lines=14, interview=True)
             try:
                 outline = outline_fut.result(timeout=240)
             except Exception as e:
@@ -884,6 +960,8 @@ def run_center_ice(daypart, config, schedule, live: bool):
             def _submit(bi):
                 dp = dict(daypart)
                 dp["_target_lines"] = bi["lines"]
+                if bi.get("interview"):     # rink-side guests: no phone FX
+                    dp["_no_phone"] = True
                 # sports register, not the mundane/anti-conspiracy guard that
                 # arc-less dayparts get — the scoreguard, not the prompt, owns
                 # factual truth here
@@ -899,6 +977,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 raw = fut.result()
                 lines = enforce_scoreboard(raw, bi["facts"]) if bi["facts"] else raw
                 lines = enforce_names(lines, bi["facts"], extra_ok=pool_ok)
+                lines = tag_sfx(lines, bi["events"], bi["label"])  # arena sound
                 aired.extend(bi["events"])
                 if lines:
                     last_lines = lines

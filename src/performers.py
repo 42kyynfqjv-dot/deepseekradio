@@ -55,15 +55,21 @@ def _stable_hash(s: str) -> int:
 
 
 def _time_context() -> str:
-    """Coarse station time for the cast — AIR time, so what they say about
-    the hour is true when the listener hears it, not when it was written."""
-    from .clock import air_now
+    """Station time for the cast — AIR time, so what they say about the clock
+    is true when the listener hears it, not when it was written."""
+    from .clock import air_now, spoken_air_time
     now = air_now()
     h = now.hour
     part = ("the middle of the night" if h < 5 else "early morning" if h < 9
             else "mid-morning" if h < 12 else "the afternoon" if h < 17
             else "the evening" if h < 21 else "late night")
-    return f"It is {now:%A}, {part}, station time."
+    at = spoken_air_time()
+    return (f"It is {now:%A}, {part}, station time. AIR CLOCK: when these "
+            f"lines reach listeners it will be about {at} — accurate to a "
+            "couple of minutes, never claim better. A spoken time check is "
+            "welcome radio furniture (at most one per beat), always hedged "
+            f"and rounded: 'about {at}', 'coming up on the half hour' — "
+            "never a precise-to-the-minute claim.")
 
 
 def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
@@ -375,11 +381,15 @@ def _polish(lines: list[dict], daypart: dict, models: dict,
         "You are a radio script editor. Edit ONLY mechanically — do not add "
         "jokes, do not change anyone's style. Apply exactly these rules:\n"
         "1. Delete narrated sound effects, stage directions, onomatopoeia.\n"
-        + ("2. Delete precise clock times OF DAY; GAME clocks in the sports "
-           "broadcast ('14:32 of the second period') are correct — keep them "
-           "and never alter scores, scorers, or game facts.\n"
+        + ("2. Hedged, rounded time checks ('about 9:30') are correct — keep "
+           "them. Delete UNhedged precise-to-the-minute clock times OF DAY; "
+           "GAME clocks in the sports broadcast ('14:32 of the second "
+           "period') are correct — keep them and never alter scores, "
+           "scorers, or game facts.\n"
            if daypart.get("id") == "center_ice" else
-           "2. Delete precise clock times.\n")
+           "2. Hedged, rounded time checks ('about 8:25', 'coming up on ten') "
+           "are correct — keep them. Delete UNhedged precise-to-the-minute "
+           "clock times.\n")
         + ("3. Leave host monologues intact — this format runs long on "
            "purpose; only trim CALLER runs longer than 3 lines.\n"
            if monologue_show else
@@ -531,5 +541,8 @@ def _attach_voices(lines: list[dict], daypart: dict,
             h = _stable_hash(spk)
             ln["voice"] = _spare_voice(spk)
             ln["speed"] = 0.94 + (h % 5) * 0.04  # 0.94-1.10 per caller
-            ln["phone"] = True
+            # rink-side interviews are IN THE BUILDING: full-band voice, no
+            # phone bandpass (the beat sets _no_phone on the daypart copy)
+            if not daypart.get("_no_phone"):
+                ln["phone"] = True
     return lines

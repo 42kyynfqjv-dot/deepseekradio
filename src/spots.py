@@ -30,6 +30,7 @@ POLICY = {
     "ad":      (16, 4, 72 * 3600, 24),
     "weather": (2, 2, 2.5 * 3600, 8),
     "traffic": (2, 2, 8 * 3600, 12),
+    "psa":     (3, 2, 7 * 24 * 3600, 30),   # civic wallpaper: slow rotation
 }
 
 _SPOT_VOICES = ["am_adam", "af_sarah", "bm_george", "af_nicole", "am_onyx",
@@ -116,6 +117,14 @@ announcer, 4-6 short lines each. Never state clock times.""",
 real roads, no times of day): a goose situation, a spilled truck of something
 absurd, the roundabout, the one beautiful empty road nobody can find. Single
 announcer, 4-6 short lines each, deadpan, PG.""",
+    "psa": """Write {n} DIFFERENT 15-20 second PUBLIC SERVICE ANNOUNCEMENTS from the
+State of Wending or its agencies — formal PSA cadence, deadpan, PG, evergreen
+(no dates, no clock times). Draw on Wending canon: the provisional 51st state,
+the Office of Interparty Compliance (check your ink), the roundabout at Mile
+Zero ("about two weeks out"), goose awareness in the pharmacy lot, merge
+courtesy (the state takes NO position on early versus late), Half-Dome tarp
+season. Single announcer, 4-6 short lines, each ending "A message from
+<the agency>".""",
 }
 
 
