@@ -64,14 +64,22 @@ def save_side(name: str, obj: dict, root: Path | None = None) -> None:
 
 def sidecar_hash(season: int, root: Path | None = None) -> str:
     """Hash over the IMMUTABLE core: the schedule bytes and the player
-    identity table (pid/name/team/slot). Runtime-mutable state (out2,
-    call-ups) is deliberately excluded — the engine itself writes those, and
-    a gate that drifts shut on its own injuries guards nothing."""
+    identity table (pid/name/slot). Runtime-mutable state (out2, call-ups,
+    and — since Gate 2 — a player's `team`) is deliberately excluded: the
+    engine itself writes those, and a gate that drifts shut on its own
+    approved mutations guards nothing. `team` moved out of the hashed
+    identity tuple when Gate 2 (economy) landed: a trade legitimately
+    reassigns a player's team, and hashing it meant the very first trade of
+    a season would drift this hash and silently fall the WHOLE v2 engine
+    back to v1 on the next season.tick()/tonight_live() call — self-
+    defeating for the one feature Gate 2 exists to ship. pid/name/slot still
+    catch what this gate actually guards against (wrong roster file,
+    corrupted or hand-edited state)."""
     h = hashlib.sha256()
     p = _p(f"schedule-s{season}.json", root)
     h.update(p.read_bytes() if p.exists() else b"missing")
     pl = load_side(f"players-s{season}.json", root)
-    ident = sorted((pid, v.get("name", ""), v.get("team", ""), v.get("slot", ""))
+    ident = sorted((pid, v.get("name", ""), v.get("slot", ""))
                    for pid, v in (pl or {}).get("players", {}).items())
     h.update(json.dumps(ident).encode())
     return h.hexdigest()
@@ -116,14 +124,47 @@ def _virtual_drop(season: int, day: str, hk: str, ak: str) -> int:
     return random.Random(f"drop:{season}:{day}:{hk}-{ak}").randint(0, 5400)
 
 
+# ------------------------------------------------------- Gate 2: economy
+
+ECON_FLAG = "ECON-ENABLED"
+ALLOW_TRACKED_TRADES_FLAG = "ALLOW-TRACKED-TRADES"
+
+
+def _mint_coaches(season_n: int, teams) -> dict:
+    """Deterministic day-0 coach + trainer per team (minimal §12 shape),
+    minted exactly once — the first day the economy gate is open and no
+    coaches-s{n}.json exists yet. Reuses economy.py's own coach name bank/
+    style list (component G) rather than inventing a second one; trainers
+    draw from the same bank under a distinct seed namespace, matching
+    minimal §12's own worked example (a coach-bank name doubling as a
+    trainer's)."""
+    from . import economy
+    coaches, trainers = {}, {}
+    for team in teams:
+        c_rng = random.Random(f"mint-coach:{season_n}:{team}")
+        coaches[team] = {"name": economy._mint_coach_name(c_rng),
+                          "style": c_rng.choice(economy._STYLES),
+                          "mod": round(c_rng.uniform(-0.02, 0.02), 4),
+                          "hired_day": 0}
+        t_rng = random.Random(f"mint-trainer:{season_n}:{team}")
+        trainers[team] = {"name": economy._mint_coach_name(t_rng),
+                           "heal": round(t_rng.uniform(0.85, 1.15), 3)}
+    return {"coaches": coaches, "trainers": trainers}
+
+
 def tick_v2(st: dict, air_date: str, apply_fn, tracked: dict,
             root: Path | None = None) -> dict | None:
     """Advance the league day-by-day to air_date on the v2 engine. Mutates
     `st` (the season.json dict) with mirrored v1 folds; writes sidecars under
     `root`. `apply_fn` is season._apply (injected so shadow mode can run
     against a deep copy without touching live helpers' state). Returns the
-    loaded sidecar bundle for reuse, or None if nothing to do."""
-    from . import boxscore, players, schedule, stats as statsmod  # noqa: F401
+    loaded sidecar bundle for reuse, or None if nothing to do.
+
+    Gate 2 (economy activation, hockey-final.md "Gates & scope"): entirely
+    dormant unless `root/ECON-ENABLED` exists — every new line this gate
+    touches lives behind that single check below, so a gate-off tick_v2
+    executes none of it (byte-identical to the pre-Gate-2 day loop)."""
+    from . import boxscore, calendar, players, schedule, stats as statsmod  # noqa: F401
 
     root = root or SIDE
     season_n = st["season"]
@@ -137,10 +178,11 @@ def tick_v2(st: dict, air_date: str, apply_fn, tracked: dict,
         {"schema": 1, "season": season_n, "skaters": {}, "goalies": {}}
     if pl is None or sched is None:
         raise RuntimeError("v2 sidecars missing mid-flight")
+    coaches = load_side(f"coaches-s{season_n}.json", root)   # None until Gate 2
 
     days_done = 0
     d = d0
-    stats_dirty = players_dirty = False
+    stats_dirty = players_dirty = coaches_dirty = False
     while d <= d1 and days_done < CHUNK_DAYS:
         day = d.isoformat()
         if day not in st["slates"]:
@@ -194,6 +236,46 @@ def tick_v2(st: dict, air_date: str, apply_fn, tracked: dict,
                     del st["slates"][old]
             save_side(f"box/{day}.json", {"date": day, "games": box_games}, root)
             _prune_boxes(root, day)
+
+            # --- Gate 2: economy activation --------------------------------
+            # Dormant unless ECON-ENABLED exists (checked fresh every day, so
+            # flipping the flag mid-catch-up picks up on the next unprocessed
+            # day). The whole step is exception-isolated: a bad econ day must
+            # never kill the tick — regular-season folding above already
+            # happened and stands regardless of what follows here.
+            if (root / ECON_FLAG).exists():
+                try:
+                    from . import economy
+                    if coaches is None:
+                        teams = sorted({p["team"]
+                                        for p in pl["players"].values()})
+                        coaches = _mint_coaches(season_n, teams)
+                        coaches_dirty = True
+                    # owner flag, re-read every day so revoking it takes
+                    # effect immediately (economy._tradeable's own gate)
+                    pl["allow_tracked_trades"] = \
+                        (root / ALLOW_TRACKED_TRADES_FLAG).exists()
+                    day_idx = calendar.day_index(sched.get("start", day), day)
+                    econ_rng = random.Random(f"econ:{season_n}:{day_idx}")
+                    tx = economy.run_day(pl, coaches, st["league"], season_n,
+                                          day_idx, econ_rng)
+                    # trades/firings already mutated pl/coaches in place
+                    # (economy.run_day's own contract) -- our job is to
+                    # persist that and record the transaction log + wire
+                    # copy for other shows' scores desks.
+                    for t in tx:
+                        t.setdefault("date", day)
+                    txfile = load_side(f"transactions-s{season_n}.json",
+                                        root) or {"tx": []}
+                    txfile["tx"].extend(tx)
+                    save_side(f"transactions-s{season_n}.json", txfile, root)
+                    save_side("news-lines.json",
+                               [t["note"] for t in tx if t.get("note")], root)
+                    players_dirty = True
+                    coaches_dirty = True
+                except Exception as e:
+                    print(f"  !! league v2 economy step failed for {day} "
+                          f"({e}) — econ skipped this day, tick continues")
         if day > st["sim_through"]:
             st["sim_through"] = day
         days_done += 1
@@ -203,7 +285,9 @@ def tick_v2(st: dict, air_date: str, apply_fn, tracked: dict,
         save_side(f"stats-s{season_n}.json", stt, root)
     if players_dirty:
         save_side(f"players-s{season_n}.json", pl, root)
-    return {"players": pl, "schedule": sched, "stats": stt}
+    if coaches_dirty and coaches is not None:
+        save_side(f"coaches-s{season_n}.json", coaches, root)
+    return {"players": pl, "schedule": sched, "stats": stt, "coaches": coaches}
 
 
 def _prune_boxes(root: Path, today: str, keep: int = 21) -> None:

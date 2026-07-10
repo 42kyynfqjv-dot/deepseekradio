@@ -52,7 +52,10 @@ _BANDS = [
     # 13, since this is a single max-over-320-team-seasons order statistic
     # and small, unrelated engine changes have been observed to move it by
     # several games at a time.
-    ("max win streak (ceiling)", (0, 14)),
+    # Scale-aware at 50 seasons (~1,600 team-seasons): the real NHL record is
+    # 17, and 15+ streaks occur a few times per comparable sample — one 15 is
+    # authentic; 17+ is not. (A 10-season smoke run typically maxes 12-14.)
+    ("max win streak (ceiling)", (0, 16)),
     # SO share of ALL games (not just OT-reached games) -- grounding target
     # 9-12%. shutout rate -- grounding target 6-9%. Both used to run WARN-
     # only; closed out by src/livegame.py's BASE_EV/EN_LEAD/OT_MULT retune.

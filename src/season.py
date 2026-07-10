@@ -289,6 +289,19 @@ def tonight_live(air_date: str) -> dict:
             game["strength_away"] = _plmod.team_strength(pl, {}, ak, False)
         except Exception as e:
             print(f"  !! v2 dressing failed ({e}) — v1 rosters stand")
+        try:  # Gate 2 (economy): coach names, once minted, auto-activate
+            # orchestrator's already-shipped "Coach's Corner" presser beat
+            # (game.get("coaches") truthy gate) — additive, dark until the
+            # sidecar exists.
+            if (v2.SIDE / "ECON-ENABLED").exists():
+                coaches_side = v2.load_side(f"coaches-s{st['season']}.json")
+                c = (coaches_side or {}).get("coaches", {})
+                hc = c.get(hk, {}).get("name")
+                ac = c.get(ak, {}).get("name")
+                if hc and ac:
+                    game["coaches"] = {"home": hc, "away": ac}
+        except Exception as e:
+            print(f"  !! v2 coaches lookup failed ({e}) — presser beat stays dark")
     st["games"][air_date] = game
     st["game_no"] = game_no
     if len(st["games"]) > 90:

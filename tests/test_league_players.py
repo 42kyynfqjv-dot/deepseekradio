@@ -272,6 +272,44 @@ healthy_league = copy.deepcopy(LEAGUE)
 check(P.maybe_callup(healthy_league, t0) == [],
       "maybe_callup promotes nobody when the team is healthy")
 
+# --- contract calibration: payroll band + top-heavy shape ----------------
+# (the Gate-2 aav<->cap fix -- see players.py's contract-calibration block)
+from src.league import economy as _E  # test-only import; players.py stays a leaf
+
+payroll_ok = capok_ok = shape_ok = True
+top7_shares = []
+worst_pr = None
+for mint_season in (1, 2, 3):
+    ml = P.mint_league(mint_season, _build_aired(f"aav-fixture-{mint_season}"),
+                       _build_targets(f"aav-targets-{mint_season}"))
+    for team in TEAMS:
+        pr = _E.payroll(ml, team)
+        if not (P.PAYROLL_BAND[0] - 0.5 <= pr <= P.PAYROLL_BAND[1] + 0.5):
+            payroll_ok = False
+            worst_pr = (mint_season, team, pr)
+        if not _E.cap_ok(ml, team):
+            capok_ok = False
+        active = sorted((p["aav"] for pid, p in ml["players"].items()
+                         if p["team"] == team
+                         and pid not in ml["reserve"][team]), reverse=True)
+        share = sum(active[:7]) / _E.CAP_CEILING
+        top7_shares.append(share)
+        # measured envelope: p5-p95 [0.554, 0.634] over 5 seeds x 32 teams;
+        # hard rails a little wider so one tail team can't flake the suite
+        if not (0.50 <= share <= 0.68):
+            shape_ok = False
+        if min(p["aav"] for p in ml["players"].values()
+               if p["team"] == team) < P.AAV_MIN - 1e-9:
+            shape_ok = False
+check(payroll_ok, f"every team payroll inside PAYROLL_BAND across 3 mint seeds "
+                   f"(worst: {worst_pr})")
+check(capok_ok, "economy.cap_ok true for all 32 teams, all 3 mint seeds")
+mean_share = sum(top7_shares) / len(top7_shares)
+check(0.55 <= mean_share <= 0.65,
+      f"league-mean top-7 payroll share 55-65% of the cap ({mean_share:.3f})")
+check(shape_ok, "per-team top-7 share in the [0.50, 0.68] rails and no aav "
+                 "below the league minimum")
+
 # --- develop(): pure, and dormant (never called by anything else here) --
 before = dict(sample)
 dev_rng = random.Random("develop-fixture")

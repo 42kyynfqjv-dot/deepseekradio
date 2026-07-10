@@ -122,6 +122,34 @@ GAMMA = 2.6
 STR_LO = 0.34
 STR_HI = 0.66
 
+# --- contract calibration (the Gate-2 aav<->cap fix) ------------------------
+# The original mint formula (aav = 0.775 + ov*9.0*U(0.7,1.15)) was linear in
+# ov and uncalibrated against economy.py's $95.5M ceiling: fresh teams
+# averaged ~$110M active payroll (all 32 over the cap, so economy.run_day's
+# cap-legality check rejected essentially every trade) and its flat curve
+# capped the top-7 payroll share around ~39% of the ceiling -- structurally
+# unable to hit the grounding's "top 6-8 deals = 55-65% of cap" at ANY
+# linear scale. Fixed in two calibrated parts:
+#   1. shape: aav = AAV_MIN + ov**AAV_POW * AAV_SCALE * U(*AAV_NOISE) --
+#      still ov-scaled, but convex (same precedent as economy._resign's
+#      ov**1.6), concentrating money at the top the way real cap sheets do.
+#   2. scale: a per-team payroll normalization in mint_league (mirroring
+#      the existing per-team ov bisection) pins each ACTIVE payroll to a
+#      seeded target inside PAYROLL_BAND -- the +/-0.06 ov jitter raised to
+#      AAV_POW gives raw payroll an ~$4M sd no noise-band tuning can tame
+#      (measured: tails past the ceiling at every candidate band), so the
+#      band is enforced deterministically, not statistically. Relative
+#      contract structure (the ov-scaled shape) is preserved exactly.
+# scripts/rescale_aav.py applies the same seeded-target normalization to an
+# already-minted live sidecar (aav is not part of engine.sidecar_hash's
+# identity tuple, so the VERIFIED gate holds across a rescale).
+AAV_MIN = 0.775                # == economy.LEAGUE_MIN (kept local: leaf module)
+AAV_POW = 4.0
+AAV_SCALE = 27.0
+AAV_NOISE = (0.9, 1.1)
+PAYROLL_BAND = (86.0, 93.0)    # active-payroll seeded-target band; ceiling
+                               # 95.5, floor 70.67 -- margin both ways
+
 
 def _clamp(x: float, lo: float = 0.02, hi: float = 0.98) -> float:
     return max(lo, min(hi, x))
@@ -145,7 +173,8 @@ def mint_player(rng: random.Random, team: str, pos: str, slot: str,
     pl_bias = 0.0 if is_goalie else round(_clamp(rng.uniform(0.25, 0.85)), 3)
     dur = round(_clamp(rng.uniform(0.55, 0.95)), 3)
     age = min(40, max(19, round(rng.gauss(27, 4))))
-    aav = round(0.775 + ov * 9.0 * rng.uniform(0.7, 1.15), 2)
+    aav = round(AAV_MIN + (ov ** AAV_POW) * AAV_SCALE
+                * rng.uniform(*AAV_NOISE), 2)
     yrs = rng.randint(1, 7)
     return {"team": team, "pos": pos, "slot": slot, "ov": round(ov, 4),
             "sh": sh, "pl": pl_bias, "dur": dur, "aav": aav, "yrs": yrs,
@@ -259,6 +288,19 @@ def mint_league(season: int, aired: dict[str, list[str]],
         scale = (lo + hi) / 2
         for pid in team_pids:
             players[pid]["ov"] = round(_clamp(base_ov[pid] * scale), 4)
+
+        # normalize this team's ACTIVE payroll to a seeded target inside
+        # PAYROLL_BAND (see the contract-calibration comment above). A
+        # separate seeded rng, so the mint stream (names/attributes) is
+        # untouched; reserves scale by the same factor to keep the whole
+        # sheet coherent (they don't count against the cap either way).
+        pr_target = random.Random(
+            f"payroll:{season}:{team}").uniform(*PAYROLL_BAND)
+        cur = sum(players[pid]["aav"] for pid in team_pids)
+        k = (pr_target / cur) if cur else 1.0
+        for pid in team_pids + res_ids:
+            players[pid]["aav"] = max(AAV_MIN,
+                                      round(players[pid]["aav"] * k, 2))
 
     return {"schema": 1, "season": season, "players": players,
             "reserve": reserve, "out2": {}, "callups": {}, "retired": []}
