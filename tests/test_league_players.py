@@ -119,16 +119,27 @@ check(all(p["sh"] == 0.0 and p["pl"] == 0.0 for p in goalies),
       "goalies carry sh=0.0, pl=0.0")
 
 # --- team_strength within +/-0.01 of target, all 32 teams ---------------
+# target_strength is drawn uniform over [0.30, 0.70] (matching v1's
+# season._strength() range), but team_strength()'s own output clamp is
+# deliberately narrower (STR_LO/STR_HI -- calibrate_league.py's max-win-
+# streak lever, see that constant's comment in players.py): a target
+# outside [STR_LO, STR_HI] is unreachable by construction, and
+# mint_league's bisection settles at the nearest clamp edge instead. So
+# the +/-0.01 check is against clamp(target, STR_LO, STR_HI), not the raw
+# target -- still exact for every team whose target already falls inside
+# the clamp, and exercises the pulled-in-to-the-edge behavior for the ones
+# that don't.
 strength_ok = True
 worst = 0.0
 for team in TEAMS:
     got = P.team_strength(LEAGUE, {}, team, False)
-    diff = abs(got - TARGETS[team])
+    expected = max(P.STR_LO, min(P.STR_HI, TARGETS[team]))
+    diff = abs(got - expected)
     worst = max(worst, diff)
     if diff > 0.01 + 1e-9:
         strength_ok = False
-check(strength_ok, f"team_strength within +/-0.01 of target for all 32 teams "
-                    f"(worst diff {worst:.4f})")
+check(strength_ok, f"team_strength within +/-0.01 of clamp(target, STR_LO, STR_HI) "
+                    f"for all 32 teams (worst diff {worst:.4f})")
 
 # b2b dip and coach mod actually move the number
 t0 = TEAMS[0]

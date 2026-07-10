@@ -34,7 +34,7 @@ DATA = Path("data")
 # --- the calibrated rate model (Monte Carlo-verified against NHL envelopes:
 #     season point spread 50-116, GF/team/game ~2.5-3.4, PP conversion 20%,
 #     SHG ~3.4%/PP, OT decides ~71% of tied games)
-BASE_EV = 2.60 / 3600     # goals/sec/team at even strength (rebated so that PP,
+BASE_EV = 2.81 / 3600     # goals/sec/team at even strength (rebated so that PP,
                           # empty-net and score-effects land league GF ~3.0)
 STRENGTH_EXP = 0.35       # lambda ~ (s_for/s_opp)**0.35 -> extreme H2H win% ~0.76
 HOME_EDGE = 1.05          # even-matchup home win% ~53%
@@ -42,13 +42,60 @@ PP_MULT = 2.23            # 20.0% conversion per full 2-min minor
 SH_MULT = 0.35            # 3.4% shorthanded goals per PP
 SCORE_FX = 1.18           # trailing by 1-2 in the third (replaces momentum:
                           # counteracts blowouts and raises regulation ties)
-EN_LEAD = 5.0             # leading team shooting at an empty net
+EN_LEAD = 2.0             # leading team shooting at an empty net -- tuned down
+                          # from 5.0, see "final calibration pass" below
 EN_TRAIL = 1.7            # trailing team at 6-on-5
-OT_MULT = 2.5             # 3-on-3 overtime
+OT_MULT = 1.4             # 3-on-3 overtime -- tuned down from 2.5, see below
 SO_ATTEMPT_P = 0.32       # per shootout attempt
 PEN_RATE = 6.0 / 3600     # penalty arrivals (one active at a time)
 INJ_RATE = 0.10 / 3600    # ~1 injury every 10 games, skaters only, PG euphemism
 SHOT_FACTOR = 10.5        # shots ~ goal rate x10.5 (~30/team/game)
+
+# --- final calibration pass (SO share + shutout rate, the two former
+# calibrate_league.py WARN rows -- now hard PASS/FAIL bands there): moved
+# BASE_EV 2.60->2.81/3600, EN_LEAD 5.0->2.0, OT_MULT 2.5->1.4. Combined
+# with players.py's STR_LO/STR_HI narrowing (that file's own comment),
+# 10-season measurement (seeds 900-909, `calibrate_league.py --seasons
+# 10`) landed all 13 bands PASS, including the two newly-hard ones:
+#   SO share of ALL games   6.4%  -> 10.7%  (band 9-12%)
+#   shutout rate            ~11%  -> 8.65%  (band 6-9%)
+#   goals/game (unmoved band, drifted up within it) -> 6.46 (band 5.7-6.5)
+#   max win streak (STR_LO/STR_HI, not a livegame.py constant) 18 -> 13
+# Lever-by-lever findings, so a future pass doesn't re-derive them:
+#   - OT_MULT down is a clean, isolated SO-share lever: OT-reached share
+#     (set entirely by regulation-tie rate) does not move at all as
+#     OT_MULT changes -- only the OT-reached/SO split does. Swept 2.5 ->
+#     1.4 (SO share 6.0% -> ~10.2% in isolation) with OT-reached pinned at
+#     19.2% throughout.
+#   - shutout rate has NO clean single-constant lever. Diagnostic sampling
+#     (scratch script, not checked in) found only ~0.4% of games reach
+#     shutout via the 0-0-after-regulation-decided-in-OT/SO channel (so
+#     OT_MULT is provably ~orthogonal to shutout, confirmed empirically:
+#     shutout rate read bit-identical across the whole OT_MULT sweep) --
+#     the other ~99.6% are regulation shutouts, and of THOSE, ~71% are
+#     3+-goal-margin blowouts a trailing team's goalie-pull window (fires
+#     only at a 1- or 2-goal deficit) never reaches. STRENGTH_EXP and
+#     SCORE_FX were both tried as levers and rejected: STRENGTH_EXP barely
+#     moves shutout rate (0.1044 -> 0.1011 over a 0.35 -> 0.20 sweep) while
+#     blowing the points-spread floor band almost immediately (0.30 already
+#     reads floor 63.67 against a 62 cap); SCORE_FX gives a real shutout
+#     reduction but inflates OT-reached share fast (1.18->1.6 alone already
+#     breaks the 24% OT-reached cap) and is a strictly worse use of
+#     goals/game budget than BASE_EV at matched cost (measured head to
+#     head). BASE_EV alone is the single most efficient shutout lever
+#     (raising the whole-game scoring floor lowers every team's P(0 goals)
+#     Poisson-style) but tops out around shutout 0.092 right as goals/game
+#     crosses its 6.5 cap -- insufficient alone. EN_LEAD down frees
+#     goals/game headroom for a further BASE_EV raise at ~zero shutout
+#     cost of its own, because it only touches the LEADING team's bonus
+#     rate into an already-pulled net, never the trailing (shutout-risk)
+#     team's own scoring chance -- confirmed empirically (EN_LEAD 5.0->1.0
+#     alone: goals/game -0.19, shutout rate -0.002, i.e. nearly free).
+#     Traded off against the (untracked, no calibrate_league.py band)
+#     empty-net-goal-share sub-target (grounding ~7% of all goals): that
+#     figure was already under-target pre-change (~3.6% measured at the
+#     old EN_LEAD=5.0) and is now further under (~1.5% at EN_LEAD=2.0) --
+#     flagged for a future pass, not fixed here.
 
 PERIOD_SECS = 1200
 REG_SECS = 3600

@@ -77,17 +77,18 @@ ag_ratio = assists / goals_count if goals_count else 0.0
 
 check(5.7 <= avg_goals <= 6.5, f"combined goals/game {avg_goals:.2f} in 6.1+-0.4")
 check(0.19 <= reach_ot <= 0.24, f"OT-reached rate {reach_ot:.3f} in 19-24%")
-# FRICTION (see component summary): sim_box is a thin wrapper over the
-# already-frozen, shared livegame._sim_span/_sim_shootout model (component C
-# may not touch livegame.py's constants). At s=.5/.5 that shared engine
-# empirically settles near SO~7.0% / shutout~10.7% of games (confirmed via
-# a 50k-game run of the pre-existing, untouched `sim_instant`, not just
-# sim_box) -- outside the task's literal 8-13%/6-9% bands. Asserting
-# against the engine's actual, stable behavior (with headroom for sampling
-# noise) rather than the ungroundable literal band, since box_from_final's
-# reach here is "wrap the model faithfully," not "recalibrate it."
-check(0.05 <= so_rate <= 0.09, f"SO rate {so_rate:.3f} (shared-engine band; see friction note)")
-check(0.09 <= shutout_rate <= 0.13, f"shutout rate {shutout_rate:.3f} (shared-engine band; see friction note)")
+# FRICTION, RESOLVED: sim_box is a thin wrapper over the shared
+# livegame._sim_span/_sim_shootout model (component C may not touch
+# livegame.py's constants itself). This used to read SO~7.0%/shutout~10.7%
+# at s=.5/.5 -- outside the task's literal 8-13%/6-9% bands -- so this
+# check ran against the engine's then-actual behavior instead of the
+# ungroundable literal band. The shared engine's own calibration pass
+# (src/livegame.py's BASE_EV/EN_LEAD/OT_MULT block comment) has since
+# closed that gap: at s=.5/.5 this now reads SO~11.0%/shutout~8.4%, both
+# honestly inside the original literal bands, so the bands below are that
+# literal 8-13%/6-9% target, not a friction workaround.
+check(0.08 <= so_rate <= 0.13, f"SO rate {so_rate:.3f} in 8-13%")
+check(0.06 <= shutout_rate <= 0.09, f"shutout rate {shutout_rate:.3f} in 6-9%")
 check(1.40 <= ag_ratio <= 1.60, f"assist:goal ratio {ag_ratio:.3f} in 1.40-1.60")
 
 # sanity: every scorer/assist is a name (or id) drawn from the actual roster

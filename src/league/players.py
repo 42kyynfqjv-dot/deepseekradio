@@ -94,9 +94,33 @@ B2B_MULT = 0.96          # -4% strength dip, second night of a back-to-back
 # Art Ross winner 118.0 pts (band 110-150), 100-pt scorers 5.9/season
 # (band 4-11), assist:goal ratio 1.4888 (band 1.40-1.60, unmoved), every
 # other previously-green band still green. Max win streak read 18 (soft
-# ceiling 13) in this run -- pre-existing, unrelated to GAMMA, per this
-# component's own instructions: watch, don't chase.
+# ceiling 13) in this run -- pre-existing, unrelated to GAMMA, and out of
+# scope for this pass: watch, don't chase. [Later pass: chased via STR_LO/
+# STR_HI below, not GAMMA -- see that comment for the fix.]
 GAMMA = 2.6
+
+# team_strength()'s output clamp -- deliberately narrower than
+# season._strength()'s [0.30, 0.70] target range. This is calibrate_league.
+# py's max-win-streak lever (see team_strength()'s docstring for the
+# mechanism): mint_league's bisection can only chase target_strength as far
+# as this clamp allows, so the bottom/top slivers of the uniform [0.30,
+# 0.70] target distribution get pulled in toward the middle, damping the
+# extreme-mismatch games that produce runaway streaks. At the old pass-
+# through [0.30, 0.70] (i.e. no clamp beyond season._strength()'s own
+# range), 10-season max win streak (seeds 900-909) read 18. Narrowing is
+# a threshold effect, not linear -- [0.33, 0.67] still read 18 in testing,
+# [0.335, 0.665] dropped straight to 14 -- because the metric is a single
+# max over 320 team-seasons (32 teams x 10 seasons), an order statistic
+# that one outlier team-season can move by several games at a time.
+# [0.34, 0.66] measured max win streak 13 combined with the BASE_EV/
+# EN_LEAD/OT_MULT retune (src/livegame.py's constants block) over the same
+# 10 seasons, with points-spread floor 59.3 (band 48-62) and 100-pt
+# scorers 6.7 (band 4-11) both comfortably clear -- the standings-
+# compression cost of a much larger narrowing (e.g. [0.38, 0.62], tested
+# during tuning) was not worth it: floor broke to 63.6 and 100-pt scorers
+# to 3.6 for only a further 18->16 streak improvement.
+STR_LO = 0.34
+STR_HI = 0.66
 
 
 def _clamp(x: float, lo: float = 0.02, hi: float = 0.98) -> float:
@@ -243,12 +267,20 @@ def mint_league(season: int, aired: dict[str, list[str]],
 # --- team strength ---------------------------------------------------------
 
 def team_strength(pl: dict, coaches: dict, team: str, b2b: bool) -> float:
-    """Hidden team quality in [0.30, 0.70] — same range/meaning as v1's
+    """Hidden team quality in [STR_LO, STR_HI] — same meaning as v1's
     `season._strength()`, now derived from the roster instead of pure rng.
     Line-tier weighted skater average (F1 counts 4x a D3, etc.), blended
     20% with the starting goalie's `ov`, plus coach `mod` and a -4% dip on
     a back-to-back. Monotonic non-decreasing in every player's `ov` — the
-    property `mint_league`'s bisection relies on."""
+    property `mint_league`'s bisection relies on.
+
+    STR_LO/STR_HI narrower than season._strength()'s [0.30, 0.70] target
+    range is deliberate: mint_league's bisection can only chase a target as
+    far as this clamp allows, so the two extreme deciles of target_strength
+    get pulled in toward the middle -- the calibrated fix for a runaway
+    max-win-streak ceiling (measured 18 over 10 seasons at the old [0.30,
+    0.70] pass-through, calibrate_league.py --seasons 10). See STR_LO/
+    STR_HI's own comment for the measured value at the current clamp."""
     players = pl["players"]
     num = den = 0.0
     goalie_ov = None
@@ -268,7 +300,7 @@ def team_strength(pl: dict, coaches: dict, team: str, b2b: bool) -> float:
     val = base + mod
     if b2b:
         val *= B2B_MULT
-    return max(0.30, min(0.70, val))
+    return max(STR_LO, min(STR_HI, val))
 
 
 # --- nightly lineup ----------------------------------------------------

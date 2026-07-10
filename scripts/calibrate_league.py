@@ -12,10 +12,11 @@ boxscore.sim_box and folded via stats.fold_box + a local standings tracker
 
 Usage:  python3 scripts/calibrate_league.py --seasons 5
 
-Pass/fail table on stdout; exit 1 if any FAIL row. Two known engine deltas
-(SO share, shutout rate) are measured and printed as WARN -- never fail --
-per the fleet's own measurement: they need livegame constant tuning, which
-is out of this script's scope.
+Pass/fail table on stdout; exit 1 if any FAIL row. SO share and shutout
+rate used to run as WARN-only (pre-tuning engine deltas outside a livegame
+constant pass); both are now hard PASS/FAIL bands, closed out by the
+BASE_EV/EN_LEAD/OT_MULT retune documented in src/livegame.py's constants
+block (SO share ~6.4%->~10.7%, shutout ~11%->~8.7%, 10-season measurement).
 """
 from __future__ import annotations
 
@@ -33,7 +34,7 @@ DEFAULT_SEASONS = 5
 START = "2026-07-05"
 SEED_BASE = 900
 
-# name, (lo, hi), extractor(seasons_data) -> float, higher_is_warn(bool)
+# name, (lo, hi), extractor(seasons_data) -> float
 _BANDS = [
     ("goals/game (league mean)", (5.7, 6.5)),
     ("OT-reached share", (0.19, 0.24)),
@@ -45,11 +46,18 @@ _BANDS = [
     ("100-pt scorers/season", (4, 11)),
     ("league SV%", (0.895, 0.910)),
     ("assist:goal ratio", (1.40, 1.60)),
-    ("max win streak (ceiling)", (0, 13)),
-]
-_WARN_BANDS = [
-    ("SO share (engine ~7.0%, real 9-12%)", (0.09, 0.12)),
-    ("shutout rate (engine ~10.7%, real 6-9%)", (0.06, 0.09)),
+    # soft ceiling 13-14 (grounding: 17 all-time record, 12+ rare); 14 is
+    # this pass's achieved level (measured max 13 over seeds 900-909, +1
+    # buffer -- see players.py's STR_LO/STR_HI comment) rather than a hard
+    # 13, since this is a single max-over-320-team-seasons order statistic
+    # and small, unrelated engine changes have been observed to move it by
+    # several games at a time.
+    ("max win streak (ceiling)", (0, 14)),
+    # SO share of ALL games (not just OT-reached games) -- grounding target
+    # 9-12%. shutout rate -- grounding target 6-9%. Both used to run WARN-
+    # only; closed out by src/livegame.py's BASE_EV/EN_LEAD/OT_MULT retune.
+    ("SO share (all games)", (0.09, 0.12)),
+    ("shutout rate", (0.06, 0.09)),
 ]
 
 
@@ -178,10 +186,8 @@ def calibrate(n_seasons: int = DEFAULT_SEASONS) -> dict:
         "league SV%": _mean([s["league_svpct"] for s in per_season]),
         "assist:goal ratio": _mean([s["assist_goal_ratio"] for s in per_season]),
         "max win streak (ceiling)": max((s["max_win_streak"] for s in per_season), default=0),
-    }
-    warn_vals = {
-        "SO share (engine ~7.0%, real 9-12%)": _mean([s["so_share"] for s in per_season]),
-        "shutout rate (engine ~10.7%, real 6-9%)": _mean([s["shutout_rate"] for s in per_season]),
+        "SO share (all games)": _mean([s["so_share"] for s in per_season]),
+        "shutout rate": _mean([s["shutout_rate"] for s in per_season]),
     }
 
     rows = []
@@ -192,11 +198,6 @@ def calibrate(n_seasons: int = DEFAULT_SEASONS) -> dict:
         ok = ok and passed
         rows.append({"name": name, "value": v, "band": (lo, hi),
                      "status": "PASS" if passed else "FAIL"})
-    for name, (lo, hi) in _WARN_BANDS:
-        v = warn_vals[name]
-        in_band = lo <= v <= hi
-        rows.append({"name": name, "value": v, "band": (lo, hi),
-                     "status": "WARN" if not in_band else "PASS (WARN-only metric)"})
 
     return {"ok": ok, "n_seasons": n_seasons, "rows": rows, "per_season": per_season}
 
@@ -217,9 +218,8 @@ def _print_table(res: dict) -> None:
         print(f"  [{r['status']:<20}] {r['name']:<{width}}  "
               f"value={r['value']:.4f}  band=[{lo}, {hi}]")
     n_fail = sum(1 for r in res["rows"] if r["status"] == "FAIL")
-    n_warn = sum(1 for r in res["rows"] if r["status"] == "WARN")
-    print(f"\n{n_fail} FAIL, {n_warn} WARN, "
-          f"{sum(1 for r in res['rows'] if r['status'].startswith('PASS'))} PASS")
+    n_pass = sum(1 for r in res["rows"] if r["status"] == "PASS")
+    print(f"\n{n_fail} FAIL, {n_pass} PASS")
 
 
 def main(argv: list[str] | None = None) -> int:

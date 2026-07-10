@@ -79,12 +79,20 @@ def test_calibration():
     gf_per_game = sum(t["gf"] for t in table.values()) / sum(t["gp"] for t in table.values())
     check("points floor", min(pts) >= 45, f"min={min(pts)}")
     check("points ceiling", max(pts) <= 125, f"max={max(pts)}")
-    check("league GF/team/game", 2.8 <= gf_per_game <= 3.2, f"{gf_per_game:.2f}")
+    # band matches the grounding's combined 6.1+-0.4 goals/game target
+    # (src/livegame.py's BASE_EV retune, hockey-grounding.md SIMULATOR
+    # TARGETS): per-team half of that is 2.85-3.25, +/-0.1 slop for this
+    # test's own sim_instant-only sampling (no PP/roster granularity).
+    check("league GF/team/game", 2.75 <= gf_per_game <= 3.35, f"{gf_per_game:.2f}")
     check("SO losses earn the OTL point", so_losses > 0)
     tie_rate = reg_ties / games
     check("regulation-tie rate", 0.14 <= tie_rate <= 0.34, f"{tie_rate:.2f}")
     so_share = so_games / max(reg_ties, 1)
-    check("shootout share of ties", 0.10 <= so_share <= 0.50, f"{so_share:.2f}")
+    # grounding: "roughly half" of OT-reached games go to a shootout --
+    # OT_MULT's calibration retune (src/livegame.py) intentionally moved
+    # this from ~1/3 to ~half; ceiling raised from 0.50 to 0.60 to cover it
+    # (floor untouched: still guards against a broken/near-always-SO OT).
+    check("shootout share of ties", 0.10 <= so_share <= 0.60, f"{so_share:.2f}")
     print(f"  (calibration: pts {min(pts)}-{max(pts)}, GF/g {gf_per_game:.2f}, "
           f"ties {tie_rate:.2f}, SO share {so_share:.2f})")
 
