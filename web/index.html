@@ -382,6 +382,18 @@ function render(){
       document.getElementById("np-hook").textContent =
         "on air: " + n.airing.replace(/\b\w/g, c=>c.toUpperCase());
   }).catch(()=>{});
+  // game still live (incl. OT spilling past the scheduled window)? say so.
+  // league.json is air-gated server-side, so this can never spoil the call.
+  fetch("/data/league.json").then(r=>r.json()).then(j=>{
+    const b = j && j.broadcast;
+    if(b && b.live){
+      const p = b.live.period;
+      const tag = (p === "OT" || p === "SO") ? "OVERTIME" : "PERIOD " + p;
+      document.getElementById("np-show").textContent = "CENTER ICE — LIVE";
+      document.getElementById("np-hook").textContent =
+        `${tag} · ${b.away} ${b.live.score[1]}, ${b.home} ${b.live.score[0]}`;
+    }
+  }).catch(()=>{});
   document.getElementById("np-next").textContent =
     `UP NEXT · ${fmtViewer(nxt.start)} — ${nxt.name}. ${nxt.hook.split(".")[0]}.`;
   document.getElementById("hero-hook").textContent = live.hook;

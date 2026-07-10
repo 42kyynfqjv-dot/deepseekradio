@@ -119,9 +119,15 @@ def fold_box(stats: dict, box: dict) -> None:
     # --- game-winning goal (derived: no explicit flag in the box) ---
     winner_side = "h" if hg > ag else "a"
     loser_final = ag if winner_side == "h" else hg
+    # periods mix ints (1/2/3) with the strings "OT"/"SO" — map to a common
+    # ordinal or every OT-decided game crashes the fold (found at verify)
+    _PORD = {"OT": 4, "SO": 5}
     ordered = sorted(
         goals,
-        key=lambda ev: (ev.get("period", 0), _clock_secs(ev.get("clock", "0:00"))),
+        key=lambda ev: (_PORD.get(ev.get("period", 0), ev.get("period", 0))
+                        if isinstance(ev.get("period", 0), str)
+                        else ev.get("period", 0),
+                        _clock_secs(ev.get("clock", "0:00"))),
     )
     tally = 0
     for ev in ordered:
