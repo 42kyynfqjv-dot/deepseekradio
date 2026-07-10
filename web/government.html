@@ -83,6 +83,30 @@
   .party.featured .pname{font-size:2rem;color:var(--amber)}
   .party.featured .platform{font-size:1.06rem}
 
+  /* ── dome report (air-gated live panel; hidden until statehouse.json exists) ── */
+  .domewrap{margin:28px 0 8px}
+  .dome{background:linear-gradient(180deg,var(--bg2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:22px 24px}
+  .dome .tag2{font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;color:var(--amber);margin-bottom:10px}
+  .dome .status{font-family:var(--mono);font-size:.8rem;letter-spacing:.04em;color:var(--cyan);margin-bottom:18px}
+  .dome .row{display:flex;flex-wrap:wrap;gap:24px}
+  .approvalbox{flex:1;min-width:200px}
+  .approvalbox .lab{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;color:var(--dim)}
+  .approvalbox .num{font-family:var(--display);font-size:2.3rem;font-weight:800;color:var(--amber);line-height:1.15}
+  .approvalbox .streak{font-family:var(--mono);font-size:.7rem;color:var(--dim);letter-spacing:.04em}
+  .meter{background:var(--bg);border:1px solid var(--line);border-radius:99px;height:8px;margin-top:10px;overflow:hidden}
+  .meter i{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--amber));border-radius:99px}
+  .billcard{flex:1.4;min-width:240px;border-left:2px solid var(--cyan);padding-left:14px}
+  .billcard .lab{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;color:var(--dim)}
+  .billcard .bnum{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;color:var(--cyan);margin-top:2px}
+  .billcard .btitle{font-size:.92rem;margin-top:4px;line-height:1.4}
+  .billcard .bstage{font-family:var(--mono);font-size:.66rem;color:var(--dim);margin-top:8px;
+    text-transform:uppercase;letter-spacing:.06em}
+  .electionbox{flex:1;min-width:170px}
+  .electionbox .lab{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;color:var(--dim)}
+  .electionbox .days{font-family:var(--display);font-size:1.7rem;font-weight:800;color:var(--red);line-height:1.2}
+  .electionbox .sub{font-family:var(--mono);font-size:.64rem;color:var(--dim);letter-spacing:.04em}
+
   /* ── election night booth ── */
   .booth{background:linear-gradient(180deg,var(--bg2),var(--panel));border:1px solid var(--line);
     border-radius:14px;padding:22px 24px}
@@ -166,6 +190,32 @@
 </header>
 
 <main class="wrap">
+
+  <div class="domewrap" id="dome-wrap" hidden>
+    <div class="dome" id="dome">
+      <div class="tag2">● THE HALF-DOME · LIVE</div>
+      <div class="status" id="dome-status"></div>
+      <div class="row">
+        <div class="approvalbox">
+          <div class="lab">GOVERNOR'S APPROVAL</div>
+          <div class="num" id="dome-approval">–</div>
+          <div class="streak" id="dome-streak"></div>
+          <div class="meter"><i id="dome-meter" style="width:0%"></i></div>
+        </div>
+        <div class="billcard" id="dome-bill" hidden>
+          <div class="lab">THE TRACKED BILL</div>
+          <div class="bnum" id="dome-bill-id"></div>
+          <div class="btitle" id="dome-bill-title"></div>
+          <div class="bstage" id="dome-bill-stage"></div>
+        </div>
+        <div class="electionbox">
+          <div class="lab">ELECTION NIGHT</div>
+          <div class="days" id="dome-days">–</div>
+          <div class="sub" id="dome-election-sub"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <section id="intro" style="padding-top:20px">
     <h2>The State of <em>Wending</em></h2>
@@ -335,6 +385,69 @@ function updateMini(){
   const el=document.getElementById("mini-show"); if(el) el.textContent=s.name;
 }
 updateMini(); setInterval(updateMini, 60_000);
+</script>
+
+<script>
+/* ── DOME REPORT: air-gated live panel, polled like the scorebug ──
+   statehouse.json only exists once the operator flips the gate; until
+   then (or if a field is missing) the panel stays hidden — the page
+   keeps its pure-canon color, exactly like the on-air shows. */
+const PHASE_LABEL = {
+  session: "IN SESSION — adjourns Wed/Sat for the hockey",
+  interim: "OUT OF SESSION — interim",
+  campaign: "CAMPAIGN SEASON — Election Night approaching",
+  election: "ELECTION NIGHT AT THE HALF-DOME",
+};
+function domeDataOk(d){
+  return !!(d && d.approval && typeof d.approval.gov === "number"
+            && typeof d.phase === "string" && d.election && d.election.date);
+}
+function renderDome(d){
+  const wrap = document.getElementById("dome-wrap");
+  if(!domeDataOk(d)){ wrap.hidden = true; return; }
+  wrap.hidden = false;
+
+  document.getElementById("dome-status").textContent =
+    PHASE_LABEL[d.phase] || d.phase.toUpperCase();
+
+  document.getElementById("dome-approval").textContent = d.approval.gov.toFixed(1);
+  document.getElementById("dome-streak").textContent =
+    (d.approval.streak || 0) + "-day streak";
+  document.getElementById("dome-meter").style.width =
+    Math.max(0, Math.min(100, d.approval.gov)) + "%";
+
+  const bill = document.getElementById("dome-bill");
+  if(d.tracked && d.tracked.id){
+    bill.hidden = false;
+    document.getElementById("dome-bill-id").textContent = d.tracked.id;
+    document.getElementById("dome-bill-title").textContent = d.tracked.title || "";
+    document.getElementById("dome-bill-stage").textContent =
+      (d.tracked.stage || "").toUpperCase();
+  }else{
+    bill.hidden = true;
+  }
+
+  const days = d.election.days_to;
+  if(typeof days === "number" && days > 0){
+    document.getElementById("dome-days").textContent = days;
+    document.getElementById("dome-election-sub").textContent =
+      "DAYS TO TAKEOVER · " + d.election.date;
+  }else if(typeof days === "number" && days <= 0){
+    document.getElementById("dome-days").textContent = "TONIGHT";
+    document.getElementById("dome-election-sub").textContent = d.election.date;
+  }else{
+    document.getElementById("dome-days").textContent = "–";
+    document.getElementById("dome-election-sub").textContent = d.election.date;
+  }
+}
+function loadDome(){
+  fetch("/data/statehouse.json", {cache:"no-store"})
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(renderDome)
+    .catch(() => { const w = document.getElementById("dome-wrap"); if(w) w.hidden = true; });
+}
+loadDome();
+setInterval(loadDome, 60_000);
 </script>
 
 <script>

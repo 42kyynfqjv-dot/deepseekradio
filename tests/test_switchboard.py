@@ -112,5 +112,21 @@ soft = [H("Stick around — the phone lines are opening after the break.")]
 out9, _ = SW.enforce(soft, None, host=HOST)
 check(not out9[0].get("_enforced"), "soft forward tease untouched")
 
+# --- phantom calls: one-sided phone theater about nobody --------------------
+# the Twyla incident: greet, hang up, hang up again — caller never spoke
+phantom = [H("Twyla, you're on the air."),
+           H("No — you know what, I'm hanging up. Click."),
+           H("She called back. And I hung up again."),
+           H("The numbers don't lie, folks.")]
+outP, _ = SW.enforce(phantom, None, host=HOST)
+enforced = sum(1 for ln in outP if ln.get("_enforced"))
+check(enforced >= 2, f"phantom-call lines replaced (got {enforced})")
+check("numbers" in outP[3]["text"], "non-call line untouched")
+# ...but a cross-beat wrap of a REAL carried caller is legit
+carry = [H("Alright, thanks for the call, Darla — sleep well.")]
+outQ, _ = SW.enforce(carry, {"name": "Darla", "status": "live",
+                             "lines_used": 5}, host=HOST)
+check(not outQ[0].get("_enforced"), "cross-beat wrap of live caller kept")
+
 print(f"\nswitchboard {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -189,6 +189,23 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                               "text": "Sports desk. " + desk})
     except Exception as e:
         print(f"  (sports desk skipped: {e})")
+    try:  # the Dome Desk rides every bulletin once the statehouse gate
+        # arms — code-built wire copy off today's civics.json + docket,
+        # guard-safe by construction exactly like the Sports Desk above
+        from .statehouse import engine as _sheng, sheets as _shsh
+        _civ = _sheng.load_civics()
+        _ga = _civ.get("ga", 1)
+        if _sheng.statehouse_on(_ga):
+            _dk = _sheng.load_side(f"docket-ga{_ga}.json")
+            _sim_date = _civ.get("sim_through")
+            if _dk and _sim_date:
+                _desk = _shsh.dome_desk(_civ, _dk, _sim_date)
+                if _desk and not _desk.startswith("No Dome wire"):
+                    lines.append({"speaker": "Frequency Statehouse",
+                                  "voice": NEWS_VOICE,
+                                  "text": "From the Half-Dome. " + _desk})
+    except Exception as e:
+        print(f"  (dome desk skipped: {e})")
     print("\n--- Frequency News ---")
     _emit(lines, "news", config, live)
     st["last_news"] = time.time()
@@ -1188,8 +1205,9 @@ def main(argv=None):
         try:  # the statehouse simulates daily once bootstrapped — dark soak;
             # nothing airs until its gate arms AND the shows are wired
             if Path("data/statehouse/civics.json").exists():
-                from .statehouse import engine as _sheng
-                _sheng.tick(f"{clock.air_now():%Y-%m-%d}")
+                from .statehouse import engine as _sheng, publish as _shpub
+                _sheng.tick(1, f"{clock.air_now():%Y-%m-%d}")
+                _shpub.export()   # best-effort, internally air-gated
         except Exception as e:
             print(f"  (statehouse tick skipped: {e})")
         try:

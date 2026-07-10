@@ -22,10 +22,16 @@ import re
 CALLERS_F = ("Ruth Carol Judy Elaine Doreen Phyllis Irene Sylvia Lois Bev "
              "Marcia Glenda Faye Roberta Annette Charlene Dot Ida Maxine "
              "Paulette Rhoda Selma Twyla Vera Winnie Yolanda Zelda Carla "
-             "Dana Joanne").split()
+             "Dana Joanne Nedra Ottilie Pearl Ramona Sondra Tillie Ursula "
+             "Verna Wilma Yvette Adele Blanche Celeste Dinah Estelle Freida "
+             "Georgette Henrietta Inez Juanita Kitty Lucille Minnie Nellie "
+             "Odessa Prudence Queenie Rosalind Sadie Tessie").split()
 CALLERS_M = ("Al Marv Sid Ernie Chet Dale Freddy Gene Harv Ike Judd Lyle "
              "Mickey Ned Oscar Phil Ray Sherm Vern Wade Art Bud Cy Dez "
-             "Emmett Felix Grover Herm Irv Jasper").split()
+             "Emmett Felix Grover Herm Irv Jasper Kermit Lonnie Mort Newt "
+             "Otis Percy Quincy Rufus Seymour Thaddeus Ulysses Virgil "
+             "Wendell Xavier Yancy Zeke Alvin Bernie Clyde Dewey Elmer "
+             "Fergus Gus Homer Ivan Jules Knute Leon Milt Norbert Orville").split()
 
 # grounding props — mundane physical anchors the writer draws from; the desk
 # offers a fresh, unworn dozen per show so beats never re-run the same toaster

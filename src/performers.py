@@ -196,6 +196,11 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
   short-line guidance are waived for that speaker; callers still stay punchy.
 - Let scenes BREATHE: a caller or guest stays on the line for a long,
   winding conversation — follow-ups, tangents. Never rush to the next caller.
+- Caller listening-history VARIETY (hard): "long-time listener" is worn out
+  and effectively banned. If a caller mentions how they listen at all, make
+  it specific and varied — first-timer, just flipped over from the game,
+  only listens during storms, hate-listens, their nephew leaves it on, heard
+  it in a cab. Most callers skip the resume and open mid-business.
 - You are ALREADY ON AIR, mid-show, mid-flow. Do NOT re-introduce the show, the
   host, or the segment — UNLESS this beat explicitly calls for a station ID,
   in which case do it once, briefly, in character. No "welcome back", no

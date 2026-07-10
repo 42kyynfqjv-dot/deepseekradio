@@ -39,6 +39,13 @@ _TEASE = re.compile(r"call(?:er)? on line|got a call(?:er)?\b|"
 _TEASE_FIX = ["Anyway — where were we.",
               "But let's stay with this a moment longer.",
               "More on that in a bit — back to it."]
+# call-interaction language: with NO caller live and NO caller speaking this
+# beat, any of this is a one-sided PHANTOM CALL (greeting, hanging up on,
+# losing, or thanking a caller who never existed)
+_PHANTOM = re.compile(r"hang(?:s|ing)? up|hung up|we lost (?:him|her|the "
+                      r"caller)|dial tone|\bclick\b|thanks for (?:the|your) "
+                      r"call|you'?re on (?:the air|with)|go ahead,? caller",
+                      re.I)
 
 DEFAULT_BUDGET = 12          # caller lines per call before code wraps it
 
@@ -63,7 +70,9 @@ def prompt_line(state: dict | None, budget: int = DEFAULT_BUDGET) -> str:
             "for' an incoming call unless that caller actually speaks in "
             "THIS beat — and announce a call AT MOST ONCE: after 'caller on "
             "line two' the very next thing is the caller, never a second "
-            "'hold that thought, there's a call.'")
+            "'hold that thought, there's a call.' You cannot speak TO, hang "
+            "up ON, thank, or lose a caller who has not spoken — one-sided "
+            "phone theater is forbidden.")
 
 
 def enforce(lines: list[dict], state: dict | None = None,
@@ -136,6 +145,21 @@ def enforce(lines: list[dict], state: dict | None = None,
         t = ln.get("text", "")
         return (not ln.get("phone") and not ln.get("_enforced")
                 and (_TEASE.search(t) or _GREET.search(t)))
+
+    # PHANTOM CALL: nobody was on the line entering this beat and nobody
+    # phones in during it — yet the host greets/hangs up on/thanks a caller.
+    # That entire performance is about a person who does not exist: replaced.
+    was_live = bool(state and state.get("status") == "live")
+    if not was_live and not any(ln.get("phone") for ln in out):
+        for k, ln in enumerate(out):
+            if not ln.get("_enforced") and _PHANTOM.search(ln.get("text", "")):
+                new = dict(ln)
+                new["text"] = _TEASE_FIX[_stable_hash(new["text"])
+                                         % len(_TEASE_FIX)]
+                new["_enforced"] = True
+                print(f"  !! switchboard: phantom-call line replaced: "
+                      f"{ln['text'][:50]!r}")
+                out[k] = new
 
     last_phone = max((k for k, ln in enumerate(out) if ln.get("phone")),
                      default=-1)
