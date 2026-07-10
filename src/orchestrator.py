@@ -23,6 +23,7 @@ from pathlib import Path
 import yaml
 
 from . import buffer, clock, lore
+from . import switchboard as _switch
 from .openrouter import METER
 from .performers import perform_beat, _persona
 from .writer import write_outline
@@ -428,6 +429,8 @@ def run_show(daypart, config, schedule, live: bool):
 
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
+        call_st = None      # the switchboard: code owns who is on the line
+        daypart["_switchboard"] = _switch.prompt_line(call_st)
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines),
                           _tail_texts(opener_lines)) if beats else None
@@ -460,6 +463,12 @@ def run_show(daypart, config, schedule, live: bool):
                 break
             _throttle(config, live)
             lines = fut.result()
+            _pol = (daypart.get("caller_policy") or {}).get("max_lines")
+            lines, call_st = _switch.enforce(
+                lines, call_st,
+                budget=3 * _pol if _pol else _switch.DEFAULT_BUDGET,
+                host=_cast_meta(daypart, 0))
+            daypart["_switchboard"] = _switch.prompt_line(call_st)
             new_names = False
             for ln in lines:  # track caller names for the no-reuse blacklist
                 spk = str(ln.get("speaker", ""))
@@ -993,12 +1002,14 @@ def run_center_ice(daypart, config, schedule, live: bool):
 
     # --- driver: roll on this thread, write dialogue in the pool, guard, emit
     last_lines: list = []
+    ci_call = [None]        # switchboard state for the call-in beats
     completed = False
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             def _submit(bi):
                 dp = dict(daypart)
                 dp["_target_lines"] = bi["lines"]
+                dp["_switchboard"] = _switch.prompt_line(ci_call[0])
                 if bi.get("interview"):     # rink-side guests: no phone FX
                     dp["_no_phone"] = True
                 # sports register, not the mundane/anti-conspiracy guard that
@@ -1017,6 +1028,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 lines = enforce_scoreboard(raw, bi["facts"]) if bi["facts"] else raw
                 lines = enforce_names(lines, bi["facts"], extra_ok=pool_ok)
                 lines = tag_sfx(lines, bi["events"], bi["label"])  # arena sound
+                lines, ci_call[0] = _switch.enforce(lines, ci_call[0], host=pbp)
                 aired.extend(bi["events"])
                 if lines:
                     last_lines = lines
