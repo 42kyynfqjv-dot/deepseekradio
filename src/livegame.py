@@ -142,12 +142,27 @@ def _update_pulls(state: dict, events: list | None) -> None:
 
 
 def _draw_skater(rng, roster: dict, out: list) -> str:
-    """Stars score more; injured players never reappear in any draw."""
+    """Stars score more; injured players never reappear in any draw.
+    v2 rosters carry per-skater draw weights (parallel to `skaters`) tuned to
+    the real scoring depth curve; legacy rosters keep the exact legacy draw."""
+    if "weights" in roster:
+        return _draw_weighted(rng, roster, out, "weights")
     active = [s for s in roster["skaters"] if s not in out]
     if not active:
         return roster["goalie"]
     stars = [s for s in active[:3]]
     return rng.choice(stars + stars + active)
+
+
+def _draw_weighted(rng, roster: dict, out, key: str,
+                   exclude: set | None = None) -> str | None:
+    ex = set(out) | (exclude or set())
+    pool = [(s, w) for s, w in zip(roster["skaters"], roster[key])
+            if s not in ex]
+    if not pool:
+        return roster["goalie"] if exclude is None else None
+    names, ws = zip(*pool)
+    return rng.choices(names, weights=ws, k=1)[0]
 
 
 def _sim_span(state: dict, rng, to_secs: float, s_h: float, s_a: float,
@@ -194,13 +209,27 @@ def _sim_span(state: dict, rng, to_secs: float, s_h: float, s_a: float,
             if events is not None and rosters is not None:
                 r = rosters[team]
                 scorer = _draw_skater(rng, r, state["out"][side])
-                assist = rng.choice([None] + [s for s in r["skaters"]
-                                              if s != scorer and s not in state["out"][side]])
+                assist2 = None
+                if "pweights" in r:
+                    # v2: real assist chain — P(a1)=.90, P(a2|a1)=.65 lands the
+                    # calibrated ~1.49 A:G; playmaker-weighted picks
+                    assist = None
+                    if rng.random() < 0.90:
+                        assist = _draw_weighted(rng, r, state["out"][side],
+                                                "pweights", exclude={scorer})
+                        if assist and rng.random() < 0.65:
+                            assist2 = _draw_weighted(
+                                rng, r, state["out"][side], "pweights",
+                                exclude={scorer, assist})
+                else:      # legacy path: byte-identical draw order
+                    assist = rng.choice([None] + [s for s in r["skaters"]
+                                                  if s != scorer and s not in state["out"][side]])
                 strength = ("SH" if pen and pen["side"] == side else
                             "PP" if pen and pen["side"] != side else
                             "EN" if not state["goalie_in"][1 - side] else "EV")
                 events.append({"type": "goal", "team": team, "scorer": scorer,
-                               "assist": assist, "period": _period_of(state["secs"]),
+                               "assist": assist, "assist2": assist2,
+                               "period": _period_of(state["secs"]),
                                "clock": _clock_of(state["secs"]),
                                "secs": int(state["secs"]), "strength": strength,
                                "net_empty": not state["goalie_in"][1 - side],

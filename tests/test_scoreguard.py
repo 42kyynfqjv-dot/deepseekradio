@@ -263,6 +263,20 @@ keeps("multiword_long_no_attr", "A long change coming up for both benches.", fL)
 # the nickname still drives a REAL attribution flip (away can't lead 3-1)
 fixes("nickname_attr_flip", "Gridlock lead it here.", fL)
 
+# --- interview anecdotes: implicit feats in PAST context are stories, not claims
+keeps("anecdote_hat_trick", "Back in juniors I scored a hat trick on my "
+      "birthday, Bouchard says.", facts())
+keeps("anecdote_brace_career", "Best brace of his career, years ago in Fargo.",
+      facts())
+# ...but a TONIGHT hat trick with zero tallies is still a lie and still dies
+fixes("phantom_ht_tonight", "A hat trick tonight for Larsson!", facts())
+# and explicit of-the-night ordinals check even next to past words
+fixes("explicit_ord_checks", "Earlier tonight he potted his third of the "
+      "night, Larsson unstoppable.", facts())
+# "back in the ..." is play language, not past context — attribution still live
+fixes("back_in_the_not_past", "Back in the lineup and the Gridlock lead it "
+      "here.", fL)
+
 if fail:
     print(f"\n{fail}/{ok + fail} failed")
     sys.exit(1)

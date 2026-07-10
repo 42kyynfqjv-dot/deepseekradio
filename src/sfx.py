@@ -177,10 +177,11 @@ def crowd_bed(sr: int, seconds: float = 88.0):
     t = np.arange(n) / sr
     x *= 1.0 + 0.18 * np.sin(2 * np.pi * 0.061 * t) \
              + 0.10 * np.sin(2 * np.pi * 0.017 * t + 1.3)
-    xf = int(sr * 2.0)                     # loop-clean crossfade
-    ramp = np.linspace(0, 1, xf)
-    x[:xf] = x[:xf] * ramp + x[-xf:] * (1 - ramp)
-    x = x[:n - xf]
+    xf = min(int(sr * 2.0), n // 2)        # loop-clean crossfade, short-safe
+    if xf > 0:
+        ramp = np.linspace(0, 1, xf)
+        x[:xf] = x[:xf] * ramp + x[-xf:] * (1 - ramp)
+        x = x[:n - xf]
     return _rms_to(x, -20.0)
 
 
@@ -242,7 +243,9 @@ def tag_sfx(lines: list[dict], events: list[dict], label: str) -> list[dict]:
                 and re.search(r"\b(penalty|minutes|box|whistled|call)\b", low):
             cues.append(("whistle", "start"))
             pi += 1
-        elif _FINAL_RE.search(low):
+        elif _FINAL_RE.search(low) and label in ("wrap", "scramble"):
+            # only the beats that actually contain the horn — an interview
+            # reminiscing "that's the game right there" must not re-horn
             cues.append(("period_horn", "end"))
             cues.append(("crowd_roar", "end"))
         elif _SAVE_RE.search(low) and oohs < 2:

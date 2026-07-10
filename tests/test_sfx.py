@@ -79,9 +79,16 @@ check("sfx" not in lines[0], "input lines not mutated")
 t2 = sfx.tag_sfx([L("Bouchard has been strong all night.")], [GOAL], "p1c2")
 check(t2[0].get("sfx") is None, "scorer name alone (no goal verb) no horn")
 
-# final horn
+# final horn — only on the beats that actually contain the horn
 t3 = sfx.tag_sfx([L("The final horn sounds, and this one is over!")], [], "wrap")
 check(("period_horn", "end") in (t3[0].get("sfx") or []), "final horn tagged")
+t3b = sfx.tag_sfx([L("And that's the game right there, you tip your cap.")],
+                  [], "stars")
+check(t3b[0].get("sfx") is None, "no phantom horn in interview/stars beats")
+
+# short crowd_bed is clamp-safe, never a broadcast error
+short_bed = sfx.crowd_bed(SR, seconds=1.0)
+check(len(short_bed) > 0 and not np.any(np.isnan(short_bed)), "short bed safe")
 
 # two goals -> two horns, in order
 t4 = sfx.tag_sfx(

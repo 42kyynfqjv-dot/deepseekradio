@@ -32,10 +32,12 @@ def air_now() -> datetime:
     return datetime.now() + timedelta(seconds=ahead)
 
 
-def spoken_air_time() -> str:
+def spoken_air_time(now: datetime | None = None) -> str:
     """The air clock rounded to 5 minutes, said like a person: 'about 8:25 PM'
-    is honest; '8:23 PM' would be a lie half the time. Callers say the 'about'."""
-    t = air_now()
+    is honest; '8:23 PM' would be a lie half the time. Callers say the 'about'.
+    Pass `now` when you already hold air_now() — buffered_seconds globs the
+    queue directory, and twice per line adds up."""
+    t = now or air_now()
     t = (t.replace(minute=0, second=0, microsecond=0)
          + timedelta(minutes=round(t.minute / 5) * 5))
     h12 = t.hour % 12 or 12

@@ -284,8 +284,10 @@ def run_show(daypart, config, schedule, live: bool):
             print(f"  (arc tick skipped: {e})")
     opened_key = f"{daypart['id']}:{clock.air_now():%Y-%m-%d}"
     first_of_window = st.get("opened") != opened_key
-    if daypart.get("id") == "morning_scramble":
-        try:  # Wesley's forecast is the REAL one, twisted in the delivery
+    if daypart.get("id") == "morning_scramble" and first_of_window:
+        try:  # Wesley's REAL forecast: fetched ONCE per show window (network
+            # call must never sit in the hot re-outline loop), persists on the
+            # shared daypart dict for the rest of the window
             from .spots import _real_forecast
             daypart["_extra_context"] = (
                 "Wesley's forecast uses TODAY'S REAL weather (keep the numbers "
@@ -788,7 +790,10 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 recap = ("\n".join(_ev_text(e) for e in pgoals)
                          or "No goals this period — carry it on chances and saves.")
                 slate = season.slate_scores(date)
-                desk = ("; ".join(slate[:5]) if slate else "")
+                # different slice per intermission so the desk never re-reads
+                # the same results back-to-back across periods
+                lo_i = (period - 1) * 4
+                desk = "; ".join(slate[lo_i:lo_i + 4] or slate[:4])
                 color = (f"the booth color subplot develops: {game['subplot']}"
                          if period == 1 else
                          "Sal delivers one magnificent unverifiable statistic")

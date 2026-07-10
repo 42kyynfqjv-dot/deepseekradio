@@ -63,7 +63,7 @@ def _time_context() -> str:
     part = ("the middle of the night" if h < 5 else "early morning" if h < 9
             else "mid-morning" if h < 12 else "the afternoon" if h < 17
             else "the evening" if h < 21 else "late night")
-    at = spoken_air_time()
+    at = spoken_air_time(now)   # reuse: one buffer glob per line, not two
     return (f"It is {now:%A}, {part}, station time. AIR CLOCK: when these "
             f"lines reach listeners it will be about {at} — accurate to a "
             "couple of minutes, never claim better. A spoken time check is "

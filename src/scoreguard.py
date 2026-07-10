@@ -63,8 +63,9 @@ _CONTEXT = re.compile(r"score|lead|goal|\bup |\bdown |final|board|it'?s\b|"
 _STAT_CTX = re.compile(r"\bdot\b|face.?off|\bshots?\b|\bsaves?\b|\brecord\b|"
                        r"\bassists?\b|\bblocks?\b|\bhits\b|penalt|power play|"
                        r"faceoffs?|in the circle")
-_PAST = re.compile(r"last (?:week|game|time)|back on|that game|saturday|"
-                   r"wednesday|earlier")
+_PAST = re.compile(r"last (?:week|game|time|season)|back on|back in (?!the\b)|"
+                   r"that game|saturday|wednesday|earlier|rookie year|"
+                   r"years ago|(?:my|his|her|a) career")
 _MARGIN = re.compile(  # lookarounds keep 'picked up 2 assists' out of scores
     r"(?<!picked )(?<!picks )(?<!pick )(?<!set )"
     r"\b(?:leads?|up|ahead|trails?|down|behind)(?: by | )(\d)(?![-:\d])"
@@ -370,18 +371,26 @@ def enforce_scoreboard(lines, facts):
                 if cred and cred not in facts["goalies"] and \
                         cred.split()[-1] not in facts["goalies"]:
                     return "neutral"
-        # 7. feats vs actual tallies through end of beat
-        feats = [(m.start(), 3, "game", True) for m in _FEAT_HT.finditer(norm)]
-        feats += [(m.start(), 2, "game", False) for m in _FEAT_BR.finditer(norm)]
+        # 7. feats vs actual tallies through end of beat. Implicit feats (a
+        # bare "hat trick"/"brace" with no of-the-night anchor) in clear past
+        # context are ANECDOTES — "back in juniors I had a hat trick" must
+        # never be scanned against tonight's tallies. Explicit "of the night"
+        # claims always check.
+        feats = [(m.start(), 3, "game", True, True) for m in _FEAT_HT.finditer(norm)]
+        feats += [(m.start(), 2, "game", False, True) for m in _FEAT_BR.finditer(norm)]
         for m in _FEAT_ORD.finditer(norm):
             scope = m.group(2)
             if scope in ("night", "game", "evening"):
-                feats.append((m.start(), _ORD[m.group(1)], "game", False))
+                feats.append((m.start(), _ORD[m.group(1)], "game", False, False))
             else:
                 p = facts["period"] if scope == "period" else _PWORD[scope]
                 if p is not None:
-                    feats.append((m.start(), _ORD[m.group(1)], ("period", p), False))
-        for pos, n, scope, at_least in feats:
+                    feats.append((m.start(), _ORD[m.group(1)], ("period", p),
+                                  False, False))
+        for pos, n, scope, at_least, implicit in feats:
+            if implicit and _PAST.search(norm):
+                print(f"  !! scoreguard: past-context feat kept: {text[:60]!r}")
+                continue
             subj = _nearest_surname(norm, pos, facts) or last_scorer
             if subj is None:
                 print(f"  !! scoreguard: feat w/o subject kept: {text[:60]!r}")
