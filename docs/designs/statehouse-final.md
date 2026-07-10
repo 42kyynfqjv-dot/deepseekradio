@@ -53,8 +53,10 @@ is the synthesizer's own.
    week or a feud, not only snow. Invariant: yea+nay+undecided+absent ≡
    chamber size, enforced by construction and tested.
 2. **Passage thresholds are majority of PRESENT-AND-VOTING** for ordinary
-   bills (the real rule); majority-of-elected (26/51) reserved for the
-   override class. The guard learns both denominators.
+   bills (the real rule); the override class needs **two-thirds of members
+   elected (34/51 House, 6/9 Senate)** — corrected 2026-07-09; an earlier
+   draft misquoted 26/51 and the votes builder caught it. The guard learns
+   both denominators.
 3. **Introduction clustering**: bill introductions concentrate in the first
    ~3 weeks of a session with a crossover-deadline cutoff; late introductions
    only by leadership exception (seeded, rare, narratable when they happen).
