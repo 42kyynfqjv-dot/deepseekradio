@@ -84,7 +84,19 @@ _SLOT_WEIGHT = {"F1": 4, "F2": 3, "F3": 2, "F4": 1,
                 "D1": 3, "D2": 2, "D3": 1}   # team_strength's line-tier weighting
 
 B2B_MULT = 0.96          # -4% strength dip, second night of a back-to-back
-GAMMA = 1.7              # scorer/playmaker draw-weight exponent (§11)
+# scorer/playmaker draw-weight exponent (§11): tuned up from 1.7 -> 2.6 to
+# concentrate top-end scoring (calibrate_league.py's Art Ross / 100-pt-scorer
+# bands were failing flat at GAMMA=1.7 -- ~92-pt Art Ross winner, ~0.2
+# 100-pt scorers/season). team_strength()/standings/A:G ratio are unaffected
+# since GAMMA only re-weights *which* dressed skater a scorer/pweights draw
+# picks, never how many goals a game produces. Measured at GAMMA=2.6 over
+# 10 seasons (seeds 900-909, scripts/calibrate_league.py --seasons 10):
+# Art Ross winner 118.0 pts (band 110-150), 100-pt scorers 5.9/season
+# (band 4-11), assist:goal ratio 1.4888 (band 1.40-1.60, unmoved), every
+# other previously-green band still green. Max win streak read 18 (soft
+# ceiling 13) in this run -- pre-existing, unrelated to GAMMA, per this
+# component's own instructions: watch, don't chase.
+GAMMA = 2.6
 
 
 def _clamp(x: float, lo: float = 0.02, hi: float = 0.98) -> float:
