@@ -117,6 +117,38 @@ def compute_canon_diff(mem: dict, cal: dict) -> list[str]:
 
 # ------------------------------------------------------------------- main
 
+def _seed_tracked_fallback(civ: dict, dk: dict) -> None:
+    """Bootstrap's own "tracked pointer on the most narratable live bill"
+    requirement, made robust to a real observed edge: GA 1's introduction
+    clustering (docket.py delta 3) front-loads ~all 186 bills into the
+    first ~7 weeks, and with real `votes.floor_result` deciding floor votes
+    outright (no multi-week artificial dwell), that cohort can fully
+    resolve well before TODAY, leaving the rare post-crossover leadership-
+    exception draw (2%/day) as the only source of new bills -- which, for
+    GA 1's fixed seed, did not fire again before this replay's end. When
+    that happens, `engine._advance_tracked` already clears the pointer to
+    `id: None` (sheets.py renders that as "no marquee thread currently
+    tracked") rather than sitting stale on an old resolution. For the
+    FIRST show arc specifically, `id: None` isn't a usable season-opener,
+    so this falls back to the most RECENTLY decided bill (latest history
+    date across the whole docket) -- still genuinely narratable ("HB-X
+    signed into law") even though nothing is currently pending a vote.
+    No-op if a live thread already exists."""
+    tracked = civ.get("tracked") or {}
+    if tracked.get("kind") == "bill" and tracked.get("id"):
+        return
+    best_id, best_date = None, ""
+    for bid, b in dk.get("bills", {}).items():
+        if not b.get("history"):
+            continue
+        last_date = b["history"][-1][0]
+        if last_date > best_date:
+            best_id, best_date = bid, last_date
+    if best_id:
+        civ["tracked"] = {"kind": "bill", "id": best_id, "since": best_date,
+                           "beat": "committee", "resolved": best_date}
+
+
 def bootstrap(target_date: str | None = None, root: Path | None = None,
               civ_path: Path | None = None) -> dict:
     """Mint GA 1 from scratch and replay to `target_date` (default: today).
@@ -146,6 +178,8 @@ def bootstrap(target_date: str | None = None, root: Path | None = None,
         passes += 1
 
     civ, dk, mem, cal = result["civ"], result["dk"], result["mem"], result["cal"]
+    _seed_tracked_fallback(civ, dk)
+    engine.save_civics(civ, civ_path)
 
     diffs = compute_canon_diff(mem, cal)
     diff_path = root / "canon-diff.txt"

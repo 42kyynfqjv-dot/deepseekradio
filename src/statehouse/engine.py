@@ -415,7 +415,15 @@ def _advance_tracked(civ: dict, dk: dict, ga: int, date: str) -> None:
     mark `tracked.resolved` (and stop — no promotion the same day, so a
     resolution and a fresh promotion never both land on one date).
     Otherwise, promote the highest-marquee unresolved bill via
-    `docket.pick_tracked` when there is no live tracked thread."""
+    `docket.pick_tracked` when there is no live tracked thread.
+
+    A resolved thread with no live successor yet (a real, observed
+    possibility: GA 1's introduction clustering front-loads the docket, so
+    a fast-clearing cohort can outrun the rare seeded post-crossover
+    exception for a stretch) clears to `id: None` rather than sitting
+    stale — `sheets.session_brief` already renders that shape as "no
+    marquee thread currently tracked," and every subsequent day keeps
+    retrying `pick_tracked` until something becomes live again."""
     tracked = civ.setdefault("tracked", {"kind": "bill", "id": None,
                                           "since": None, "beat": None,
                                           "resolved": None})
@@ -428,11 +436,16 @@ def _advance_tracked(civ: dict, dk: dict, ga: int, date: str) -> None:
                 tb["history"][-1][0] == date:
             tracked["resolved"] = date
             return
-    if (not tid or tracked.get("resolved")) and tracked.get("resolved") != date:
+    if tracked.get("resolved") == date:
+        return
+    if not tid or tracked.get("resolved"):
         new_id = docket.pick_tracked(dk, ga, date)
         if new_id and new_id != tid:
             civ["tracked"] = {"kind": "bill", "id": new_id, "since": date,
                                "beat": "committee", "resolved": None}
+        elif not new_id and tracked.get("resolved"):
+            civ["tracked"] = {"kind": "bill", "id": None, "since": None,
+                               "beat": None, "resolved": None}
 
 
 # =================================================================== sim_day

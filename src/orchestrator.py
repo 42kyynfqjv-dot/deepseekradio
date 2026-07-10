@@ -233,6 +233,24 @@ def _tail_context(lines):
             if tail else "")
 
 
+def _mint_caller_line(used, seedkey: str, host_speaker: str) -> str:
+    """The desk's next-caller assignment, CONTRAST-CAST: default the caller
+    to the opposite gender of the host, so caller and host can never blur
+    into one voice through the telephone bandpass (the Maureen incident)."""
+    try:
+        from . import assignments as _adesk
+        from .performers import _gender_of
+        want = {"f": "m", "m": "f"}.get(_gender_of(host_speaker or ""))
+        nm = _adesk.next_caller(set(used), random.Random(seedkey), want=want)
+        try:
+            used.add(nm)        # minted names never repeat within the day
+        except Exception:
+            pass
+        return f" If a NEW caller joins, their name is {nm}."
+    except Exception:
+        return ""
+
+
 def run_show(daypart, config, schedule, live: bool):
     if daypart.get("id") == "center_ice":   # live sports is its own machine
         return run_center_ice(daypart, config, schedule, live)
@@ -467,7 +485,9 @@ def run_show(daypart, config, schedule, live: bool):
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
         call_st = None      # the switchboard: code owns who is on the line
-        daypart["_switchboard"] = _switch.prompt_line(call_st)
+        daypart["_switchboard"] = _switch.prompt_line(call_st) + _mint_caller_line(
+            used_names, f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:0",
+            _cast_meta(daypart, 0).get("speaker", ""))
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines),
                           _tail_texts(opener_lines)) if beats else None
@@ -505,16 +525,11 @@ def run_show(daypart, config, schedule, live: bool):
                 lines, call_st,
                 budget=3 * _pol if _pol else _switch.DEFAULT_BUDGET,
                 host=_cast_meta(daypart, 0))
-            daypart["_switchboard"] = _switch.prompt_line(call_st)
-            try:  # the desk mints the next caller: name+voice deterministic
-                from . import assignments as _adesk
-                _nm = _adesk.next_caller(
-                    used_names, random.Random(
-                        f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{i}"))
-                daypart["_switchboard"] += (f" If a NEW caller joins, their "
-                                            f"name is {_nm}.")
-            except Exception:
-                pass
+            daypart["_switchboard"] = _switch.prompt_line(call_st) + \
+                _mint_caller_line(
+                    used_names,
+                    f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{i}",
+                    _cast_meta(daypart, 0).get("speaker", ""))
             _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
             lines, _wb = _cont.enforce(lines, handoff=_is_throw)
             daypart["_show_clock"] = _cont.show_clock_line(
@@ -1069,16 +1084,10 @@ def run_center_ice(daypart, config, schedule, live: bool):
             def _submit(bi):
                 dp = dict(daypart)
                 dp["_target_lines"] = bi["lines"]
-                dp["_switchboard"] = _switch.prompt_line(ci_call[0])
-                try:
-                    from . import assignments as _adesk
-                    _nm = _adesk.next_caller(ci_used, random.Random(
-                        f"cic:{date}:{bi['label']}:{len(ci_used)}"))
-                    ci_used.add(_nm)
-                    dp["_switchboard"] += (f" If a NEW caller joins, their "
-                                           f"name is {_nm}.")
-                except Exception:
-                    pass
+                dp["_switchboard"] = _switch.prompt_line(ci_call[0]) + \
+                    _mint_caller_line(
+                        ci_used, f"cic:{date}:{bi['label']}:{len(ci_used)}",
+                        pbp.get("speaker", ""))
                 dp["_show_clock"] = _cont.show_clock_line(_air_left())
                 if bi.get("interview"):     # rink-side guests: no phone FX
                     dp["_no_phone"] = True
@@ -1176,6 +1185,13 @@ def main(argv=None):
                 shadow_tick(f"{clock.air_now():%Y-%m-%d}")
         except Exception:
             pass
+        try:  # the statehouse simulates daily once bootstrapped — dark soak;
+            # nothing airs until its gate arms AND the shows are wired
+            if Path("data/statehouse/civics.json").exists():
+                from .statehouse import engine as _sheng
+                _sheng.tick(f"{clock.air_now():%Y-%m-%d}")
+        except Exception as e:
+            print(f"  (statehouse tick skipped: {e})")
         try:
             st = _sstate()
             if args.live and time.time() - st.get("last_spots", 0) > 30 * 60:
