@@ -221,7 +221,13 @@ def main():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-    # ---- end-to-end: game_no==2, matching the live box, §7.7 crossover ----
+    # ---- end-to-end: game_no==2, matching the live box -- the acceptance
+    # bar is verify_league passing with ZERO failed gating checks and the
+    # gate ARMING, on a state whose off-air history includes real chance
+    # mtl-nyg meetings (this replay produces two of them; the live box hit
+    # one). Every team must land 82/41/41 (hard, via canon-diff), every 7th
+    # AIR ordinal must be the crossover (hard), and the chance meetings show
+    # up only as tolerated info in the crossover-budget check's detail.
     tmp2 = Path(tempfile.mkdtemp())
     try:
         season._PATH = tmp2 / "season.json"
@@ -232,31 +238,31 @@ def main():
         st_prod = season._load()
         check("production fixture reaches game_no 2",
               st_prod["game_no"] == 2, st_prod["game_no"])
+        chance = sum(1 for h, a in migrate_mod.played_pairs(st_prod)
+                     if {h, a} == {"mtl", "nyg"})
+        check("production fixture reproduces >=1 chance off-air mtl-nyg meeting",
+              chance >= 1, chance)
 
         mres2 = migrate_mod.migrate(1, START)
         check("migrate (game_no=2 fixture) ran", not mres2.get("skipped"), mres2)
+        check("migrate (game_no=2 fixture) canon-diff empty",
+              mres2["ok"] and not mres2["canon_diff"], mres2.get("canon_diff"))
+        check("migrate reports the chance meetings",
+              mres2.get("chance_meetings") == chance,
+              mres2.get("chance_meetings"))
 
         vres2 = verify_mod.verify(1)
         check("verify (game_no=2 fixture) ran", not vres2.get("skipped"), vres2)
-        riv_check = next((c for c in vres2.get("checks", [])
-                          if "every 7th AIR slot" in c["name"]), None)
-        check("§7.7 every-7th-AIR-slot crossover check present", riv_check is not None)
-        check("§7.7 every 7th AIR slot is the mtl-nyg crossover (game_no=2 fixture)",
-              riv_check is not None and riv_check["ok"],
-              riv_check.get("detail") if riv_check else None)
-
-        # Known, documented trade-off (see src/league/schedule.py's
-        # `_remainder` docstring): the live off-air collision this fixture
-        # reproduces means mtl/nyg's own season total can land north of 82,
-        # so canon-diff is NOT asserted empty here -- printed for visibility
-        # only, exactly like the pre-existing GWG-skip warning below.
-        canon_check = next((c for c in vres2.get("checks", [])
-                            if "canon-diff recomputed" in c["name"]), None)
-        if canon_check and not canon_check["ok"]:
-            print(f"  (info) verify (game_no=2 fixture): {canon_check['name']} "
-                  f"-- {canon_check['detail']} (expected: see schedule.py "
-                  f"_remainder docstring on the tracked-vs-tracked off-air "
-                  f"exemption)")
+        for c in vres2.get("checks", []):
+            if c.get("warn") and not c["ok"]:
+                # non-gating advisory, same handling as the first block above
+                print(f"  (warn) verify (game_no=2): {c['name']} -- {c['detail']}")
+                continue
+            check(f"verify (game_no=2): {c['name']}", c["ok"], c["detail"])
+        check("verify (game_no=2 fixture) armed", vres2.get("armed") is True,
+              [c for c in vres2.get("checks", []) if not c["ok"]])
+        check("VERIFIED file written (game_no=2 fixture)",
+              (engine.SIDE / "VERIFIED").exists())
     finally:
         shutil.rmtree(tmp2, ignore_errors=True)
 

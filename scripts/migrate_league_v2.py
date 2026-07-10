@@ -245,12 +245,23 @@ def compute_canon_diff(st: dict, pl: dict, sched: dict,
         if reloaded.get("league") != st.get("league"):
             diffs.append("standings dict changed on disk since migration read it")
 
-    # 3. schedule totals 82 / 41H / 41A per team, and 8-way crossover
+    # 3. schedule totals 82 / 41H / 41A per team (played + remainder, HARD
+    # for every team, tracked included), and the crossover budget: exactly
+    # 8 SCHEDULED mtl-nyg games (HARD — the Series the every-7th-AIR-ordinal
+    # cadence spends). Already-PLAYED chance mtl-nyg meetings (v1's off-air
+    # slate could legally pair them pre-migration — see schedule._remainder's
+    # docstring) are tolerated in the total-meetings count only:
+    # schedule._absorb_chance_meeting charges their GP/H/A cost back to the
+    # tracked teams' own remaining games, so the totals above stay exact;
+    # the surplus meetings themselves are the documented season-1
+    # approximation, reported as an info line by _print_summary /
+    # verify_league, never a diff here.
     pairs = played_pairs(st)
     total = {k: 0 for k in season._ALL}
     home_ct = {k: 0 for k in season._ALL}
     away_ct = {k: 0 for k in season._ALL}
-    crossover = 0
+    crossover_played = 0
+    crossover_sched = 0
     mtl, nyg = "mtl", "nyg"
     for h, a in pairs:
         if h in total:
@@ -260,7 +271,7 @@ def compute_canon_diff(st: dict, pl: dict, sched: dict,
             total[a] += 1
             away_ct[a] += 1
         if {h, a} == {mtl, nyg}:
-            crossover += 1
+            crossover_played += 1
     for day_rows in sched.get("days", {}).values():
         for row in day_rows:
             h, a = row[0], row[1]
@@ -271,7 +282,7 @@ def compute_canon_diff(st: dict, pl: dict, sched: dict,
                 total[a] += 1
                 away_ct[a] += 1
             if {h, a} == {mtl, nyg}:
-                crossover += 1
+                crossover_sched += 1
     for k in season._ALL:
         if total[k] != 82:
             diffs.append(f"schedule total != 82: {k} got {total[k]}")
@@ -279,8 +290,9 @@ def compute_canon_diff(st: dict, pl: dict, sched: dict,
             diffs.append(f"schedule home count != 41: {k} got {home_ct[k]}")
         if away_ct[k] != 41:
             diffs.append(f"schedule away count != 41: {k} got {away_ct[k]}")
-    if crossover != 8:
-        diffs.append(f"crossover (mtl-nyg) total != 8: got {crossover}")
+    if crossover_sched != 8:
+        diffs.append(f"scheduled crossover (mtl-nyg) != 8: got {crossover_sched}"
+                     f" (+{crossover_played} already played)")
 
     return diffs
 
@@ -334,6 +346,8 @@ def migrate(season_n: int = DEFAULT_SEASON, start: str = DEFAULT_START) -> dict:
         strength_rows.append((k, target_strength[k], achieved,
                               abs(achieved - target_strength[k])))
 
+    chance_meetings = sum(1 for h, a in pairs if {h, a} == {"mtl", "nyg"})
+
     return {
         "ok": not diffs,
         "season": season_n, "start": start,
@@ -342,6 +356,7 @@ def migrate(season_n: int = DEFAULT_SEASON, start: str = DEFAULT_START) -> dict:
         "aired_games_folded": aired_folded,
         "offair_games_folded": offair_folded,
         "gwg_skips": gwg_skips,
+        "chance_meetings": chance_meetings,
         "canon_diff": diffs,
         "canon_diff_path": str(diff_path),
         "strength_rows": strength_rows,
@@ -364,6 +379,12 @@ def _print_summary(res: dict) -> None:
               f"src/league/stats.py issue, not touched here — see "
               f"_safe_fold docstring). All other stats for those games "
               f"folded normally; only their (unused) gwg counter is short.")
+    if res.get("chance_meetings"):
+        print(f"  (info) {res['chance_meetings']} chance mtl-nyg meeting(s) "
+              f"already played off-air pre-migration: season total meetings "
+              f"= 8 scheduled + {res['chance_meetings']} (documented season-1 "
+              f"approximation, see schedule._remainder). Schedule totals "
+              f"stay exactly 82/41H/41A for every team.")
     worst = sorted(res["strength_rows"], key=lambda r: -r[3])[:5]
     print("  strength solve (worst 5 |delta|):")
     print("    team   target achieved   |delta|")

@@ -204,15 +204,30 @@ for season in SEEDS[:3]:
 # The live box hands migration a real 4-day-old season 1 (game_no already >0)
 # -- the remainder schedule's every-7th-AIR-ordinal Crossover placement must
 # continue counting from THAT ordinal, not restart at 1. Exercised at several
-# gp_played offsets (0/1/2/3 broadcasts already aired), each ALSO carrying one
-# incidental TRACKED-vs-TRACKED off-cadence pair in played_pairs -- season.py's
-# live v1 off-air slate (`_sim_day`) only excludes the tracked teams from its
-# pool on broadcast nights, so mtl/nyg can already have met off-air, by chance,
-# before migration ever runs (a real, reproducible occurrence, not a fabricated
-# edge case: this exact shape reproduces the live box's reported ordinal-49/56
-# drift). Every one of the 8 Crossover meetings must still land on an ordinal
-# ≡0 mod 7, counting every AIR broadcast the migrated schedule carries
-# (matching verify_league.py's §7.7 check byte-for-byte).
+# gp_played offsets (0/1/2/3 broadcasts already aired), each ALSO carrying
+# incidental TRACKED-vs-TRACKED off-cadence pair(s) in played_pairs --
+# season.py's live v1 off-air slate (`_sim_day`) only excludes the tracked
+# teams from its pool on broadcast nights, so mtl/nyg can already have met
+# off-air, by chance, before migration ever runs (a real, reproducible
+# occurrence, not a fabricated edge case: this exact shape reproduces the live
+# box's reported ordinal-49/56 drift). Direction and count of the injected
+# chance meetings vary by offset (each single direction, then both at once).
+# Asserted, matching verify_league.py's §7.7 bar byte-for-byte:
+#   - every one of the 8 SCHEDULED Crossover meetings lands on an ordinal
+#     ≡0 mod 7, counting every AIR broadcast the migrated schedule carries;
+#   - scheduled crossovers == 8 exactly (the chance meetings never consume
+#     the budget -- total season meetings = 8 + chance, the documented
+#     season-1 approximation);
+#   - EVERY team, tracked included, still totals exactly 82 GP / 41H / 41A
+#     across played + remainder (schedule._absorb_chance_meeting's exact
+#     donor-repayment cancellation).
+
+_CHANCE_BY_OFFSET = {
+    0: [(MTL, NYG)],
+    1: [(NYG, MTL)],
+    2: [(MTL, NYG), (NYG, MTL)],
+    3: [(NYG, MTL), (MTL, NYG)],
+}
 
 for season in SEEDS[:3]:
     m = schedule.build_matchups(season)
@@ -224,18 +239,21 @@ for season in SEEDS[:3]:
     for offset in (0, 1, 2, 3):
         cutoff = air_full[offset - 1][0] if offset > 0 else None
         played_pairs = []
-        gp_played = {k: 0 for k in ALL_TEAMS}
+        played_h = {k: 0 for k in ALL_TEAMS}
+        played_a = {k: 0 for k in ALL_TEAMS}
         if cutoff is not None:
             for d, rows in full_days.items():
                 if d <= cutoff:
                     for row in rows:
                         played_pairs.append((row[0], row[1]))
-                        gp_played[row[0]] += 1
-                        gp_played[row[1]] += 1
-        # the incidental off-cadence mtl-nyg meeting (see block comment above)
-        played_pairs.append((MTL, NYG))
-        gp_played[MTL] += 1
-        gp_played[NYG] += 1
+                        played_h[row[0]] += 1
+                        played_a[row[1]] += 1
+        # the incidental off-cadence mtl-nyg meeting(s) (see block comment)
+        for ch, ca in _CHANCE_BY_OFFSET[offset]:
+            played_pairs.append((ch, ca))
+            played_h[ch] += 1
+            played_a[ca] += 1
+        gp_played = {k: played_h[k] + played_a[k] for k in ALL_TEAMS}
 
         remainder_days = schedule.assign_days(m, season, START,
                                                gp_played=gp_played,
@@ -249,11 +267,31 @@ for season in SEEDS[:3]:
         check(not bad,
               f"season {season} migration offset {offset}: every 7th AIR "
               f"ordinal is the crossover (bad: {bad})")
-        n_riv = sum(1 for i, (d, row) in enumerate(air_rows, start=1)
-                    if {row[0], row[1]} == {MTL, NYG})
-        check(n_riv == 8,
-              f"season {season} migration offset {offset}: 8 crossover AIR "
-              f"nights in the migrated schedule (got {n_riv})")
+        n_riv_sched = sum(1 for rows in remainder_days.values() for row in rows
+                          if {row[0], row[1]} == {MTL, NYG})
+        check(n_riv_sched == 8,
+              f"season {season} migration offset {offset}: exactly 8 crossover "
+              f"games scheduled in the remainder (got {n_riv_sched})")
+        n_riv_air = sum(1 for _, row in air_rows
+                        if {row[0], row[1]} == {MTL, NYG})
+        check(n_riv_air == 8,
+              f"season {season} migration offset {offset}: all 8 scheduled "
+              f"crossovers are AIR games (got {n_riv_air})")
+
+        rem_h = {k: 0 for k in ALL_TEAMS}
+        rem_a = {k: 0 for k in ALL_TEAMS}
+        for rows in remainder_days.values():
+            for row in rows:
+                rem_h[row[0]] += 1
+                rem_a[row[1]] += 1
+        bad_totals = [
+            (k, played_h[k] + rem_h[k], played_a[k] + rem_a[k])
+            for k in ALL_TEAMS
+            if played_h[k] + rem_h[k] != 41 or played_a[k] + rem_a[k] != 41]
+        check(not bad_totals,
+              f"season {season} migration offset {offset}: every team "
+              f"(tracked included) at exactly 82/41H/41A across played + "
+              f"remainder (bad: {bad_totals})")
 
 # --- calendar.py -------------------------------------------------------------
 

@@ -187,39 +187,86 @@ def _remainder(matchups: list[tuple[str, str]], played_pairs: list) -> list:
     effort: a played pair not found in either direction is a season-1
     approximation gap (noted in minimal §7), never a crash.
 
-    A played TRACKED-vs-TRACKED pair is exempt from this trim. season.py's
-    live v1 off-air slate (`_sim_day`) only excludes the tracked teams from
-    its pool on broadcast nights — on any OTHER night both remain eligible
-    and can, by chance, already have been paired against each other before
-    migration ever runs. That is never a real Crossover Series game (the
-    Series is AIR-only, "every meeting airs, never filler" — see
-    `build_matchups`'s docstring and `assign_days`'s day-fill loop, which
-    excludes tracked-vs-tracked from every non-AIR night going forward); it
-    is a leftover of v1's legacy randomness landing on a non-7th-ordinal
-    night, not one of the 8 Crossover meetings. Treating it as consuming
-    Crossover supply the way a normal pair is removed starves
+    A played TRACKED-vs-TRACKED pair is exempt from this generic trim and
+    handled by `_absorb_chance_meeting` instead. season.py's live v1 off-air
+    slate (`_sim_day`) only excludes the tracked teams from its pool on
+    broadcast nights — on any OTHER night both remain eligible and can, by
+    chance, already have been paired against each other before migration
+    ever runs. That is never a real Crossover Series game (the Series is
+    AIR-only, "every meeting airs, never filler" — see `build_matchups`'s
+    docstring and `assign_days`'s day-fill loop, which excludes
+    tracked-vs-tracked from every non-AIR night going forward); it is a
+    leftover of v1's legacy randomness landing on a non-7th-ordinal night,
+    not one of the 8 Crossover meetings. Treating it as consuming Crossover
+    supply the way a normal pair is removed starves
     `_prebuild_air_schedule`'s every-7th-AIR-ordinal placement — a
     still-designated ordinal 7 (or 14, 21, ...) would come up empty even
     though 8 real Crossover meetings still need to be placed, cascading into
     every later ordinal (verify_league's §7.7 check then reports the wrong
     date/opponent several ordinals downstream, not the true empty one). The
     Crossover budget is therefore a closed system, spent ONLY by that
-    every-7th placement, immune to this generic trim; the (rare) cost is
-    that mtl/nyg's OWN season total can land a game or two north of 82 when
-    this fires, exactly the same kind of isolated season-1 approximation
-    `_remainder` already accepts elsewhere for the OTHER 30 teams — it never
-    spreads to any team outside the tracked pair."""
+    every-7th placement, immune to this trim — but the chance meeting still
+    genuinely used up one of each tracked team's 82 games, so
+    `_absorb_chance_meeting` re-charges that cost to a NON-crossover game of
+    each side's remaining schedule, direction-exact, and repays the two
+    displaced untracked opponents against each other (the same cancellation
+    technique `_apply_crossover` uses to finance the Series itself). Net:
+    every team, tracked included, still lands exactly 82 GP / 41H / 41A;
+    the tracked pair's TOTAL season meetings become 8 + the chance ones —
+    that surplus-of-meetings is the documented season-1 approximation, the
+    schedule totals are not."""
     pool = list(matchups)
     tracked = set(TRACKED)
+    chance: list[tuple[str, str]] = []
     for pair in played_pairs:
         h, a = pair[0], pair[1]
         if {h, a} == tracked:
+            chance.append((h, a))
             continue
         if (h, a) in pool:
             pool.remove((h, a))
         elif (a, h) in pool:
             pool.remove((a, h))
+    for h, a in chance:       # after the generic trim, so donor supply is real
+        _absorb_chance_meeting(pool, h, a)
     return pool
+
+
+def _absorb_chance_meeting(pool: list, h: str, a: str) -> None:
+    """One already-played chance tracked-vs-tracked game (`h` hosted `a`,
+    both tracked — see `_remainder`): charge its GP/H/A cost to the tracked
+    teams' own remaining NON-crossover games so season totals stay exactly
+    82/41H/41A without touching the 8-game Crossover budget.
+
+    - drop one remaining `h`-HOME game vs an untracked opponent t1
+      (cancels the extra home game `h` already played; t1 loses an away game)
+    - drop one remaining `a`-AWAY game at an untracked opponent t2 != t1
+      (cancels the extra away game `a` already played; t2 loses a home game)
+    - add one t2-hosts-t1 game: t2's lost home and t1's lost away cancel
+      exactly, so both donors keep 82/41/41 untouched (their cost is a
+      1-game bucket-composition shift, the same friction `_apply_crossover`'s
+      financing already accepts for its own 10 donors).
+
+    Deterministic (first match in matrix order — `_remainder` runs before
+    `assign_days` shuffles the pool). Best effort: with no direction-exact
+    donor left (a degenerate, late-season migration), the meeting is
+    absorbed as a +1-GP approximation instead of crashing — early-season
+    supply (~37 home-vs-untracked games per tracked team) makes that
+    unreachable in practice."""
+    tracked = set(TRACKED)
+    drop_home = next((g for g in pool if g[0] == h and g[1] not in tracked),
+                     None)
+    if drop_home is None:
+        return
+    drop_away = next((g for g in pool
+                      if g[1] == a and g[0] not in tracked
+                      and g[0] != drop_home[1]),
+                     None)
+    if drop_away is None:
+        return
+    pool.remove(drop_home)                       # h: -1 home; t1: -1 away
+    pool.remove(drop_away)                       # a: -1 away; t2: -1 home
+    pool.append((drop_away[0], drop_home[1]))    # t2 hosts t1: both repaid
 
 
 _AIR_ORDINALS_PLANNED = 62   # generous vs. a realistic ~55-60 night season, but short of

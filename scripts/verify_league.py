@@ -250,6 +250,24 @@ def verify(season_n: int = DEFAULT_SEASON) -> dict:
     add("§7.7 goalie-gp / standings-gp parity", *_goalie_gp_parity(st, stt))
     add("§7.7 every 7th AIR slot is the mtl-nyg crossover", *_rivalry_every_7th(sched))
 
+    # exactly 8 SCHEDULED crossover games (hard — the budget the every-7th
+    # cadence spends). Chance mtl-nyg meetings already played off-air
+    # pre-migration are tolerated in the season's total-meetings count only
+    # (schedule._absorb_chance_meeting keeps every team's totals at exactly
+    # 82/41/41 — that part stays hard via the canon-diff check above); they
+    # are surfaced here as info in the detail, never a FAIL by themselves.
+    sched_cross = sum(1 for rows in sched.get("days", {}).values()
+                      for row in rows if {row[0], row[1]} == {"mtl", "nyg"})
+    air_cross = sum(1 for _, row in _sched_air_rows(sched)
+                    if {row[0], row[1]} == {"mtl", "nyg"})
+    chance_cross = sum(1 for h, a in migrate_mod.played_pairs(st)
+                       if {h, a} == {"mtl", "nyg"})
+    add("§7.7 crossover budget: exactly 8 scheduled mtl-nyg games, all AIR",
+        sched_cross == 8 and air_cross == 8,
+        f"{sched_cross} scheduled / {air_cross} on AIR rows"
+        + (f" + {chance_cross} chance meeting(s) already played off-air "
+           f"(tolerated season-1 approximation)" if chance_cross else ""))
+
     dry = _offline_dry_run(season_n)
     if dry.get("skipped"):
         add("offline 30-day dry-run", True, dry["skipped"])
