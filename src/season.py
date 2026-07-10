@@ -344,6 +344,12 @@ def record_live(air_date: str) -> str | None:
             if len(lst) < 2 and all(o["player"] != e["player"] for o in lst):
                 lst.append({"player": e["player"],
                             "until": game["game_no"] + rng.randint(1, 3)})
+    v2f = _league_v2(st)
+    if v2f is not None:
+        try:   # broadcast games join the season stat lines (exactly-once via
+            v2f.fold_live(st, game, log)   # the recorded flag around us)
+        except Exception as e:
+            print(f"  (v2 live stats fold skipped: {e})")
     if any(st["league"][k]["gp"] >= SEASON_GAMES for k in TRACKED):
         # the RESET is air-gated in tick() (_maybe_rollover) — announcing the
         # finale is narration and may air now; zeroing the league before the
@@ -652,10 +658,24 @@ def export(path: str = "/var/www/bestairadio/data/league.json") -> None:
                 broadcast.update(final=game.get("final"),
                                  ot=game.get("ot", False),
                                  so=game.get("so", False), played=True)
+        leaders = None
+        try:
+            v2x = _league_v2(st)
+            if v2x is not None:
+                from .league import stats as _lgs
+                plx = v2x.load_side(f"players-s{st['season']}.json")
+                stx = v2x.load_side(f"stats-s{st['season']}.json")
+                if plx and stx:
+                    leaders = {"points": _lgs.leaders(stx, plx, "p", 5),
+                               "goals": _lgs.leaders(stx, plx, "g", 5),
+                               "sv%": _lgs.leaders(stx, plx, "sv%", 3)}
+        except Exception:
+            leaders = None
         slate = st["slates"].get(st["sim_through"], [])
         out = {"season": st["season"], "updated": st["sim_through"],
                "divisions": divisions, "last_result": st["last_result"],
                "broadcast": broadcast,
+               **({"leaders": leaders} if leaders else {}),
                "around": [{"home": _ALL[h], "away": _ALL[a],
                            "score": [hg, ag], "ot": o}
                           for h, a, hg, ag, o in slate]}

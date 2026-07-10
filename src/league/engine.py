@@ -210,6 +210,44 @@ def _prune_boxes(root: Path, today: str, keep: int = 21) -> None:
             p.unlink(missing_ok=True)
 
 
+def fold_live(st: dict, game: dict, log: dict) -> None:
+    """Fold a BROADCAST game's live log into the season stats sidecar —
+    called from record_live inside its exactly-once block (the recorded flag
+    is the de-dup key fold_box itself doesn't keep). Names map to pids via
+    the players sidecar; unknown names fold under their name string rather
+    than being dropped (a stat must never vanish because a mapping aged)."""
+    from . import stats as statsmod
+    season_n = game["season"]
+    stt = load_side(f"stats-s{season_n}.json")
+    pl = load_side(f"players-s{season_n}.json")
+    if stt is None or pl is None:
+        return
+    n2p = {p["name"]: pid for pid, p in pl["players"].items()
+           if p.get("team") in (game["home_key"], game["away_key"])}
+    f = log["final"]
+    goals = []
+    for cid in log["order"]:
+        for e in log["chunks"][cid]["events"]:
+            if e.get("type") == "goal":
+                goals.append({
+                    "t": "h" if e["team"] == "home" else "a",
+                    "period": e.get("period"), "clock": e.get("clock"),
+                    "scorer": n2p.get(e["scorer"], e["scorer"]),
+                    "a1": n2p.get(e["assist"]) if e.get("assist") else None,
+                    "a2": n2p.get(e.get("assist2")) if e.get("assist2") else None,
+                    "str": e.get("strength", "EV")})
+    r = game["rosters"]
+    box = {"home": game["home_key"], "away": game["away_key"],
+           "final": [f["h"], f["a"]], "ot": f["ot"], "so": f["so"],
+           "goals": goals, "shots": f.get("shots", [0, 0]),
+           "goalies": {"h": n2p.get(r["home"]["goalie"], r["home"]["goalie"]),
+                       "a": n2p.get(r["away"]["goalie"], r["away"]["goalie"])},
+           "stars": [n2p.get(s, s) for s in f.get("stars", [])],
+           "injuries": []}
+    statsmod.fold_box(stt, box)
+    save_side(f"stats-s{season_n}.json", stt)
+
+
 # ---------------------------------------------------------------- shadow (G2)
 
 def shadow_tick(air_date: str) -> None:

@@ -574,6 +574,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
         return
     pbp = _cast_meta(daypart, 0)
     allow = season.context_pairs(game)
+    t_open = time.time()      # the reveal clock's broadcast anchor (G1)
     lines_target = int(daypart.get("lines_per_beat", 22))
     parts_per = max(1, int(daypart.get("parts_per_beat", 2)))
     slot_cost = parts_per * 2.1 + 0.5        # air-min per chunk incl. breaks
@@ -603,11 +604,13 @@ def run_center_ice(daypart, config, schedule, live: bool):
         return ""
 
     def _facts(part_events, board_in, *, mode="live", period=None, lo=None,
-               hi=None, pp=False, en=False, final=None, shots=None):
+               hi=None, pp=False, en=False, final=None, shots=None,
+               allow_extra=()):
         chunk = ({"board_in": list(board_in), "events": part_events,
                   "pp_span": pp, "en_span": en} if mode == "live" else None)
         return build_facts(game, list(aired), chunk, mode=mode, pbp=pbp,
-                           allow_pairs=allow, final=final, shots=shots,
+                           allow_pairs=list(allow) + list(allow_extra),
+                           final=final, shots=shots,
                            period=period, clock_lo=lo, clock_hi=hi)
 
     def _beat(seg, premise, text, facts, *, label, lines=None, events=(),
@@ -783,17 +786,48 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 yield b
             if ends_period and eng.final is None:
                 bd = eng.state()["board"]
-                f = _facts([], bd, mode="neutral")
                 # a real intermission: report -> scores desk -> walk-off guest
                 pgoals = [e for e in aired if e.get("type") == "goal"
                           and e.get("period") == period]
                 recap = ("\n".join(_ev_text(e) for e in pgoals)
                          or "No goals this period — carry it on chances and saves.")
-                slate = season.slate_scores(date)
-                # different slice per intermission so the desk never re-reads
-                # the same results back-to-back across periods
-                lo_i = (period - 1) * 4
-                desk = "; ".join(slate[lo_i:lo_i + 4] or slate[:4])
+                # v2: the reveal-clock around-the-league — other games appear
+                # IN PROGRESS at this point of our broadcast, scorers named;
+                # every revealed pair joins the guard whitelist. v1: finals,
+                # sliced per period so the desk never repeats itself.
+                desk, desk_pairs = "", []
+                try:
+                    from .league import engine as _lge, briefs as _lgb
+                    if _lge.v2_on(game["season"]):
+                        boxes = (_lge.load_side(f"box/{date}.json")
+                                 or {}).get("games", [])
+                        pl2 = _lge.load_side(f"players-s{game['season']}.json")
+                        st2 = _lge.load_side(f"stats-s{game['season']}.json")
+                        sheet = _lgb.intermission_sheet(
+                            date, int(time.time() - t_open), boxes,
+                            st2 or {}, pl2 or {})
+                        rows = sheet.get("around", [])[:5]
+                        bits = []
+                        for r in rows:
+                            s = r.get("score") or [0, 0]
+                            tag = (" final" if r.get("status") == "final" else
+                                   f" ({r.get('period','')} {r.get('clock','')})"
+                                   if r.get("status") == "live" else " upcoming")
+                            who = (" — " + ", ".join(r["scorers"])
+                                   if r.get("scorers") else "")
+                            bits.append(f"{r['away']} {s[1]}, {r['home']} "
+                                        f"{s[0]}{tag}{who}")
+                            desk_pairs.append((s[0], s[1]))
+                        desk = "; ".join(bits)
+                        if sheet.get("race_note"):
+                            desk += f". {sheet['race_note']}"
+                except Exception as e:
+                    print(f"  (v2 intermission sheet unavailable: {e})")
+                if not desk:
+                    slate = season.slate_scores(date)
+                    lo_i = (period - 1) * 4
+                    desk = "; ".join(slate[lo_i:lo_i + 4] or slate[:4])
+                f = _facts([], bd, mode="neutral", allow_extra=desk_pairs)
                 color = (f"the booth color subplot develops: {game['subplot']}"
                          if period == 1 else
                          "Sal delivers one magnificent unverifiable statistic")
@@ -1048,6 +1082,12 @@ def main(argv=None):
         try:  # league plays every night whether we broadcast or not
             from . import season
             season.tick(f"{clock.air_now():%Y-%m-%d}")
+        except Exception:
+            pass
+        try:  # pre-cutover soak: v2 runs silently against a shadow copy
+            if Path("data/league/SHADOW").exists():
+                from .league.engine import shadow_tick
+                shadow_tick(f"{clock.air_now():%Y-%m-%d}")
         except Exception:
             pass
         try:
