@@ -568,6 +568,38 @@ def _display_league(st: dict, game: dict | None, log: dict | None,
     return table
 
 
+def _around_rows(st: dict, slate: list) -> list:
+    """Around-the-league rows for the site; v2 enriches finals with named
+    scorers from the day's box shard (same reveal status as today: finals)."""
+    rows = [{"home": _ALL[h], "away": _ALL[a], "score": [hg, ag], "ot": o}
+            for h, a, hg, ag, o in slate]
+    try:
+        v2 = _league_v2(st)
+        if v2 is None:
+            return rows
+        shard = v2.load_side(f"box/{st['sim_through']}.json") or {}
+        pl = v2.load_side(f"players-s{st['season']}.json") or {}
+        names = {pid: p.get("name", pid)
+                 for pid, p in pl.get("players", {}).items()}
+        by_pair = {(g.get("home"), g.get("away")): g
+                   for g in shard.get("games", [])}
+        for row, (h, a, *_r) in zip(rows, slate):
+            g = by_pair.get((h, a))
+            if not g:
+                continue
+            tally: dict = {}
+            for goal in g.get("goals", []):
+                s = goal.get("scorer")
+                tally[s] = tally.get(s, 0) + 1
+            row["scorers"] = [f"{names.get(s, s)}"
+                              + (f" ({n})" if n > 1 else "")
+                              for s, n in sorted(tally.items(),
+                                                 key=lambda kv: -kv[1])[:3]]
+    except Exception:
+        pass
+    return rows
+
+
 def export(path: str = "/var/www/bestairadio/data/league.json") -> None:
     """Publish the league to the website. Live-game events appear only once
     their air_at has passed — the page ticks in listener time. Best-effort."""
@@ -676,9 +708,7 @@ def export(path: str = "/var/www/bestairadio/data/league.json") -> None:
                "divisions": divisions, "last_result": st["last_result"],
                "broadcast": broadcast,
                **({"leaders": leaders} if leaders else {}),
-               "around": [{"home": _ALL[h], "away": _ALL[a],
-                           "score": [hg, ag], "ot": o}
-                          for h, a, hg, ag, o in slate]}
+               "around": _around_rows(st, slate)}
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(f".tmp.{os.getpid()}")   # per-writer: the generator

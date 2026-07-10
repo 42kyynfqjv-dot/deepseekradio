@@ -171,6 +171,23 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                                      f"brought to you by {name} — {gag}."})
     except Exception:
         pass
+    try:  # the Sports Desk rides every bulletin: last night in the league,
+        # named scorers, straight off the box shards — wire copy, guard-true
+        from datetime import date as _d, timedelta as _td
+        from .league import engine as _lge, briefs as _lgb
+        from . import season as _sn
+        y = (_d.fromisoformat(f"{clock.air_now():%Y-%m-%d}")
+             - _td(days=1)).isoformat()
+        shard = _lge.load_side(f"box/{y}.json")
+        pl = _lge.load_side(f"players-s{_sn._load()['season']}.json")
+        if shard and pl and shard.get("games"):
+            desk = _lgb.scores_desk(y, shard["games"], pl, n=4)
+            if desk:
+                lines.append({"speaker": "Frequency Sports",
+                              "voice": NEWS_VOICE,
+                              "text": "Sports desk. " + desk})
+    except Exception as e:
+        print(f"  (sports desk skipped: {e})")
     print("\n--- Frequency News ---")
     _emit(lines, "news", config, live)
     st["last_news"] = time.time()
