@@ -115,6 +115,19 @@ def _save(st: dict) -> None:
     tmp.replace(_PATH)   # the single atomic mutation of the live path
 
 
+def _league_v2(st: dict):
+    """The v2 league runtime, or None. Gate lives in league.engine (ENABLED +
+    VERIFIED hash). Any import/gate failure is a LOUD v1 — the proven path
+    keeps the air."""
+    try:
+        from .league import engine
+        if engine.v2_on(st["season"]):
+            return engine
+    except Exception as e:
+        print(f"  !! league v2 unavailable ({e}) — v1 path")
+    return None
+
+
 def _apply(st: dict, hk: str, ak: str, hg: int, ag: int, ot: bool) -> None:
     """Fold one result. `ot` covers OT AND shootout losses — both earn the point."""
     for key, won in ((hk, hg > ag), (ak, ag > hg)):
@@ -229,19 +242,35 @@ def tonight_live(air_date: str) -> dict:
 
     rng = random.Random(f"center-ice:{st['season']}:{air_date}")
     game_no = st["game_no"] + 1
-    rivalry = game_no % _RIVALRY_EVERY == 0
-    ours = "mtl" if game_no % 2 else "nyg"
-
-    if rivalry:
-        hk, ak = ("mtl", "nyg") if game_no % 2 else ("nyg", "mtl")
+    # v2: tonight's matchup comes from the REAL schedule matrix (the AIR-tagged
+    # row); rivalry nights are the Crossover Series games the schedule pinned
+    # to every 7th broadcast slot. v1 keeps the legacy rng selection.
+    v2 = _league_v2(st)
+    hk = ak = None
+    if v2 is not None:
+        try:
+            sched = v2.load_side(f"schedule-s{st['season']}.json")
+            for row in (sched or {}).get("days", {}).get(air_date, []):
+                if len(row) > 2 and row[2] == "AIR":
+                    hk, ak = row[0], row[1]
+                    break
+        except Exception as e:
+            print(f"  !! v2 schedule lookup failed ({e}) — legacy matchup")
+    if hk is not None:
+        rivalry = hk in TRACKED and ak in TRACKED
     else:
-        hk = ours
-        division_mates = [k for k in _ALL if k not in TRACKED]
-        pool = [k for k in division_mates
-                if _ALL[k] not in st["recent_opponents"][-4:]]
-        # home games mostly vs the division, like a real schedule
-        div_pool = [k for k in pool if _DIV_OF[k] == _DIV_OF[hk]]
-        ak = rng.choice(div_pool if div_pool and rng.random() < 0.6 else pool)
+        rivalry = game_no % _RIVALRY_EVERY == 0
+        ours = "mtl" if game_no % 2 else "nyg"
+        if rivalry:
+            hk, ak = ("mtl", "nyg") if game_no % 2 else ("nyg", "mtl")
+        else:
+            hk = ours
+            division_mates = [k for k in _ALL if k not in TRACKED]
+            pool = [k for k in division_mates
+                    if _ALL[k] not in st["recent_opponents"][-4:]]
+            # home games mostly vs the division, like a real schedule
+            div_pool = [k for k in pool if _DIV_OF[k] == _DIV_OF[hk]]
+            ak = rng.choice(div_pool if div_pool and rng.random() < 0.6 else pool)
 
     game = {"game_no": game_no, "date": air_date, "rivalry": rivalry,
             "season": st["season"],
@@ -249,6 +278,17 @@ def tonight_live(air_date: str) -> dict:
             "arena": TRACKED.get(hk, {}).get("arena", "the road"),
             "recorded": False}
     _dress(st, game)
+    if v2 is not None:
+        try:  # deep rosters (18 skaters, lines, weights) + attribute strength;
+            # refs/subplot/attendance/returning keep the v1 dressing above
+            from .league import players as _plmod
+            pl = v2.load_side(f"players-s{st['season']}.json")
+            for side, key in (("home", hk), ("away", ak)):
+                game["rosters"][side] = _plmod.dress(pl, key, air_date)
+            game["strength_home"] = _plmod.team_strength(pl, {}, hk, False)
+            game["strength_away"] = _plmod.team_strength(pl, {}, ak, False)
+        except Exception as e:
+            print(f"  !! v2 dressing failed ({e}) — v1 rosters stand")
     st["games"][air_date] = game
     st["game_no"] = game_no
     if len(st["games"]) > 90:
@@ -380,9 +420,19 @@ def tick(air_date: str) -> None:
     """Advance the league to today (off-air slates), sweep for abandoned or
     unrecorded games, republish the site data. Called every main-loop pass."""
     st = _load()
-    _sim_through(st, air_date)
+    v2 = _league_v2(st)
+    if v2 is not None:
+        try:
+            v2.tick_v2(st, air_date, _apply, TRACKED)
+        except Exception as e:
+            print(f"  !! league v2 tick failed ({e}) — v1 fallback this pass")
+            _sim_through(st, air_date)
+    else:
+        _sim_through(st, air_date)
     if _maybe_rollover(st):
-        _sim_through(st, air_date)   # the fresh season starts simming today
+        # a fresh season resumes on v1 until the offseason machinery (gate 2)
+        # mints the next season's sidecars — the mirror keeps standings whole
+        _sim_through(st, air_date)
     _save(st)
     try:
         _reconcile(air_date)

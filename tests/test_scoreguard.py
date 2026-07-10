@@ -277,6 +277,21 @@ fixes("explicit_ord_checks", "Earlier tonight he potted his third of the "
 fixes("back_in_the_not_past", "Back in the lineup and the Gridlock lead it "
       "here.", fL)
 
+# --- postgame retrospection: strength talk is description, not a state claim
+_PEN_EV = {"type": "penalty", "team": "away", "player": "Otto Kranz",
+           "call": "hooking", "period": 2, "clock": "07:00", "secs": 1620}
+pf_pen = build_facts(GAME, [goal("Doug Bouchard", (2, 1)), _PEN_EV], None,
+                     mode="postgame", pbp=PBP, final=(3, 1))
+keeps("postgame_pp_talk", "That power play goal in the second was the "
+      "difference tonight.", pf_pen)
+pf_clean = build_facts(GAME, [goal("Doug Bouchard", (2, 1))], None,
+                       mode="postgame", pbp=PBP, final=(3, 1))
+fixes("postgame_pp_invented", "That power play goal in the second was the "
+      "difference tonight.", pf_clean)
+# "even strength" is a goal type, never a tie claim — 3-1 final is not tied
+keeps("even_strength_not_tie", "The Bouchard goal was even strength, and "
+      "it's 3-1 final.", pf_pen)
+
 if fail:
     print(f"\n{fail}/{ok + fail} failed")
     sys.exit(1)

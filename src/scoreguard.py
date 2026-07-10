@@ -75,6 +75,7 @@ _TIE_AT = re.compile(r"\b(\d) apiece\b|"
                      r"\b(?:tied|knotted|even|level|deadlocked|all square) at (\d)\b")
 _TIE_BARE = re.compile(r"\b(?:tied|knotted|deadlocked|all square)\b")
 _TIE_SOFT = re.compile(r"\b(?:even|level)\b")  # common words: need score context
+_EVEN_STR = re.compile(r"even[- ]strength")    # goal-type talk, never a tie claim
 _LTVERB = re.compile(r"\b(leads?|ahead|up|trails?|down|behind)\b")
 _LEADWORDS = ("lead", "leads", "ahead", "up")
 # "up the ice", "behind the net", "down low" are directions, not lead claims
@@ -325,8 +326,9 @@ def enforce_scoreboard(lines, facts):
             n = int(m.group(1) or m.group(2))
             if not board_ok(lambda b: b[0] == b[1] == n):
                 return "board"
-        if not ats and (_TIE_BARE.search(norm) or
-                        (_TIE_SOFT.search(norm) and _CONTEXT.search(norm))):
+        norm_tie = _EVEN_STR.sub(" ", norm)   # "even strength" is a goal type
+        if not ats and (_TIE_BARE.search(norm_tie) or
+                        (_TIE_SOFT.search(norm_tie) and _CONTEXT.search(norm_tie))):
             if not board_ok(lambda b: b[0] == b[1]):
                 return "board"
         if "scoreless" in norm and not board_ok(lambda b: b == (0, 0)):
@@ -399,9 +401,12 @@ def enforce_scoreboard(lines, facts):
                     else facts["period_tallies"].get((subj, scope[1]), 0))
             if (have < n) if at_least else (have != n):
                 return "neutral"
-        # 8. state claims need a matching engine flag or logged event
+        # 8. state claims need a matching engine flag or logged event. After
+        # the horn EVERYTHING is past tense: postgame facts accept power-play
+        # talk whenever the game actually had a penalty, no past-marker needed.
         if _PP.search(norm) and not (facts["pp"] or facts["chunk_penalty"]) \
-                and not (_PAST.search(norm) and facts["has_penalty"]):
+                and not (_PAST.search(norm) and facts["has_penalty"]) \
+                and not (facts["mode"] == "postgame" and facts["has_penalty"]):
             return "neutral"
         if _EN.search(norm) and not (facts["en"] or facts["has_pull"]):
             return "neutral"
