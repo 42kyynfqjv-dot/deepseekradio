@@ -206,6 +206,14 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                                   "text": "From the Half-Dome. " + _desk})
     except Exception as e:
         print(f"  (dome desk skipped: {e})")
+    try:  # world desk: one code-authored around-Wending wire line (gated)
+        from .world_consumers import news_world_line
+        _wl = news_world_line(f"{clock.air_now():%Y-%m-%d}")
+        if _wl:
+            lines.append({"speaker": "Frequency World", "voice": NEWS_VOICE,
+                          "text": "Around Wending. " + _wl})
+    except Exception as e:
+        print(f"  (world desk skipped: {e})")
     print("\n--- Frequency News ---")
     _emit(lines, "news", config, live)
     st["last_news"] = time.time()
@@ -250,11 +258,20 @@ def _tail_context(lines):
             if tail else "")
 
 
-def _mint_caller_line(used, seedkey: str, host_speaker: str) -> str:
+def _mint_caller_line(used, seedkey: str, host_speaker: str,
+                      identity=None) -> str:
     """The desk's next-caller assignment, CONTRAST-CAST: default the caller
     to the opposite gender of the host, so caller and host can never blur
-    into one voice through the telephone bandpass (the Maureen incident)."""
+    into one voice through the telephone bandpass (the Maureen incident).
+    A returning RESIDENT (census follow-up) pins her own name instead — her
+    voice is _spare_voice(name), deterministic, so she sounds like herself."""
     try:
+        if identity:
+            try:
+                used.add(identity)
+            except Exception:
+                pass
+            return f" If a NEW caller joins, their name is {identity}."
         from . import assignments as _adesk
         from .performers import _gender_of
         want = {"f": "m", "m": "f"}.get(_gender_of(host_speaker or ""))
@@ -365,8 +382,29 @@ def run_show(daypart, config, schedule, live: bool):
             "props": _adesk.prop_candidates(
                 state.get("recent_grounding", []), _arng),
         }
+        # --- CONTINUITY DESK (arcs+census) — gated, garnish-safe ---
+        if Path("data/arcs/ENABLED").exists():
+            from . import arcs as _arcs, census as _census
+            from . import continuity_desk as _cdesk
+            _cdate = f"{clock.air_now():%Y-%m-%d}"
+            _arc_beat = _arcs.next_beat_for_show(
+                _arcs.load(), _cdate, daypart["id"])
+            _follow = (_census.due_follow_ups(
+                _census.load(), _cdate, daypart["id"])[:1] or [None])[0]
+            daypart["_assign"]["arc_beat"] = _arc_beat
+            daypart["_assign"]["follow_up"] = _follow
+            daypart["_continuity_desk"] = _cdesk.canon_block(_arc_beat, _follow)
     except Exception as e:
         print(f"  (assignment desk skipped: {e})")
+    try:  # world spine: the morning show reads today's real cross-sim texture
+        if daypart.get("id") == "morning_scramble":
+            from .world_consumers import morning_block
+            _wb, _wb_allow = morning_block(f"{clock.air_now():%Y-%m-%d}")
+            if _wb:
+                daypart["_extra_context"] = (daypart.get("_extra_context", "")
+                                             + "\n\n" + _wb)
+    except Exception as e:
+        print(f"  (world block skipped: {e})")
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
     # short beat generates and airs so a cold start never goes quiet
     with ThreadPoolExecutor(max_workers=1) as wpool:
@@ -502,9 +540,16 @@ def run_show(daypart, config, schedule, live: bool):
     # prefetch: next beat's dialogue generates while current beat synthesizes
     with ThreadPoolExecutor(max_workers=1) as pool:
         call_st = None      # the switchboard: code owns who is on the line
+        _fu_id = None
+        try:
+            from . import continuity_desk as _cdesk0
+            _fu = (daypart.get("_assign") or {}).get("follow_up")
+            _fu_id = (_cdesk0.switchboard_identity(_fu) or [None])[0]
+        except Exception:
+            _fu_id = None
         daypart["_switchboard"] = _switch.prompt_line(call_st) + _mint_caller_line(
             used_names, f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:0",
-            _cast_meta(daypart, 0).get("speaker", ""))
+            _cast_meta(daypart, 0).get("speaker", ""), identity=_fu_id)
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines),
                           _tail_texts(opener_lines)) if beats else None
@@ -546,9 +591,24 @@ def run_show(daypart, config, schedule, live: bool):
                 _mint_caller_line(
                     used_names,
                     f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{i}",
-                    _cast_meta(daypart, 0).get("speaker", ""))
+                    _cast_meta(daypart, 0).get("speaker", ""),
+                    identity=_fu_id if call_st is None else None)
             _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
             lines, _wb = _cont.enforce(lines, handoff=_is_throw)
+            if daypart.get("_continuity_desk"):   # scoped canon guard (gated)
+                try:
+                    from . import canonguard as _cang, arcs as _arcs2, \
+                        census as _census2, continuity_desk as _cdesk2
+                    _cdk = daypart.get("_assign", {})
+                    _sc = _cdesk2.beat_scope(_cdk.get("arc_beat"),
+                                             _cdk.get("follow_up"), lines)
+                    if _sc["scope"] != "none":
+                        _cf = _cang.build_canon_facts(
+                            _arcs2.load(), _census2.load(),
+                            scope_ids=_sc["scope_ids"], scope=_sc["scope"])
+                        lines = _cang.enforce_canon(lines, _cf)
+                except Exception as e:
+                    print(f"  (canon guard skipped: {e})")
             daypart["_show_clock"] = _cont.show_clock_line(
                 _minutes_left(daypart, clock.air_now()))
             new_names = False
@@ -562,6 +622,24 @@ def run_show(daypart, config, schedule, live: bool):
             if new_names:  # persist across restarts, capped, day-scoped
                 st["callers_today"] = sorted(used_names)[-40:]
                 _sstate_save(st)
+            try:  # census: aired callers become residents of Halfway (gated)
+                if Path("data/arcs/ENABLED").exists():
+                    from . import census as _cen
+                    _cd = f"{clock.air_now():%Y-%m-%d}"
+                    civ = _cen.load()
+                    changed = False
+                    for ln in lines:
+                        spk = str(ln.get("speaker", "")).strip()
+                        if ln.get("phone") and spk:
+                            rec = civ.get("civilians", {}).get(
+                                _cen.new_id(spk, civ)) or _cen.mint(
+                                spk, _cd, daypart["id"], civ)
+                            _cen.record_appearance(rec, _cd, daypart["id"], "")
+                            changed = True
+                    if changed:
+                        _cen.save(civ)
+            except Exception as e:
+                print(f"  (census record skipped: {e})")
             if i + 1 < len(beats):
                 fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
                                   state, _context(i + 1, lines),
@@ -1200,6 +1278,12 @@ def main(argv=None):
             if Path("data/league/SHADOW").exists():
                 from .league.engine import shadow_tick
                 shadow_tick(f"{clock.air_now():%Y-%m-%d}")
+        except Exception:
+            pass
+        try:  # world spine: project today's cross-sim events onto the bus
+            from . import world as _world
+            if _world.on():
+                _world.tick(f"{clock.air_now():%Y-%m-%d}")
         except Exception:
             pass
         try:  # the statehouse simulates daily once bootstrapped — dark soak;

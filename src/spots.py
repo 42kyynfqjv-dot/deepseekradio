@@ -83,12 +83,16 @@ def _pick_sponsors(con, roster: list[tuple[str, str]], n: int) -> list[tuple[str
     return sorted(roster, key=_key)[:n]
 
 
-def _real_forecast() -> str:
-    """Real numbers from Open-Meteo (free, keyless) for the writer to twist."""
+def _real_forecast(coords: dict | None = None) -> str:
+    """Real numbers from Open-Meteo (free, keyless) for the writer to twist.
+    Defaults to Halfway's canon coordinates (world-spine §2) so Wesley, the
+    weather spots, and the world spine all report the SAME city's sky."""
+    from .world import HALFWAY_LATLON            # canon Halfway coord
+    c = coords or HALFWAY_LATLON
     try:
         r = requests.get(
             "https://api.open-meteo.com/v1/forecast",
-            params={"latitude": 40.71, "longitude": -74.01,
+            params={"latitude": c["lat"], "longitude": c["lon"],
                     "current": "temperature_2m,weather_code,wind_speed_10m",
                     "daily": "temperature_2m_max,temperature_2m_min,"
                              "precipitation_probability_max",

@@ -374,6 +374,34 @@ def surface(state: dict, show_id: str, date: str) -> dict | None:
     return None
 
 
+def next_beat_for_show(state: dict, date: str, show_id: str) -> dict | None:
+    """The continuity desk's frozen arc-beat shape (continuity_desk contract):
+    surface()'s {"arc","beat"} flattened into the prompt/guard fields. The
+    desk reads these keys tolerantly; canon = the durable facts aired so far
+    (this beat's own fact stays out until it airs — spoiler discipline)."""
+    hit = surface(state, show_id, date)
+    if hit is None:
+        return None
+    arc, b = hit["arc"], hit["beat"]
+    cast = _norm_cast(arc.get("cast"))
+    aired_facts = [x.get("fact") for x in arc.get("beats", [])
+                   if x.get("status") == "aired" and x.get("fact")]
+    try:
+        idx = arc["beats"].index(b)
+    except ValueError:
+        idx = arc.get("stage_idx", 0)
+    return {"arc_id": arc.get("id"), "title": arc.get("title", ""),
+            "bid": b.get("bid") or f"b{idx + 1}",
+            "stage": b.get("stage", ""), "day": b.get("due") or date,
+            "directive": b.get("directive", ""),
+            "canon": aired_facts,
+            "payoff": bool(b.get("stage") == "PAYOFF" or arc.get("force_payoff")),
+            "register": arc.get("register", "mundane"),
+            "cast_ids": list(cast.get("civilians", [])),
+            "cast_names": list(cast.get("canon", [])),
+            "names": [n for n in (arc.get("names") or []) if isinstance(n, str)]}
+
+
 def _prior_aired(arc: dict, beat: dict) -> bool:
     """Every beat before `beat` in the plan has aired (payoff anti-skip)."""
     for b in arc["beats"]:
