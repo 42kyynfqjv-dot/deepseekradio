@@ -153,6 +153,52 @@ def main():
     pairs = season.context_pairs(st["games"][day2])
     check("context pairs shape", all(len(p) == 2 for p in pairs))
 
+    # 8. season rollover is AIR-GATED: the reset may never run while the
+    # finale's narration hasn't reached listeners (the old spoiler bug)
+    day4 = "2026-07-15"
+    st = season._load()
+    st["league"]["mtl"]["gp"] = season.SEASON_GAMES - 1
+    g4 = dict(st["games"][today], date=day4, game_no=41, recorded=False,
+              home_key="mtl", away_key="nyg",
+              home=season._ALL["mtl"], away=season._ALL["nyg"])
+    for k in ("final", "ot", "so"):
+        g4.pop(k, None)
+    st["games"][day4] = g4
+    season._save(st)
+    livegame._air_at = lambda: time.time() + 3600   # finale narrated, unaired
+    engD = livegame.LiveGame(g4)
+    engD.finish_now()
+    engD.mark_final_narrated()
+    engD.close()
+    line4 = season.record_live(day4)
+    st = season._load()
+    check("finale sets rolled_pending", st.get("rolled_pending") is True)
+    check("finale lore announces season end", "season" in (line4 or ""))
+    season.tick(day4)
+    st = season._load()
+    check("rollover BLOCKED while finale unaired",
+          st["season"] == 1 and st["league"]["mtl"]["gp"] >= season.SEASON_GAMES)
+    livegame._air_at = real_air
+    # a later finale whose narration HAS aired releases the gate
+    day5 = "2026-07-16"
+    g5 = dict(g4, date=day5, game_no=42, recorded=False)
+    for k in ("final", "ot", "so"):
+        g5.pop(k, None)
+    st["games"][day5] = g5
+    season._save(st)
+    engE = livegame.LiveGame(g5)
+    engE.finish_now()
+    engE.close()
+    season.record_live(day5)
+    _air_out(day5)
+    time.sleep(0.02)
+    season.tick(day5)
+    st = season._load()
+    check("rollover executes once the finale aired", st["season"] == 2,
+          f"season={st['season']}")
+    check("standings zeroed after gated roll",
+          st["league"]["mtl"]["gp"] == 0 and not st.get("rolled_pending"))
+
     shutil.rmtree(tmp, ignore_errors=True)
 
 

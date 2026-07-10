@@ -305,16 +305,45 @@ def record_live(air_date: str) -> str | None:
                 lst.append({"player": e["player"],
                             "until": game["game_no"] + rng.randint(1, 3)})
     if any(st["league"][k]["gp"] >= SEASON_GAMES for k in TRACKED):
-        st["season"] += 1
-        st["game_no"] = 0
-        st["sim_through"] = ""
-        st["slates"] = {}
-        st["out"] = {}
-        st["league"] = {k: {"w": 0, "l": 0, "otl": 0, "streak": 0, "gp": 0}
-                        for k in _ALL}
-        line += f" — and that's the season; season {st['season']} starts next game"
+        # the RESET is air-gated in tick() (_maybe_rollover) — announcing the
+        # finale is narration and may air now; zeroing the league before the
+        # final horn reaches listeners is the spoiler this used to cause
+        st["rolled_pending"] = True
+        line += " — and that's the season; the offseason begins after tonight"
     _save(st)
     return line
+
+
+def _maybe_rollover(st: dict) -> bool:
+    """Execute a pending season reset ONLY once the finale's narration has
+    AIRED (final_air_at in the past) and the game is recorded — the league
+    can never zero itself under a broadcast listeners haven't heard yet.
+    The trigger (rolled_pending) is set in record_live; execution lives here."""
+    if not st.get("rolled_pending"):
+        return False
+    latest = max(st["games"]) if st["games"] else None
+    if latest:
+        g = st["games"][latest]
+        if not g.get("recorded"):
+            return False
+        try:
+            log = livegame.read_log(latest)
+        except ValueError:
+            log = None
+        if log and log.get("final") is not None:
+            at = log.get("final_air_at")
+            if at is None or time.time() < at:
+                return False
+    st["season"] += 1
+    st["game_no"] = 0
+    st["sim_through"] = ""
+    st["slates"] = {}
+    st["out"] = {}
+    st["rolled_pending"] = False
+    st["league"] = {k: {"w": 0, "l": 0, "otl": 0, "streak": 0, "gp": 0}
+                    for k in _ALL}
+    print(f"  season rollover -> season {st['season']} (air-gated)")
+    return True
 
 
 def _reconcile(today: str) -> None:
@@ -352,6 +381,8 @@ def tick(air_date: str) -> None:
     unrecorded games, republish the site data. Called every main-loop pass."""
     st = _load()
     _sim_through(st, air_date)
+    if _maybe_rollover(st):
+        _sim_through(st, air_date)   # the fresh season starts simming today
     _save(st)
     try:
         _reconcile(air_date)
