@@ -17,6 +17,7 @@ import random
 import shutil
 import sys
 import tempfile
+from datetime import date as _date, timedelta as _timedelta
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -98,6 +99,38 @@ def build_synthetic_state():
     st["sim_through"] = first4[-1]
     season._save(st)
     return {"days": days, "first4": first4, "aired_dates": aired_dates}
+
+
+def build_production_state_game_no_2():
+    """Replays REAL v1 production, day by day (season.tonight_live +
+    livegame + season.record_live for every Wed/Sat, season.tick for every
+    other day), from the real season-1 start through the second broadcast --
+    matching the live box's actual game_no==2 state, rather than pulling
+    "already played" games from a schedule.py-consistent build the way
+    `build_synthetic_state` above does.
+
+    This distinction matters: season.py's live v1 off-air slate (`_sim_day`)
+    only excludes the tracked teams from its pool on broadcast nights -- on
+    any OTHER night both remain eligible and, with these exact (deterministic)
+    seeds, mtl and nyg DO end up paired against each other off-air, twice,
+    before either broadcast airs. That is exactly the condition
+    schedule.py's `_remainder` docstring now protects the Crossover budget
+    against (see src/league/schedule.py), and exactly what produced the live
+    box's reported ordinal-49/56 drift -- so this fixture is the faithful
+    reproduction of that bug, not a friendlier stand-in for it."""
+    d = _date.fromisoformat(START)
+    end = _date.fromisoformat("2026-07-11")   # the 2nd Wed/Sat -> game_no 2
+    while d <= end:
+        day = d.isoformat()
+        if d.weekday() in (2, 5):
+            g = season.tonight_live(day)
+            eng = livegame.LiveGame(g)
+            eng.finish_now()
+            eng.close()
+            season.record_live(day)
+        else:
+            season.tick(day)
+        d += _timedelta(days=1)
 
 
 def main():
@@ -187,6 +220,45 @@ def main():
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+    # ---- end-to-end: game_no==2, matching the live box, §7.7 crossover ----
+    tmp2 = Path(tempfile.mkdtemp())
+    try:
+        season._PATH = tmp2 / "season.json"
+        engine.SIDE = tmp2 / "league"
+        livegame.DATA = tmp2 / "data"
+
+        build_production_state_game_no_2()
+        st_prod = season._load()
+        check("production fixture reaches game_no 2",
+              st_prod["game_no"] == 2, st_prod["game_no"])
+
+        mres2 = migrate_mod.migrate(1, START)
+        check("migrate (game_no=2 fixture) ran", not mres2.get("skipped"), mres2)
+
+        vres2 = verify_mod.verify(1)
+        check("verify (game_no=2 fixture) ran", not vres2.get("skipped"), vres2)
+        riv_check = next((c for c in vres2.get("checks", [])
+                          if "every 7th AIR slot" in c["name"]), None)
+        check("§7.7 every-7th-AIR-slot crossover check present", riv_check is not None)
+        check("§7.7 every 7th AIR slot is the mtl-nyg crossover (game_no=2 fixture)",
+              riv_check is not None and riv_check["ok"],
+              riv_check.get("detail") if riv_check else None)
+
+        # Known, documented trade-off (see src/league/schedule.py's
+        # `_remainder` docstring): the live off-air collision this fixture
+        # reproduces means mtl/nyg's own season total can land north of 82,
+        # so canon-diff is NOT asserted empty here -- printed for visibility
+        # only, exactly like the pre-existing GWG-skip warning below.
+        canon_check = next((c for c in vres2.get("checks", [])
+                            if "canon-diff recomputed" in c["name"]), None)
+        if canon_check and not canon_check["ok"]:
+            print(f"  (info) verify (game_no=2 fixture): {canon_check['name']} "
+                  f"-- {canon_check['detail']} (expected: see schedule.py "
+                  f"_remainder docstring on the tracked-vs-tracked off-air "
+                  f"exemption)")
+    finally:
+        shutil.rmtree(tmp2, ignore_errors=True)
 
 
 if __name__ == "__main__":

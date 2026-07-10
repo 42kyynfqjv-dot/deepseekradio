@@ -199,6 +199,62 @@ for season in SEEDS[:3]:
     all_82 = all(gp_played[k] + remaining_gp[k] == 82 for k in ALL_TEAMS)
     check(all_82, f"season {season} migration: gp_played + remainder == 82 for every team")
 
+# --- migration variant: crossover cadence continues at the right ordinal ----
+#
+# The live box hands migration a real 4-day-old season 1 (game_no already >0)
+# -- the remainder schedule's every-7th-AIR-ordinal Crossover placement must
+# continue counting from THAT ordinal, not restart at 1. Exercised at several
+# gp_played offsets (0/1/2/3 broadcasts already aired), each ALSO carrying one
+# incidental TRACKED-vs-TRACKED off-cadence pair in played_pairs -- season.py's
+# live v1 off-air slate (`_sim_day`) only excludes the tracked teams from its
+# pool on broadcast nights, so mtl/nyg can already have met off-air, by chance,
+# before migration ever runs (a real, reproducible occurrence, not a fabricated
+# edge case: this exact shape reproduces the live box's reported ordinal-49/56
+# drift). Every one of the 8 Crossover meetings must still land on an ordinal
+# ≡0 mod 7, counting every AIR broadcast the migrated schedule carries
+# (matching verify_league.py's §7.7 check byte-for-byte).
+
+for season in SEEDS[:3]:
+    m = schedule.build_matchups(season)
+    full_days = schedule.assign_days(m, season, START)
+    air_full = sorted(
+        (d, row) for d, rows in full_days.items() for row in rows
+        if len(row) > 2 and row[2] == "AIR")
+
+    for offset in (0, 1, 2, 3):
+        cutoff = air_full[offset - 1][0] if offset > 0 else None
+        played_pairs = []
+        gp_played = {k: 0 for k in ALL_TEAMS}
+        if cutoff is not None:
+            for d, rows in full_days.items():
+                if d <= cutoff:
+                    for row in rows:
+                        played_pairs.append((row[0], row[1]))
+                        gp_played[row[0]] += 1
+                        gp_played[row[1]] += 1
+        # the incidental off-cadence mtl-nyg meeting (see block comment above)
+        played_pairs.append((MTL, NYG))
+        gp_played[MTL] += 1
+        gp_played[NYG] += 1
+
+        remainder_days = schedule.assign_days(m, season, START,
+                                               gp_played=gp_played,
+                                               played_pairs=played_pairs)
+        air_rows = sorted(
+            (d, row) for d, rows in remainder_days.items() for row in rows
+            if len(row) > 2 and row[2] == "AIR")
+        bad = [(i, d, row) for i, (d, row) in enumerate(air_rows, start=1)
+               if i % schedule._RIVALRY_EVERY == 0
+               and {row[0], row[1]} != {MTL, NYG}]
+        check(not bad,
+              f"season {season} migration offset {offset}: every 7th AIR "
+              f"ordinal is the crossover (bad: {bad})")
+        n_riv = sum(1 for i, (d, row) in enumerate(air_rows, start=1)
+                    if {row[0], row[1]} == {MTL, NYG})
+        check(n_riv == 8,
+              f"season {season} migration offset {offset}: 8 crossover AIR "
+              f"nights in the migrated schedule (got {n_riv})")
+
 # --- calendar.py -------------------------------------------------------------
 
 check(calendar.day_index("2026-07-05", "2026-07-05") == 0, "day_index start==0")

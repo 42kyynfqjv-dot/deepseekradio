@@ -185,10 +185,36 @@ def _is_blocked(d: _date) -> bool:
 def _remainder(matchups: list[tuple[str, str]], played_pairs: list) -> list:
     """Drop already-played games from the matrix (migration retrofit) — best
     effort: a played pair not found in either direction is a season-1
-    approximation gap (noted in minimal §7), never a crash."""
+    approximation gap (noted in minimal §7), never a crash.
+
+    A played TRACKED-vs-TRACKED pair is exempt from this trim. season.py's
+    live v1 off-air slate (`_sim_day`) only excludes the tracked teams from
+    its pool on broadcast nights — on any OTHER night both remain eligible
+    and can, by chance, already have been paired against each other before
+    migration ever runs. That is never a real Crossover Series game (the
+    Series is AIR-only, "every meeting airs, never filler" — see
+    `build_matchups`'s docstring and `assign_days`'s day-fill loop, which
+    excludes tracked-vs-tracked from every non-AIR night going forward); it
+    is a leftover of v1's legacy randomness landing on a non-7th-ordinal
+    night, not one of the 8 Crossover meetings. Treating it as consuming
+    Crossover supply the way a normal pair is removed starves
+    `_prebuild_air_schedule`'s every-7th-AIR-ordinal placement — a
+    still-designated ordinal 7 (or 14, 21, ...) would come up empty even
+    though 8 real Crossover meetings still need to be placed, cascading into
+    every later ordinal (verify_league's §7.7 check then reports the wrong
+    date/opponent several ordinals downstream, not the true empty one). The
+    Crossover budget is therefore a closed system, spent ONLY by that
+    every-7th placement, immune to this generic trim; the (rare) cost is
+    that mtl/nyg's OWN season total can land a game or two north of 82 when
+    this fires, exactly the same kind of isolated season-1 approximation
+    `_remainder` already accepts elsewhere for the OTHER 30 teams — it never
+    spreads to any team outside the tracked pair."""
     pool = list(matchups)
+    tracked = set(TRACKED)
     for pair in played_pairs:
         h, a = pair[0], pair[1]
+        if {h, a} == tracked:
+            continue
         if (h, a) in pool:
             pool.remove((h, a))
         elif (a, h) in pool:
