@@ -24,6 +24,7 @@ import yaml
 
 from . import buffer, clock, lore
 from . import switchboard as _switch
+from . import continuity as _cont
 from .openrouter import METER
 from .performers import perform_beat, _persona
 from .writer import write_outline
@@ -469,6 +470,10 @@ def run_show(daypart, config, schedule, live: bool):
                 budget=3 * _pol if _pol else _switch.DEFAULT_BUDGET,
                 host=_cast_meta(daypart, 0))
             daypart["_switchboard"] = _switch.prompt_line(call_st)
+            _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
+            lines, _wb = _cont.enforce(lines, handoff=_is_throw)
+            daypart["_show_clock"] = _cont.show_clock_line(
+                _minutes_left(daypart, clock.air_now()))
             new_names = False
             for ln in lines:  # track caller names for the no-reuse blacklist
                 spk = str(ln.get("speaker", ""))
@@ -486,6 +491,8 @@ def run_show(daypart, config, schedule, live: bool):
                                   _tail_texts(lines))
             print(f"\n--- {beat.get('segment')} ---")
             _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
+            if _wb and live and not _is_throw:
+                _break_marker(daypart)   # a promised break is a KEPT break
             if lines:  # keep the tail fresh so any restart resumes mid-thought
                 _save_tail(daypart, lines)
             parts_since_break += 1
@@ -1010,6 +1017,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 dp = dict(daypart)
                 dp["_target_lines"] = bi["lines"]
                 dp["_switchboard"] = _switch.prompt_line(ci_call[0])
+                dp["_show_clock"] = _cont.show_clock_line(_air_left())
                 if bi.get("interview"):     # rink-side guests: no phone FX
                     dp["_no_phone"] = True
                 # sports register, not the mundane/anti-conspiracy guard that
@@ -1029,6 +1037,8 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 lines = enforce_names(lines, bi["facts"], extra_ok=pool_ok)
                 lines = tag_sfx(lines, bi["events"], bi["label"])  # arena sound
                 lines, ci_call[0] = _switch.enforce(lines, ci_call[0], host=pbp)
+                lines, _wb = _cont.enforce(lines,
+                                           handoff=(bi["label"] == "handoff"))
                 aired.extend(bi["events"])
                 if lines:
                     last_lines = lines
@@ -1048,6 +1058,8 @@ def run_center_ice(daypart, config, schedule, live: bool):
                     eng.mark_final_narrated()
                 if bi["brk"] and live:
                     _break_marker(daypart)
+                elif _wb and live:
+                    _break_marker(daypart)   # promised on air -> kept on air
                 bi = nxt
         completed = True
     finally:

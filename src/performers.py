@@ -183,6 +183,7 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 {register_line}
 {policy_line}
 {daypart.get('_switchboard') or ''}
+{daypart.get('_show_clock') or ''}
 - Call-in AND guest-interview segments are DUETS: the caller or guest carries
   at least 40 percent of the lines. The host asks short, sincere questions;
   the CALLER escalates, the host de-escalates. The host never invents
