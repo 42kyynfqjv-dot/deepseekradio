@@ -50,7 +50,7 @@ Everything hangs off pure functions with fixture tests; the orchestrator glue is
 |---|---|
 | Live air is sacred | No registry file ⇒ overlay is identity ⇒ schedule.yaml unchanged. Every deriver is exception-isolated (`try/except`, mirrors the statehouse tick); a throwing deriver drops its events, never the loop. New engines ship dark behind a per-event gate. |
 | Code owns facts; LLM authors | Every new fact surface feeds an existing guard or a new one built to the same contract. Center Ice → scoreguard/nameguard (unchanged). Election Night → a new **civicguard** whose fact source is `elections.reveal(el, cursor)` — the reveal clock IS the authority, exactly as the scoreboard is. |
-| Box fit | Overlay is a stdlib in-memory dict merge, memoized on `(date, registry-mtime, sidecar-mtimes)` — recomputed only on change, ~1 ms otherwise. Derivers read already-published sidecars (`playoffs-s{n}.json`, `calendar-ga{n}.json`, the cached weather feed); no new heavy work. Publisher uses atomic tmp+replace, mirroring `season.export`. |
+| Box fit | Overlay is a stdlib in-memory dict merge, memoized on `(date, registry-mtime, sidecar-mtimes, gate-mtimes)` — recomputed only on change, ~1 ms otherwise. Gate stats are in the key, so arming/clearing a gate re-resolves on the next pass. Derivers read already-published sidecars (`playoffs-s{n}.json`, `calendar-ga{n}.json`, the cached weather feed); no new heavy work. Publisher uses atomic tmp+replace, mirroring `season.export`. |
 | Canon / G-PG | Promo copy is curated per event in the register (same PG register as `STATIC_SWEEPERS`); LLM promo lines pass the same imaging brief. |
 | Design discipline | Concrete JSON schemas, module signatures, guard contracts, parallel pure-component build order with per-component tests, migration, risks — below. |
 
@@ -161,41 +161,37 @@ DERIVERS = {"playoff_nights": playoff_nights, ...}
 `data/league/playoffs-s{n}.json` (the bracket) via the shape `playoffs.py`
 persists. For each date in `[today, horizon]` it calls the *pure*
 `playoffs.schedule_series(copy(bracket), date, tracked)` against a **deep copy**
-(so it never advances the real `_last_played` ledger — that mutation belongs to
-the live tick, not a look-ahead), and emits a date for any slate row whose
-`{home, away}` intersects `tracked`. Meta = `{round, game, home, away, arena,
-series: [h_wins, a_wins]}`. Because `schedule_series` already pins tracked series
-to Wed/Sat with a ±1 slip, most emitted dates coincide with the static
-`center_ice` block (the overlay dedupes — see below); the *new* value is the slip
-nights (Tue/Thu/Fri/Sun) the weekday block can't cover, and elimination/Game-7
-nights that the promo system can name ("Game 7, this Thursday"). The bracket is
-the single source; no playoff schedule is stored in the registry.
+(never the real `_last_played` ledger — that mutation belongs to the live tick,
+not a look-ahead), emitting a date for any slate row whose `{home, away}`
+intersects `tracked`. Meta = `{round, game, home, away, arena, series: [h_wins,
+a_wins]}`. `schedule_series` already pins tracked series to Wed/Sat with a ±1
+slip, so most emitted dates coincide with the static `center_ice` block (the
+overlay dedupes — see below); the *new* value is the slip nights (Tue/Thu/Fri/Sun)
+and elimination/Game-7 nights the promo system can name. The bracket is the
+single source; no playoff schedule is stored in the registry.
 
 **2. Election Night (`election_nights`).** Reads `calendar-ga{n}.json`
 (`calendar.build_calendar`), returns `[{"date": cal["election"]["date"], "meta":
 {"cycle": cal["election"]["cycle"], "races": cal["election"]["races"]}}]` when
-`date_kind == "election"`. The literal `dates: ["2026-11-03"]` in the registry is
+`date_kind == "election"`. The literal `dates: ["2026-11-03"]` is
 belt-and-suspenders (fires even if the statehouse sidecar is missing); the deriver
-generalizes to every future cycle (`_election_day(year)`), so 2028, 2030 need no
+generalizes to every future cycle (`_election_day(year)`) — 2028, 2030 need no
 edit. Canvass day (election+1) can be a second, lower-priority derived event.
 
 **3. Draft day (`draft_day`) & 4. Trade deadline (`trade_deadline`).** Fixed
 offsets into the league calendar phase (`league.calendar.phase` → `offseason`
 draft window; a deadline date the economy calendar exposes). Both emit a single
-date with meta naming the tracked teams' picks/needs; both gate behind
-`ECON-ENABLED` (dark until Gate 2). These are the simplest derivers — a date plus
-a themed show fragment — and are the proof that "add an event = add a registry
-record + a ~10-line pure deriver," nothing more.
+date with meta naming the tracked teams' picks/needs, both gated behind
+`ECON-ENABLED` (dark until Gate 2) — the simplest derivers, proof that "add an
+event = add a registry record + a ~10-line pure deriver."
 
 **5. Blizzard mode (`blizzard_days`).** Reads the **same cached Open-Meteo feed**
 the statehouse snow-quorum uses (`calendar.is_snowfall(weather)`), returns
-`[{"date": today}]` when today is a snow day. **Uniquely same-day**: weather isn't
-known 4 days out, so `lead_days: 0` and no promo. This is the honest edge — the
-framework supports both look-ahead events (promotable) and reactive events
-(instant, un-promoted), and the registry field `promo.lead_days: 0` is how a
-record declares itself reactive. Blizzard also demonstrates a *soft* takeover: it
-rides an existing slot (Morning Scramble) with a different cast/energy rather than
-claiming a fresh window.
+`[{"date": today}]` on a snow day. **Uniquely same-day**: weather isn't known 4
+days out, so `lead_days: 0` and no promo — `promo.lead_days: 0` is how a record
+declares itself reactive vs. look-ahead. Blizzard also demonstrates a *soft*
+takeover: it rides an existing slot (Morning Scramble) with a different
+cast/energy rather than claiming a fresh window.
 
 ## From registry to daypart — solving "loaded once at startup"
 
@@ -210,8 +206,12 @@ def effective_schedule(base: dict, ctx) -> dict:
     'dayparts' list is [today's active event blocks] + base['dayparts'].
     Event blocks are date-gated and prepended, so they win their window on
     their date exactly as day-gated blocks win theirs (the existing rule).
-    Pure: same inputs -> identical output; safe to memoize on
-    (date, registry_mtime, sidecar_mtimes)."""
+    Pure: same inputs -> identical output; memoized on
+    (date, registry_mtime, sidecar_mtimes, gate_stats), where gate_stats is
+    ((path, st_mtime-or-None) for every gate named in the registry) — so
+    creating OR clearing a gate file changes the key and the overlay
+    re-resolves on the very next pass (arm/disarm within one pass, the same
+    instant-fallback guarantee the league engine has)."""
 
 def active_events(ctx) -> list[dict]:
     """Resolve every registry record against ctx.today: literal dates that
@@ -225,7 +225,9 @@ An **event block** is the record's `show` fragment plus
 `{"id", "engine", "window", "date": today, "_event": True, "_meta": meta}`. It is a
 normal daypart dict with one new key: `date`.
 
-`main()` changes by three lines — recompute inside the loop, memoized:
+`main()` changes in **two** places — both the top-of-loop selection **and** the
+wait-condition at the bottom must move off the base `schedule` onto the per-pass
+`eff`, or the wait loop busy-spins on event nights:
 
 ```python
 schedule = _load("schedule.yaml")          # base, still loaded once
@@ -234,10 +236,75 @@ while True:
     ctx = events.build_ctx(clock.air_now())         # cheap snapshot
     eff = events.effective_schedule(schedule, ctx)  # memoized ~1ms
     dp  = _current_daypart(eff, clock.air_now())
+    ...
+    run_show(dp, config, eff, live=args.live)   # eff, not schedule, so
+                                                # _next_daypart names events
+    ...
+    # wait until the buffer needs more, or the AIR daypart changes.
+    # The base schedule NEVER contains event blocks, so the old
+    #   while _current_daypart(schedule, ...) is dp and buffer...:
+    # is instantly False on an event night (dp came from eff, a different
+    # list) -> the loop never sleeps -> busy-loop on the 2-vCPU box.
+    # Fix: recompute eff each pass (memoized ~1ms) and compare by (id, date),
+    # not object identity.
+    while True:
+        eff = events.effective_schedule(schedule, events.build_ctx(clock.air_now()))
+        cur = _current_daypart(eff, clock.air_now())
+        if not (cur.get("id") == dp.get("id")
+                and cur.get("date") == dp.get("date")
+                and buffer.buffered_seconds()
+                    > config["generation"]["buffer_target_minutes"] * 60 * 0.5):
+            break
+        time.sleep(60)
 ```
 
-`_current_daypart` gains **one** backward-compatible clause: a block with a `date`
-key only matches when `date == now` (ISO). Blocks without `date` behave exactly as
+Comparing `(id, date)` is correct whether or not the memo hands back the same list
+object: inside one `(date, mtimes, gates)` key the ids match and the loop sleeps;
+when the date rolls or a registry/gate mtime changes, `eff` regenerates, `(id,
+date)` differs, and the loop exits to re-plan. For non-event dayparts both
+`date`s are `None`, collapsing to today's plain id match.
+
+`_current_daypart` gains **one** backward-compatible clause, and it must be
+**wrap-aware**. The naive rule "`date == today`" is a FATAL bug for a wrapping
+window: Election Night `date: 2026-11-03`, `window: ["19:00","01:00"]` would stop
+matching at 00:00 on 11-04 (`today` rolled to 11-04) and yank the broadcast an
+hour early. The rule instead is: **a wrapping window belongs to the date it
+STARTED on** — match `date == today` for the pre-midnight half, `date ==
+yesterday` for the post-midnight tail:
+
+```python
+from datetime import timedelta   # (already imported locally in _next_daypart)
+for dp in schedule["dayparts"]:
+    days = dp.get("days")
+    if days and now.strftime("%A") not in days:
+        continue
+    start = dtime.fromisoformat(dp["window"][0])
+    end   = dtime.fromisoformat(dp["window"][1])
+    d = dp.get("date")                        # NEW: event blocks only
+    if d is not None:
+        today = now.strftime("%Y-%m-%d")
+        if start <= end:                      # same-day window
+            if d != today:
+                continue
+        else:                                 # wraps past midnight
+            yest = (now.date() - timedelta(days=1)).isoformat()
+            pre  = now.time() >= start and d == today   # this evening
+            post = now.time() <  end   and d == yest    # the small hours
+            if not (pre or post):
+                continue
+    # ── window match below is UNCHANGED (start<=end vs. wrap branch) ──
+    if start <= end:
+        if start <= now.time() < end:
+            return dp
+    else:
+        if now.time() >= start or now.time() < end:
+            return dp
+```
+
+At 00:00 on 11-04 the block matches via `post` (`now < 01:00` **and**
+`2026-11-03 == yesterday`); at 19:30 on 11-03 via `pre`; at 01:30 on 11-04 both
+`pre` and `post` are false, so it has correctly signed off. Non-wrapping dated
+blocks still require `date == today`. Blocks without `date` behave exactly as
 today. Because event blocks are prepended and date-gated, on any date with no
 active event `eff` is `schedule` with nothing prepended → identical behavior. The
 `center_ice` weekday block still lives in `schedule.yaml` untouched; a playoff
@@ -298,27 +365,68 @@ existing `inWin` wrap logic). The **recurring** Wed/Sat Center Ice stays in
 `F.TAKEOVERS` as today (weekday-keyed) — the feed *adds* date-specific pre-empts;
 it doesn't replace the evergreen block.
 
-**schedule.js diff.** Add a `date`-aware branch to `activeTakeover`/`effective`
-(a takeover matches if `t.days?.includes(day)` **or** `t.date === todayISO`) and a
-tiny loader that fetches the feed and concatenates it into `TAKEOVERS`:
+**schedule.js diff.** Three functions read `t.days` (`activeTakeover`,
+`effective`'s per-takeover guard, and indirectly `currentShow`); on a date-keyed
+row `t.days` is `undefined` and `.indexOf`/`.map` **throws**, blanking the entire
+schedule. So every `t.days` access is guarded and gains the date branch via one
+helper. A takeover is live for `day` when
+`t.days ? t.days.indexOf(day)!==-1 : t.date === F.todayISO()`:
 
 ```js
-F.loadTakeovers = function (cb) {
+// station-time ISO date. NEVER new Date().toISOString(): that is UTC and, at
+// 19:00-23:59 ET, already reports TOMORROW — mis-gating Election Night. en-CA
+// renders YYYY-MM-DD; STATION_TZ matches parts()/stationDay() (the file's
+// other helpers), so this stays on station time like everything else here.
+F.todayISO = function () {
+  return new Intl.DateTimeFormat("en-CA", {timeZone: STATION_TZ,
+    year:"numeric", month:"2-digit", day:"2-digit"}).format(new Date());
+};
+function onDay(t, day){
+  return t.days ? t.days.indexOf(day) !== -1 : t.date === F.todayISO();
+}
+// activeTakeover:  if (onDay(t, day) && F.inWin(h, t)) return t;
+// effective guard: if (!onDay(t, day)) return;   // replaces t.days.indexOf===-1
+```
+
+`effective`'s splice already tolerates `end>24` wraps (its `segEnd`
+pre-midnight extent), so a `19-25` Election Night row splices like any other;
+only the `.days` guards needed the `onDay` swap. A tiny loader fetches the feed
+and concatenates date-keyed rows into `TAKEOVERS`, dropping past ones so a stale
+feed can't resurrect an event:
+
+```js
+F.loadTakeovers = function () {
   fetch("/data/takeovers.json", {cache:"no-store"}).then(r=>r.json())
    .then(j => { F.TAKEOVERS = F.TAKEOVERS.concat(
-       (j.takeovers||[]).filter(t => t.date >= todayISO())); render(); })
+       (j.takeovers||[]).filter(t => t.date >= F.todayISO())); render(); })
    .catch(()=>{});   // feed down -> evergreen lineup still renders
 };
 ```
 
-**Cache-bust convention (honest).** `takeovers.json` is served **no-store**,
-exactly like `now.json` and `league.json` already are (Caddy serves the JSON data
-uncached; only static assets get the 4h Cloudflare cache). So a *new event* needs
-**no `?v=N` bump** — it appears the moment the publisher writes the file. The
-`?v=N` on `<script src="/schedule.js?v=N">` is bumped **only** when the *code* in
-schedule.js changes (the one-time diff to add the `date` branch + loader) — after
-that, the mechanism is code-frozen and all future events are pure data. This is the
-key win: the website gains events without ever touching JS again.
+**index.html render fix.** The grid badge at `render()` does
+`s.days.map(d => d.slice(0,3)…)` — `undefined` on a date-keyed row →
+`TypeError` → blank schedule (the same failure, in the render layer). The badge
+branches on which key the row carries, showing the **date** for date-keyed
+events:
+
+```js
+const badge = !s._takeover ? "" : `<span style="${BADGE}">${
+    s.days ? s.days.map(d => d.slice(0,3).toUpperCase()).join(" · ")
+           : new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",
+               month:"short", day:"numeric"}).format(new Date(s.date+"T12:00"))
+             .toUpperCase()}</span>`;   // weekday row -> "WED · SAT"; dated -> "NOV 3"
+```
+
+(`+"T12:00"` parses the ISO date at local noon so the rendered month/day never
+slips across the viewer's timezone.)
+
+**Cache-bust convention (honest).** `takeovers.json` is served **no-store**, like
+`now.json`/`league.json` (Caddy serves JSON uncached; only static assets get the
+4h Cloudflare cache). A *new event* needs **no `?v=N` bump** — it appears the
+moment the publisher writes the file. `?v=N` on `schedule.js?v=N` bumps **only**
+when the *code* changes (this one-time diff) — after that the mechanism is
+code-frozen and all future events are pure data: the website gains events
+without ever touching JS again.
 
 ## Auto-promo through the sweeper system
 
@@ -349,6 +457,56 @@ same `chat()` call `make_imaging` uses can expand a curated line into two, passi
 the identical brief so tone/PG hold. The curated `copy` is always rendered so the
 promo pool is never empty even if the model is down (the `STATIC_SWEEPERS`
 discipline).
+
+**Idempotence.** `render_promos` runs every 30 min via the `last_spots` hook. Without
+a check it would re-render (re-synth, re-run ffmpeg) the **same** lines every pass —
+wasted CPU on the shared box, and a race against the player's `promo_*` glob mid-read.
+Idempotence keys on `(event_id, date, i)` — already in the
+`promo_{event_id}_{date}_{i}.wav` filename — tracked in `reserve/promos.json` itself
+(no separate sidecar):
+
+```python
+def render_promos(reserve, active, sidecar="promos.json"):
+    state = _load(reserve / sidecar)               # {"promos": []} if absent
+    done  = {(p["event_id"], p["date"], p["i"]) for p in state["promos"]}
+    for ev in _promotable(active, today):           # see cap, below
+        for i, tmpl in enumerate(ev["promo"]["copy"]):
+            key = (ev["id"], ev["date"], i)
+            if key in done:
+                continue                            # already rendered — skip, no re-synth
+            line = tmpl.format(**ev["meta"])        # meta AS CAPTURED THIS FIRST RENDER
+            # ...synth_segment + ffmpeg bed, write promo_{ev['id']}_{ev['date']}_{i}.wav...
+            state["promos"].append({"file": ..., "event_id": ev["id"], "date": ev["date"],
+                                     "i": i, "line": line, "expires": ev["date"]})
+    _atomic_write(reserve / sidecar, state)         # tmp+replace, mirrors season.export
+```
+
+A promo, once rendered, is **never** re-rendered or re-filled from a later pass's
+`meta`, even if the deriver's meta for that date changes underneath it (a bracket
+reseed, a corrected arena) — the first-rendered line is locked in, matching the
+brief's "aired facts are canon forever" rule. A wrong fact gets a new registry record
+(new `id`), never a silent re-synth.
+
+**Max-2-events cap.** Lead windows can overlap — a playoff slip night 4 days out and a
+trade-deadline show 6 days out both "in window" the same evening. Unbounded promotion
+would let `promo_*` outgrow `bumper_id_*` in the pool and uncap per-pass TTS cost.
+`_promotable(active, today)` filters to open-window events (same `priority` then `id`
+tie-break `active_events` already defines) and returns **at most the top 2**:
+
+```python
+def _promotable(active, today):
+    inwin = [e for e in active
+             if e["promo"]["lead_days"] > 0
+             and _date(e["date"]) - timedelta(days=e["promo"]["lead_days"]) <= today < _date(e["date"])]
+    inwin.sort(key=lambda e: (-e["priority"], e["id"]))
+    return inwin[:2]
+```
+
+A 3rd+ event in-window simply waits for a slot (a promoted event's date arrives, or a
+higher one expires). Idempotence means nothing already rendered is ever un-rendered
+when an event drops out of the top-2; it just stops gaining *new* lines. Pool size is
+bounded to at most `2 × len(copy)` event lines airing at once, regardless of how many
+events the registry ever schedules concurrently.
 
 ## Guard & continuity interactions
 
@@ -396,7 +554,7 @@ loop owns.
 | 2 | `events/derivers.py` — the five derivers + `DERIVERS` | yes | vs fixtures: bracket→tracked slip-night dates (deep-copy, ledger untouched); election deriver→2026-11-03 & 2028; blizzard→snow-day only; gate absent ⇒ no emit |
 | 3 | `events/overlay.py` — `active_events`, `effective_schedule` | yes | no active event ⇒ `eff == base`; event block prepended & date-gated; playoff Wed/Sat dedupes against static `center_ice`; priority breaks two-event window clash |
 | 4 | `events/feed.py` — `publish_takeovers` (atomic) | mostly | feed shape matches `TAKEOVERS` row (date-keyed); horizon filter; tmp+replace; missing web dir ⇒ silent no-op |
-| 5 | `events/promo.py` + `render_promos` | fn pure; render I/O | in-window selection; template fill from meta; `expires` sidecar; `lead_days:0` ⇒ no promo |
+| 5 | `events/promo.py` + `render_promos` | fn pure; render I/O | in-window selection; template fill from meta; `expires` sidecar; `lead_days:0` ⇒ no promo; idempotent — 2nd call on unchanged state renders nothing new; cap — 3 in-window events ⇒ only top-2 by priority promoted |
 | 5b | `src/schedule_js.test` (node, existing pattern) | — | date-branch `activeTakeover`/`effective`; feed concat; feed-down ⇒ evergreen renders |
 | 6 | orchestrator glue: `build_ctx`, in-loop `effective_schedule`, `_current_daypart` date clause, `ENGINES` table | glue | integration: Center Ice night byte-identical; a synthetic election-date pass selects `run_election_night` |
 | 7 | `run_election_night` + `enforce_civic` + `tests/test_civicguard.py` | engine | G3 self-guard: zero replacements over synthetic lines; reveal monotonicity honored |
@@ -413,22 +571,21 @@ Staged, each stage independently shippable and reversible:
 - **Stage 0 (no-op).** Land components 1–4 with **no** `registry.yaml` present.
   `effective_schedule` returns `base` unchanged; `active_events` is empty;
   `publish_takeovers` writes an empty feed; `schedule.js` concats nothing. The
-  station is provably unchanged. `center_ice` stays a weekday block in
-  `schedule.yaml`; dispatch still hits `run_center_ice` via the retained
+  station is provably unchanged; `center_ice` stays a weekday block in
+  `schedule.yaml`, dispatch still hits `run_center_ice` via the retained
   `id == "center_ice"` fallback.
-- **Stage 1 (site-only).** Ship the `registry.yaml` with `election_night` +
-  `playoff_night`, and publish `takeovers.json`, but **do not** wire the overlay
-  into `main()` yet. The website starts showing upcoming events (read-only, zero air
-  risk) while the on-air path is still 100% the old code. This is the "phase 1 =
-  read-only texture" pattern from the Track B brief applied here.
+- **Stage 1 (site-only).** Ship `registry.yaml` with `election_night` +
+  `playoff_night`, publish `takeovers.json`, but **do not** wire the overlay into
+  `main()` yet. The website shows upcoming events (read-only, zero air risk)
+  while the on-air path stays 100% the old code — the "phase 1 = read-only
+  texture" pattern from the Track B brief, applied here.
 - **Stage 2 (on-air, gated).** Wire `effective_schedule` into `main()` and the
-  `ENGINES` table. Playoff nights (which only differ from the static block on slip
-  dates) go live first — lowest risk, since a playoff Center Ice is the *same
-  engine* on a *different date*. Election Night stays behind
-  `ELECTION-ENABLED` (absent) so its engine never runs until soaked.
-- **Stage 3 (Election Night).** Arm `ELECTION-ENABLED` only after `run_election_night`
-  + `enforce_civic` pass the G3 self-guard CI and a shadow soak against a generated
-  2026 cycle (the statehouse already ticks dark). First live count: 2026-11-03.
+  `ENGINES` table. Playoff nights go live first — lowest risk, since a playoff
+  Center Ice is the *same engine* on a *different date*. Election Night stays
+  behind `ELECTION-ENABLED` (absent) so its engine never runs until soaked.
+- **Stage 3 (Election Night).** Arm `ELECTION-ENABLED` only after
+  `run_election_night` + `enforce_civic` pass the G3 self-guard CI and a shadow
+  soak against a generated 2026 cycle. First live count: 2026-11-03.
 
 At every stage, removing `registry.yaml` (or clearing a gate) instantly reverts to
 the evergreen station — the same instant-fallback guarantee the league engine has.
@@ -437,10 +594,12 @@ the evergreen station — the same instant-fallback guarantee the league engine 
 
 1. **Overlay in the hot loop.** *Risk:* recomputing the schedule every pass adds
    latency or, worse, a deriver exception kills the loop. *Mitigation:* memoize on
-   `(date, registry_mtime, sidecar_mtimes)` so steady-state is a dict lookup;
-   wrap the whole `build_ctx`/`effective_schedule` in `try/except` returning `base`
-   on any failure (identical to the `statehouse tick skipped` pattern). A broken
-   registry degrades to the evergreen station, never to silence.
+   `(date, registry_mtime, sidecar_mtimes, gate_mtimes)` so steady-state is a dict
+   lookup; gate mtimes are in the key so arming/clearing a gate re-resolves on the
+   very next pass instead of waiting out a stale memo. Wrap the whole
+   `build_ctx`/`effective_schedule` in `try/except` returning `base` on any failure
+   (identical to the `statehouse tick skipped` pattern). A broken registry degrades
+   to the evergreen station, never to silence.
 2. **Date vs weekday collision / double-booking.** *Risk:* a derived playoff date
    equals a static Wed/Sat and the game runs twice, or two events claim one window.
    *Mitigation:* overlay dedupes by `(engine, overlapping-window, date)` keeping the
@@ -476,4 +635,11 @@ the evergreen station — the same instant-fallback guarantee the league engine 
    names a cast/segment an engine doesn't expect. *Mitigation:* `registry.py`
    validates each record against a frozen field set at load; unknown `engine` ⇒ the
    event is dropped with a log line, never dispatched to a missing function.
+9. **Promo flood / re-synth churn.** *Risk:* the 30-min `render_promos` pass either
+   re-renders the same lines forever (wasted TTS cycles, files rewritten under the
+   player) or, with overlapping lead windows, floods `reserve/` and crowds out
+   `bumper_id_*` variety. *Mitigation:* rendering is idempotent, keyed on
+   `(event_id, date, i)` in `reserve/promos.json` — a line renders exactly once, meta
+   locked at first render (aired facts are canon forever); concurrent promotion caps
+   at the top 2 in-window events by `priority` then `id`.
 ```
