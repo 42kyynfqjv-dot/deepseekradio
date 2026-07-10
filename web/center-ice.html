@@ -45,6 +45,10 @@
   .around{font-family:var(--mono);font-size:.78rem;color:var(--dim)}
   .around div{padding:6px 0;border-bottom:1px solid var(--line)}
   .around b{color:var(--text)}
+  .around .scorers{margin-top:4px;font-size:.68rem;opacity:.72}
+  .asof{font-family:var(--mono);font-size:.7rem;color:var(--dim);letter-spacing:.12em;margin:-6px 0 14px}
+  .tm{font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;color:var(--dim);
+    border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:6px}
   footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:.7rem;
     letter-spacing:.15em;padding:40px 0 30px}
 
@@ -124,8 +128,16 @@
   <h2>The <em>Standings</em></h2>
   <div class="tables" id="tables"></div>
 
-  <h2>Around the <em>League</em></h2>
-  <div class="around" id="around"></div>
+  <div id="around-wrap" hidden>
+    <h2>Around the <em>League</em></h2>
+    <div class="asof" id="around-date"></div>
+    <div class="around" id="around"></div>
+  </div>
+
+  <div id="leaders-wrap" hidden>
+    <h2>League <em>Leaders</em></h2>
+    <div class="tables" id="leaders"></div>
+  </div>
 
   <footer>WFRQ · CENTER ICE · EVERY GAME IS FINAL, INCLUDING THE ONES THAT HAVEN'T HAPPENED</footer>
 </main>
@@ -177,15 +189,53 @@ function render(d){
     <table><tr><th>TEAM</th><th>GP</th><th>W</th><th>L</th><th>OTL</th><th>PTS</th></tr>
     ${rows.map(t=>`<tr${t.tracked?' class="us"':''}><td>${t.team}</td><td>${t.gp}</td><td>${t.w}</td><td>${t.l}</td><td>${t.otl}</td><td>${t.pts}</td></tr>`).join('')}
     </table></div>`).join('');
-  document.getElementById('around').innerHTML=(d.around||[]).map(g=>
-    `<div>${g.away} <b>${g.score[1]}</b> at ${g.home} <b>${g.score[0]}</b>${g.ot?' (OT)':''}</div>`
-  ).join('')||'<div>League resumes tonight.</div>';
+  const aroundWrap=document.getElementById('around-wrap');
+  if((d.around||[]).length){
+    aroundWrap.hidden=false;
+    document.getElementById('around-date').textContent=d.updated?('AS OF '+d.updated).toUpperCase():'';
+    document.getElementById('around').innerHTML=d.around.map(g=>{
+      const scorers=(g.scorers&&g.scorers.length)
+        ?`<div class="scorers">${g.scorers.join(' · ')}</div>`:'';
+      return `<div>${g.away} <b>${g.score[1]}</b>, ${g.home} <b>${g.score[0]}</b>${g.ot?' (OT)':''}${scorers}</div>`;
+    }).join('');
+  }else{
+    aroundWrap.hidden=true;
+  }
+  renderLeaders(d.leaders);
+}
+function leadRows(rows,cols){
+  return rows.map(r=>`<tr><td>${r.name}<span class="tm">${r.team}</span></td>${
+    cols.map(c=>`<td>${c(r)}</td>`).join('')}</tr>`).join('');
+}
+function renderLeaders(L){
+  const wrap=document.getElementById('leaders-wrap');
+  if(!L){ wrap.hidden=true; return; }
+  const boxes=[];
+  if(L.points&&L.points.length) boxes.push(`
+    <div class="divbox"><h3>POINTS</h3>
+    <table><tr><th>PLAYER</th><th>GP</th><th>G</th><th>A</th><th>PTS</th></tr>
+    ${leadRows(L.points.slice(0,5),[r=>r.gp,r=>r.g,r=>r.a,r=>r.p])}
+    </table></div>`);
+  if(L.goals&&L.goals.length) boxes.push(`
+    <div class="divbox"><h3>GOALS</h3>
+    <table><tr><th>PLAYER</th><th>GP</th><th>G</th></tr>
+    ${leadRows(L.goals.slice(0,5),[r=>r.gp,r=>r.g])}
+    </table></div>`);
+  const sv=L['sv%'];
+  if(sv&&sv.length) boxes.push(`
+    <div class="divbox"><h3>SV%</h3>
+    <table><tr><th>GOALIE</th><th>GP</th><th>SV%</th></tr>
+    ${leadRows(sv.slice(0,3),[r=>r.gp,r=>r['sv%'].toFixed(3).replace(/^0/,'')])}
+    </table></div>`);
+  if(boxes.length){ wrap.hidden=false; document.getElementById('leaders').innerHTML=boxes.join(''); }
+  else{ wrap.hidden=true; }
 }
 function load(){
   fetch('/data/league.json',{cache:'no-store'}).then(r=>r.json()).then(render)
     .catch(()=>{document.getElementById('tables').textContent='Season data loading — check back after tonight\'s slate.'});
 }
 load();
+setInterval(load,60_000);
 </script>
 
 <div class="mini" id="mini">
