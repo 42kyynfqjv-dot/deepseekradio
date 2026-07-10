@@ -133,6 +133,7 @@ counter, exit code).
 
 ## Trophy
 
-Shortlist for the owner (minimal §13): Halfway Cup · Long Winter Cup ·
-Thibodeau Trophy · Frequency Cup · **Boreal Lantern** (panel favorite — "a
-real weird league absolutely would").
+**DECIDED (owner, 2026-07-09): the championship trophy is THE BOREAL
+LANTERN.** Canon everywhere: the playoffs are "the run for the Lantern," the
+champion "lifts the Lantern." (Shortlist for the record: Halfway Cup, Long
+Winter Cup, Thibodeau Trophy, Frequency Cup, Boreal Lantern.)
