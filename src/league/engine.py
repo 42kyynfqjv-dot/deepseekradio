@@ -63,11 +63,17 @@ def save_side(name: str, obj: dict, root: Path | None = None) -> None:
 
 
 def sidecar_hash(season: int, root: Path | None = None) -> str:
-    """Hash over the core sidecars: VERIFIED must match or the gate stays shut."""
+    """Hash over the IMMUTABLE core: the schedule bytes and the player
+    identity table (pid/name/team/slot). Runtime-mutable state (out2,
+    call-ups) is deliberately excluded — the engine itself writes those, and
+    a gate that drifts shut on its own injuries guards nothing."""
     h = hashlib.sha256()
-    for tpl in _CORE:
-        p = _p(tpl.format(n=season), root)
-        h.update(p.read_bytes() if p.exists() else b"missing")
+    p = _p(f"schedule-s{season}.json", root)
+    h.update(p.read_bytes() if p.exists() else b"missing")
+    pl = load_side(f"players-s{season}.json", root)
+    ident = sorted((pid, v.get("name", ""), v.get("team", ""), v.get("slot", ""))
+                   for pid, v in (pl or {}).get("players", {}).items())
+    h.update(json.dumps(ident).encode())
     return h.hexdigest()
 
 
