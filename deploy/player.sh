@@ -41,8 +41,11 @@ show_of() {
 bed_for() {
   # music under dialogue only where music belongs: the ambient dawn hour.
   # talk shows air clean — beds under conversation read as noise, not polish.
+  # center ice gets the arena: a synthesized crowd wash ducked under the call
+  # (generate with: python -m src.sfx bed /opt/kaos/beds/crowd-center-ice.wav)
   case "$(basename "$1")" in
     *dawn-patrol*) ls "$BEDS/night"*.wav 2>/dev/null | shuf -n1 ;;
+    *center-ice*)  ls "$BEDS/crowd"*.wav 2>/dev/null | shuf -n1 ;;
     *) echo "" ;;
   esac
 }

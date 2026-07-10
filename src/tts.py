@@ -253,9 +253,11 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict,
         if text and re.search(r"[A-Za-z0-9]", text):
             spoken.append((ln.get("voice", cfg["tts"]["default_voice"]),
                            ln.get("speed", 1.0), ln.get("speaker"),
-                           bool(ln.get("phone")), text))
+                           bool(ln.get("phone")), text, ln))
     chunks = []
-    for i, (voice, speed, spk, phone, text) in enumerate(spoken):
+    spans = []          # (start_sample, end_sample, line) for arena SFX mixing
+    pos = 0
+    for i, (voice, speed, spk, phone, text, ln) in enumerate(spoken):
         try:
             samples, _ = kokoro.create(text, voice=voice,
                                        speed=speed * random.uniform(0.98, 1.03),
@@ -269,6 +271,9 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict,
         elif fx == "static_hour":
             samples = _voice_fx(samples, "shortwave", sr)
         samples = _fade(_level(samples), sr)
+        if ln.get("sfx"):
+            spans.append((pos, pos + len(samples), ln))
+        pos += len(samples)
         chunks.append(samples)
         # conversational rhythm: gap reflects the UPCOMING transition;
         # questions get answered quicker, and every few exchanges someone
@@ -284,13 +289,18 @@ def synth_segment(lines: list[dict], out_path: Path, cfg: dict,
             if text.rstrip().endswith("?"):
                 base = min(base, 0.35)
             gap = int(sr * random.uniform(base * 0.75, base * 1.3))
-            chunks.append(_room_tone(gap, sr))
+            tone = _room_tone(gap, sr)
+            pos += len(tone)
+            chunks.append(tone)
 
     if not chunks:
         # a segment with zero synthesized lines is a husk — never queue it
         print("  !! synthesis produced NOTHING for this segment — dropped")
         return None
     audio = np.concatenate(chunks)
+    if spans:                          # arena SFX under tagged lines (Center Ice)
+        from . import sfx as _sfx
+        audio = _sfx.mix_overlays(audio, spans, sr)
     audio = audio + _room_tone(len(audio), sr, db=-63.0)   # continuous floor
     # raised-cosine edges on the whole segment so joins never click
     edge = int(sr * 0.03)
