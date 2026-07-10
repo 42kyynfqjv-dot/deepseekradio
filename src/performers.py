@@ -482,6 +482,13 @@ _MALE_NAMES = frozenset((
 ).split())
 
 
+# the assignment desk's caller banks are gendered by construction — one truth
+# shared with the voice pin, so a desk-assigned caller can never mis-voice
+from .assignments import CALLERS_F as _DESK_F, CALLERS_M as _DESK_M
+_FEMALE_NAMES = frozenset(_FEMALE_NAMES) | {n.lower() for n in _DESK_F}
+_MALE_NAMES = frozenset(_MALE_NAMES) | {n.lower() for n in _DESK_M}
+
+
 def _gender_of(speaker: str):
     """'f'/'m' from the first recognizable given name in the label, else None."""
     for tok in re.findall(r"[a-z]+", speaker.lower()):

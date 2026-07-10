@@ -46,10 +46,20 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                               "studio for the full show and never leave.",
                 "cameo": "Weave them into 2-3 beats."}[role if role in
                                                        ("host", "persistent") else "cameo"]
-    guest_line = (("This show features a GUEST. Choose one from the GUEST POOL below "
-                   f"(not already in {lore_state.get('guests_seen', [])[-6:]}), name them "
-                   f"exactly as the pool does. {role_txt}\n\nGUEST POOL:\n" + guest_pool)
-                  if wants_guest else "No guest today.")
+    assigned = daypart.get("_assign") or {}
+    if wants_guest and assigned.get("guest"):
+        guest_line = (f"This show's GUEST is ASSIGNED by the desk: "
+                      f"{assigned['guest']} — name them exactly as the pool "
+                      f"does; do not choose another. {role_txt}\n\n"
+                      "GUEST POOL:\n" + guest_pool)
+    elif wants_guest:
+        guest_line = ("This show features a GUEST. Choose one from the GUEST "
+                      f"POOL below (not already in "
+                      f"{lore_state.get('guests_seen', [])[-6:]}), name them "
+                      f"exactly as the pool does. {role_txt}\n\nGUEST POOL:\n"
+                      + guest_pool)
+    else:
+        guest_line = "No guest today."
 
     lo, hi = daypart.get("outline_beats", [12, 16])
     seg_count = len(daypart.get("segments", []))
@@ -61,10 +71,19 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                 'The show has ALREADY been on air for a while: do NOT include any '
                 'self-identification or show-open beat — the first beat continues '
                 'mid-flow straight into a segment.')
-    sponsor_txt = ("" if daypart.get("sponsor") == "none" else
-                   " Put one or two SPONSOR-READ beats (a host reads a short ad "
-                   "for a recurring bible sponsor, in their own voice, slightly "
-                   "annoyed about it) in the FIRST HALF of the outline.")
+    if daypart.get("sponsor") == "none":
+        sponsor_txt = ""
+    elif assigned.get("sponsor"):
+        sponsor_txt = (f" Put ONE sponsor-read beat in the first half: the "
+                       f"host reads a short ad for {assigned['sponsor'][0]} "
+                       f"— {assigned['sponsor'][1]} — in their own voice, "
+                       "slightly annoyed about it. No other sponsor gets a "
+                       "host read this show.")
+    else:
+        sponsor_txt = (" Put one or two SPONSOR-READ beats (a host reads a "
+                       "short ad for a recurring bible sponsor, in their own "
+                       "voice, slightly annoyed about it) in the FIRST HALF "
+                       "of the outline.")
     fresh_txt = (" then add fresh angles on them." if hi > seg_count + 2 else ".")
     beat_shape = (f"Write {lo}-{hi} beats total: cover each recurring segment at "
                   f"least once,{fresh_txt} {open_txt}{sponsor_txt} Soft segment "
@@ -99,6 +118,9 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                      "descending/widening from there.\n")
     pacing = daypart.get("pacing")
     pacing_line = f"\nPACING (hard rule for this show): {pacing}\n" if pacing else ""
+    from .assignments import writer_block
+    assign_block = writer_block(None, None, assigned.get("callback"),
+                                assigned.get("props") or [])
     extra = daypart.get("_extra_context")
     extra_line = f"\nREAL-WORLD GROUNDING (use it, keep numbers roughly right):\n{extra}\n" if extra else ""
     user = f"""Write the outline for this show. Today is {weekday}.{extra_line}
@@ -126,6 +148,8 @@ Per beat also supply:
   declared solo register, a rating defense, a guest performing their craft).
 
 {guest_line}
+
+{assign_block}
 
 STATION LORE (call back to these where natural):
 {lore.digest(lore_state)}

@@ -296,6 +296,24 @@ def run_show(daypart, config, schedule, live: bool):
                 "roughly right; the delivery is all his): " + _real_forecast())
         except Exception:
             pass
+    try:  # the assignment desk: code picks guest/sponsor/callback/props —
+        # the writer authors around assignments instead of operating choices
+        from . import assignments as _adesk
+        from .spots import _roster as _sroster
+        _arng = random.Random(f"assign:{clock.air_now():%Y-%m-%d}:{daypart['id']}")
+        _bible = Path("station/bible.md").read_text()
+        _gp = Path("personas/guests.md")
+        _ros = _sroster(_bible)
+        daypart["_assign"] = {
+            "guest": _adesk.pick_guest(_gp.read_text() if _gp.exists() else "",
+                                       state.get("guests_seen", []), _arng),
+            "sponsor": _arng.choice(_ros) if _ros else None,
+            "callback": _adesk.pick_callback(state, _arng),
+            "props": _adesk.prop_candidates(
+                state.get("recent_grounding", []), _arng),
+        }
+    except Exception as e:
+        print(f"  (assignment desk skipped: {e})")
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
     # short beat generates and airs so a cold start never goes quiet
     with ThreadPoolExecutor(max_workers=1) as wpool:
@@ -470,6 +488,15 @@ def run_show(daypart, config, schedule, live: bool):
                 budget=3 * _pol if _pol else _switch.DEFAULT_BUDGET,
                 host=_cast_meta(daypart, 0))
             daypart["_switchboard"] = _switch.prompt_line(call_st)
+            try:  # the desk mints the next caller: name+voice deterministic
+                from . import assignments as _adesk
+                _nm = _adesk.next_caller(
+                    used_names, random.Random(
+                        f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{i}"))
+                daypart["_switchboard"] += (f" If a NEW caller joins, their "
+                                            f"name is {_nm}.")
+            except Exception:
+                pass
             _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
             lines, _wb = _cont.enforce(lines, handoff=_is_throw)
             daypart["_show_clock"] = _cont.show_clock_line(
@@ -1010,6 +1037,7 @@ def run_center_ice(daypart, config, schedule, live: bool):
     # --- driver: roll on this thread, write dialogue in the pool, guard, emit
     last_lines: list = []
     ci_call = [None]        # switchboard state for the call-in beats
+    ci_used: set = set()    # desk-minted caller names used this broadcast
     completed = False
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
@@ -1017,6 +1045,15 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 dp = dict(daypart)
                 dp["_target_lines"] = bi["lines"]
                 dp["_switchboard"] = _switch.prompt_line(ci_call[0])
+                try:
+                    from . import assignments as _adesk
+                    _nm = _adesk.next_caller(ci_used, random.Random(
+                        f"cic:{date}:{bi['label']}:{len(ci_used)}"))
+                    ci_used.add(_nm)
+                    dp["_switchboard"] += (f" If a NEW caller joins, their "
+                                           f"name is {_nm}.")
+                except Exception:
+                    pass
                 dp["_show_clock"] = _cont.show_clock_line(_air_left())
                 if bi.get("interview"):     # rink-side guests: no phone FX
                     dp["_no_phone"] = True
