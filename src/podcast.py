@@ -354,9 +354,11 @@ def write_rss(feed: str, state: dict) -> None:
   <atom:link href="{SITE}/podcasts/{feed}/feed.xml" rel="self" type="application/rss+xml"/>
   <itunes:author>The Frequency</itunes:author>
   <itunes:explicit>false</itunes:explicit>
-  <itunes:image href="{SITE}/podcasts/art/{feed}.png"/>
+  <itunes:type>episodic</itunes:type>
+  <itunes:image href="{SITE}/podcasts/art/{feed}.png?v=2"/>
   <itunes:category text="{_sx.escape(f['category'])}"/>
-  <itunes:owner><itunes:name>The Frequency</itunes:name></itunes:owner>
+  <itunes:owner><itunes:name>The Frequency</itunes:name>
+   <itunes:email>tzvishoop@protonmail.com</itunes:email></itunes:owner>
 {chr(10).join(items)}
  </channel>
 </rss>
@@ -417,6 +419,8 @@ def main() -> None:
         shutil.rmtree(STAGE / feed / bday, ignore_errors=True)
         print(f"  podcast: published {feed} {bday} "
               f"({_dur_hms(secs)}, {size // 1024 // 1024}MB)")
+    for feed in FEEDS:      # a feed with no episodes yet is still a VALID
+        write_rss(feed, state)   # feed — directories fetch it, never a 404
     _save_state(state)
 
 
