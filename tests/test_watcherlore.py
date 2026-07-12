@@ -100,5 +100,29 @@ with tempfile.TemporaryDirectory() as td:
     finally:
         os.chdir(prev)
 
+
+# --- the theory clock: one descent per hour, restart-proof ------------------
+with tempfile.TemporaryDirectory() as td2:
+    os.chdir(td2)
+    try:
+        T0 = 1_000_000.0
+        cont, n = W.current_theory("2026-07-12", T0)
+        check(cont is None and n == 1, "fresh night starts at t1")
+        W.begin_theory("2026-07-12", 1, "the streetlights blink in a pattern",
+                       T0)
+        cont, n = W.current_theory("2026-07-12", T0 + 30 * 60)
+        check(cont == "the streetlights blink in a pattern" and n == 1,
+              "re-entry inside the hour continues the SAME theory")
+        cont, n = W.current_theory("2026-07-12", T0 + 61 * 60)
+        check(cont is None and n == 2, "past the hour a fresh theory begins")
+        W.begin_theory("2026-07-12", 2, "the lids click three times", T0 + 61 * 60)
+        cont, n = W.current_theory("2026-07-13", T0 + 62 * 60)
+        check(cont is None and n == 1, "a new broadcast day resets to t1")
+        check(W.theory_subject("2026-07-12", 2) == "the lids click three times",
+              "ledger answers the podcast title lookup")
+        check(W.theory_subject("2026-07-12", 9) is None, "unknown file is None")
+    finally:
+        os.chdir(prev)
+
 print(f"watcherlore {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

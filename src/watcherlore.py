@@ -149,3 +149,54 @@ def harvest(lines: list, state: dict, date: str) -> int:
                   reverse=True)
         del ents[BANK_CAP:]
     return new
+
+
+# --- the theory clock: one descent per hour, restart-proof -------------------
+# A rabbit hole must OWN its hour (owner call): re-entering the show inside
+# THEORY_MIN minutes of the current theory's start — buffer refill or service
+# restart alike — CONTINUES the same descent (write_outline's continue_theory
+# arg); past the hour, a fresh theory begins and the ledger stamps it. The
+# ledger doubles as the podcast cutter's episode boundary and title source:
+# one theory = one episode.
+THEORY_MIN = 60
+THEORIES = Path("data/watcher/theories.json")
+
+
+def _tload() -> list:
+    try:
+        return json.loads(THEORIES.read_text())
+    except Exception:
+        return []
+
+
+def current_theory(date: str, now: float) -> tuple:
+    """(subject_to_continue | None, ordinal_for_tonight). The ordinal names
+    the episode (t1, t2, ...) whether we continue or begin."""
+    led = _tload()
+    tonight = [e for e in led if e.get("date") == date]
+    if tonight:
+        last = tonight[-1]
+        if now - last.get("started", 0) < THEORY_MIN * 60:
+            return last.get("subject") or None, last.get("n", 1)
+        return None, last.get("n", 1) + 1
+    return None, 1
+
+
+def begin_theory(date: str, n: int, subject: str, now: float) -> None:
+    led = _tload()
+    led.append({"date": date, "n": n, "subject": subject[:90],
+                "started": now})
+    del led[:-80]
+    THEORIES.parent.mkdir(parents=True, exist_ok=True)
+    tmp = THEORIES.with_suffix(f".tmp.{os.getpid()}")
+    tmp.write_text(json.dumps(led, indent=1))
+    tmp.replace(THEORIES)
+
+
+def theory_subject(date: str, n: int) -> str | None:
+    """The ledger's subject for episode (date, n) — the podcast titles from
+    this; None if the ledger never saw it."""
+    for e in reversed(_tload()):
+        if e.get("date") == date and e.get("n") == n:
+            return e.get("subject") or None
+    return None

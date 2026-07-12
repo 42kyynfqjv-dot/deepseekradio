@@ -221,6 +221,37 @@ with tempfile.TemporaryDirectory() as td:
         check(not (P.WORK / "dream-court-2026-07-08.mp3").exists(),
               "local copy removed after upload")
 
+        # per-theory split: one Static Hour episode per theory
+        import json as _json
+        from src import watcherlore as WL
+        WL.THEORIES = Path("theories.json")
+        Path("theories.json").write_text(_json.dumps([
+            {"date": "2026-07-08", "n": 1,
+             "subject": "the streetlights blink in a pattern",
+             "started": 1.0}]))
+        wav("000000080_static-hour-t1-the-flicker-ledger.wav",
+            ts("2026-07-09 01:10"))
+        wav("000000081_static-hour-t1-deeper.wav", ts("2026-07-09 01:40"))
+        wav("000000083_static-hour-t2-the-lid-clicks.wav",
+            ts("2026-07-09 02:20"))
+        st5 = P._load_state()
+        P.harvest(st5)
+        P._save_state(st5)
+        P.main()
+        st5 = P._load_state()
+        eps = st5["published"]["static-hour"]
+        check("2026-07-08-t1" in eps and "2026-07-08-t2" in eps,
+              f"one episode per theory (got {sorted(eps)})")
+        check("streetlights blink" in eps["2026-07-08-t1"]["title"]
+              and eps["2026-07-08-t1"]["title"].startswith("The Static Hour:"),
+              f"episode titled from the ledger "
+              f"(got {eps['2026-07-08-t1']['title']!r})")
+        check("File No. 2" in eps["2026-07-08-t2"]["title"],
+              "unledgered theory falls back to a file number")
+        cl_t1 = CONCATS["static-hour-2026-07-08-t1.mp3"]
+        check("t1-the-flicker" in cl_t1 and "t2-" not in cl_t1,
+              "theories never share an episode")
+
         # retention (local mode): oldest beyond LOCAL_KEEP dropped
         P.ENV = Path("no-such.env")
         st4 = {"published": {"static-hour": {}}}

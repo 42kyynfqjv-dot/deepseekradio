@@ -85,11 +85,14 @@ FEEDS = {
     },
     "static-hour": {
         "title": "The Static Hour",
-        "desc": "One night, one rabbit hole. The Watcher connects the "
+        "desc": "One theory, one descent. The Watcher connects the "
                 "toasters to the crosswalk buttons to the geese while "
-                "the town sleeps. The Numbers punctuate the descent.",
+                "the town sleeps. The Numbers punctuate the dark.",
         "match": lambda label: label.startswith("static-hour-"),
         "category": "Comedy",
+        # one episode per THEORY, not per night: emit labels carry the
+        # theory ordinal (-tN-) and each ordinal cuts separately
+        "split": True,
     },
 }
 
@@ -152,10 +155,14 @@ def harvest(state: dict) -> int:
         feed = _feed_of(m.group(2))
         if not feed:
             continue
-        bday = _bday(p.stat().st_mtime)
-        if bday in state["published"].get(feed, {}):
+        key = _bday(p.stat().st_mtime)
+        if FEEDS[feed].get("split"):
+            mt = re.search(r"-t(\d+)-", m.group(2))
+            if mt:                      # one episode per theory
+                key = f"{key}-t{mt.group(1)}"
+        if key in state["published"].get(feed, {}):
             continue                    # a late straggler after the cut
-        dst = STAGE / feed / bday / p.name
+        dst = STAGE / feed / key / p.name
         if dst.exists():
             continue
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -219,7 +226,19 @@ def _with_bridges(files: list, feed: str, bday: str) -> list:
 
 
 def _episode_title(feed: str, bday: str) -> str:
-    nice = datetime.fromisoformat(bday).strftime("%A, %B %-d, %Y")
+    date_part, _, tpart = bday.partition("-t")
+    nice = datetime.fromisoformat(date_part).strftime("%A, %B %-d, %Y")
+    if feed == "static-hour" and tpart:
+        subj = None
+        try:  # the theory ledger names the descent
+            from . import watcherlore as _wl
+            subj = _wl.theory_subject(date_part, int(tpart))
+        except Exception:
+            pass
+        if subj:
+            s = subj.strip()
+            return f"The Static Hour: {s[0].upper()}{s[1:70]} — {nice}"
+        return f"The Static Hour — {nice} · File No. {tpart}"
     if feed == "center-ice":
         try:  # name the matchup (never the score — no spoilers in a title)
             sb = json.loads(SCOREBOARD.read_text())

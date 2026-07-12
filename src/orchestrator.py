@@ -400,6 +400,26 @@ def run_show(daypart, config, schedule, live: bool):
     print(f"\n{'='*70}\n  {daypart['show']}  ({daypart['window'][0]}-{daypart['window'][1]})"
           f"  —  {weekday}\n{'='*70}")
 
+    # the Watcher's theory clock: one descent per hour, code-enforced. A
+    # re-entry inside the hour (buffer refill OR restart) CONTINUES the
+    # same theory; the ordinal rides every emit label (-tN-) so the podcast
+    # cutter can cut one episode per theory.
+    _theory_cont, _theory_n = None, None
+    if daypart.get("id") == "static_hour":
+        try:
+            from . import watcherlore as _wl0
+            _anow = clock.air_now()
+            _bd = (_anow - __import__("datetime").timedelta(days=1)
+                   if _anow.hour < 5 else _anow).strftime("%Y-%m-%d")
+            _theory_cont, _theory_n = _wl0.current_theory(_bd, time.time())
+            if _theory_cont:
+                print(f"  (theory clock: continuing t{_theory_n} — "
+                      f"{_theory_cont[:50]!r})")
+        except Exception as e:
+            print(f"  (theory clock skipped: {e})")
+    _lbl = (f"{daypart['id']}-t{_theory_n}" if _theory_n
+            else daypart["id"])
+
     # quick open — UNLESS this show aired within the last 15 min (a restart),
     # in which case resume mid-thought from the persisted tail: no opener loop
     opener_lines = []
@@ -437,7 +457,7 @@ def run_show(daypart, config, schedule, live: bool):
             opener_lines = perform_beat(opener, daypart, models, state, "")
             from .nameguard import enforce_world as _ew
             opener_lines = _ew(opener_lines)
-            _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
+            _emit(opener_lines, f"{_lbl}-open", config, live, fx=fx)
             _save_tail(daypart, opener_lines)
         except Exception as e:
             print(f"  (opener skipped: {e})")
@@ -515,7 +535,7 @@ def run_show(daypart, config, schedule, live: bool):
     # short beat generates and airs so a cold start never goes quiet
     with ThreadPoolExecutor(max_workers=1) as wpool:
         outline_fut = wpool.submit(write_outline, daypart, models, state,
-                                   weekday, first_of_window)
+                                   weekday, first_of_window, _theory_cont)
         try:
             daypart["_target_lines"] = 10
             bridge = {"segment": "Bridge",
@@ -528,7 +548,7 @@ def run_show(daypart, config, schedule, live: bool):
             _emit(perform_beat(bridge, daypart, models, state,
                                _tail_context(opener_lines),
                                avoid_lines=[l.get("text", "") for l in opener_lines]),
-                  f"{daypart['id']}-bridge", config, live, fx=fx)
+                  f"{_lbl}-bridge", config, live, fx=fx)
         except Exception as e:
             print(f"  (bridge skipped: {e})")
         outline = outline_fut.result()
@@ -539,6 +559,16 @@ def run_show(daypart, config, schedule, live: bool):
     # drop structurally banned beats — the prompt ban demonstrably fails at temp 0.9
     outline["beats"] = [b for b in outline.get("beats", [])
                         if not _BANNED_SEGMENT.search(str(b.get("segment", "")))]
+    if _theory_n and not _theory_cont and outline.get("beats"):
+        try:  # a fresh descent begins: stamp the ledger with its subject
+            from . import watcherlore as _wl1
+            b0 = outline["beats"][0]
+            _subj = str(b0.get("premise") or b0.get("segment") or
+                        "tonight's theory").strip()
+            _wl1.begin_theory(_bd, _theory_n, _subj, time.time())
+            print(f"  (theory clock: t{_theory_n} opened — {_subj[:50]!r})")
+        except Exception as e:
+            print(f"  (theory ledger skipped: {e})")
     # persist premises AND grounding props IMMEDIATELY so anti-repetition
     # (including the worn-out-subject ban) survives restarts
     lore.remember(state,
@@ -687,7 +717,7 @@ def run_show(daypart, config, schedule, live: bool):
                 lines = perform_beat(_throw_beat(daypart, nxt), daypart,
                                      models, state, _context(i, prev),
                                      _tail_texts(prev))
-                _emit(lines, f"{daypart['id']}-handoff", config, live, fx=fx)
+                _emit(lines, f"{_lbl}-handoff", config, live, fx=fx)
                 # the sign-off is TERMINAL: mark the window handed off so the main
                 # loop won't re-invoke this show and ramble past the goodbye. The
                 # next show's first audio triggers the station bumper on show-change.
@@ -789,7 +819,7 @@ def run_show(daypart, config, schedule, live: bool):
                                   state, _context(i + 1, lines),
                                   _tail_texts(lines))
             print(f"\n--- {beat.get('segment')} ---")
-            _emit(lines, f"{daypart['id']}-{beat.get('segment', 'seg')}", config, live, fx=fx)
+            _emit(lines, f"{_lbl}-{beat.get('segment', 'seg')}", config, live, fx=fx)
             if _wb and live and not _is_throw:
                 _break_marker(daypart)   # a promised break is a KEPT break
             if lines:  # keep the tail fresh so any restart resumes mid-thought
@@ -817,7 +847,7 @@ def run_show(daypart, config, schedule, live: bool):
                     tl = perform_beat(throw, daypart, models, state,
                                       _context(i + 1, lines) if i + 1 < len(beats)
                                       else "", _tail_texts(lines))
-                    _emit(tl, f"{daypart['id']}-adthrow", config, live, fx=fx)
+                    _emit(tl, f"{_lbl}-adthrow", config, live, fx=fx)
                     daypart["_target_lines"] = target
                     if live:
                         _break_marker(daypart)
