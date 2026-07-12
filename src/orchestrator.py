@@ -660,6 +660,15 @@ def run_show(daypart, config, schedule, live: bool):
             _cast_meta(daypart, 0).get("speaker", ""), identity=_fu_id)
         numbers_pending = _numbers_own(daypart)
         _numbers_note(daypart, numbers_pending)
+        _wcanon = None
+        if daypart.get("id") == "static_hour":
+            try:  # his private corkboard: recurring files, quarantined
+                from . import watcherlore as _wl
+                _wcanon = _wl.load()
+                daypart["_watcher_canon"] = _wl.prompt_block(
+                    _wcanon, f"{clock.air_now():%Y-%m-%d}")
+            except Exception as e:
+                print(f"  (watcher canon skipped: {e})")
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines),
                           _tail_texts(opener_lines)) if beats else None
@@ -722,6 +731,14 @@ def run_show(daypart, config, schedule, live: bool):
                     _sstate_save(_ns)
                 numbers_pending = _numbers_own(daypart)
                 _numbers_note(daypart, numbers_pending)   # for the NEXT beat
+                if _wcanon is not None:
+                    try:  # canonize tonight's inventions, bump resurfaced files
+                        from . import watcherlore as _wl
+                        _wl.harvest(lines, _wcanon,
+                                    f"{clock.air_now():%Y-%m-%d}")
+                        _wl.save(_wcanon)
+                    except Exception as e:
+                        print(f"  (watcher canon skipped: {e})")
             if daypart.get("_continuity_desk"):   # scoped canon guard (gated)
                 try:
                     from . import canonguard as _cang, arcs as _arcs2, \
