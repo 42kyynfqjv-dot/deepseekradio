@@ -70,3 +70,59 @@ def show_clock_line(minutes_left: float) -> str:
     return (f"SHOW CLOCK (authoritative): about {m} minutes remain — the "
             "scheduled handoff is coming soon, but ONLY the handoff beat "
             "says goodbye; until then, keep the show fully alive.")
+
+
+# --- The Numbers (Static Hour): a ritual, not a tic --------------------------
+# The ritual's power is scarcity — the owner's call: every hour or two, not
+# every beat. The orchestrator owns the cadence (station_state.last_numbers)
+# and hands each beat an authoritative directive; this guard makes the
+# directive stick: a beat that doesn't own the ritual gets any ritual lines
+# neutral-replaced, in character.
+_NUM_TOKEN = re.compile(
+    r"^(?:zero|oh|one|two|three|four|five|six|seven|eight|nine|ten|eleven|"
+    r"twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
+    r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|\d+)$", re.I)
+_NUM_INTRO = re.compile(
+    r"(?:\bnow\b|time for|here (?:come|are)|it'?s time)"
+    r"(?:\s|\.{2,3}|,|;|—|…)*\bthe numbers\b"      # 'And now... the numbers'
+    r"|\bthe numbers\b[^.!?]{0,15}(?:\bnow\b|begin|are ready)", re.I)
+_NUM_FIX = [
+    "Not yet. The numbers come when the numbers come.",
+    "The board isn't ready for the numbers. Stay on the thread.",
+    "No numbers yet — the frequency isn't clean enough. Where were we.",
+]
+
+
+def is_numbers_ritual(text: str) -> bool:
+    """A line that IS the ritual: mostly bare number tokens (read-out
+    sequence), or an explicit throw to it. Ordinary talk that merely
+    contains numbers ('17 points in 8 games', 'the numbers don't lie')
+    never matches."""
+    toks = re.findall(r"[\w']+", text)
+    hits = sum(1 for t in toks if _NUM_TOKEN.match(t))
+    if len(toks) >= 4 and hits >= 4 and hits / len(toks) >= 0.6:
+        return True
+    return bool(_NUM_INTRO.search(text))
+
+
+def numbers_guard(lines: list, allowed: bool) -> tuple:
+    """Returns (new_lines, ritual_performed). When the beat doesn't own the
+    ritual, ritual lines are REPLACED (never cut) in character; when it does,
+    lines pass and the caller learns whether the ritual actually aired (to
+    stamp the cadence clock)."""
+    if allowed:
+        return list(lines), any(is_numbers_ritual(ln.get("text", ""))
+                                for ln in lines)
+    out = []
+    for ln in lines:
+        text = ln.get("text", "")
+        if is_numbers_ritual(text):
+            new = dict(ln)
+            new["text"] = _NUM_FIX[_stable_hash(text) % len(_NUM_FIX)]
+            new["_enforced"] = True
+            print(f"  !! continuity: off-cadence numbers ritual replaced: "
+                  f"{text[:50]!r}")
+            out.append(new)
+        else:
+            out.append(ln)
+    return out, False

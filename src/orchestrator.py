@@ -304,6 +304,29 @@ def _tail_context(lines):
             if tail else "")
 
 
+NUMBERS_EVERY_MIN = 110   # the Static Hour ritual airs ~every 2h, not per beat
+
+
+def _numbers_own(daypart) -> bool:
+    """Does the NEXT Static Hour beat own the numbers ritual? Code-owned
+    cadence off station_state — survives restarts, spans rabbit holes."""
+    if daypart.get("id") != "static_hour":
+        return False
+    return time.time() - _sstate().get("last_numbers", 0) \
+        >= NUMBERS_EVERY_MIN * 60
+
+
+def _numbers_note(daypart, own: bool) -> None:
+    if daypart.get("id") != "static_hour":
+        return
+    daypart["_numbers"] = (
+        "\nTHE NUMBERS (authoritative): this beat CLOSES with the ritual — "
+        "one short cryptic number sequence, read once, never explained; "
+        "then the hour rolls on." if own else
+        "\nTHE NUMBERS (authoritative): NOT this beat. Do not read, tease, "
+        "or announce the numbers ritual — the theory carries the hour.")
+
+
 def _call_budget(daypart) -> int:
     """Caller-line budget per call, honest to the show's format (Dream Court
     is one long call; the Static Hour is quick sightings)."""
@@ -633,6 +656,8 @@ def run_show(daypart, config, schedule, live: bool):
             _call_pacing(daypart, call_st)) + _mint_caller_line(
             used_names, f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:0",
             _cast_meta(daypart, 0).get("speaker", ""), identity=_fu_id)
+        numbers_pending = _numbers_own(daypart)
+        _numbers_note(daypart, numbers_pending)
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
                           _context(0, opener_lines),
                           _tail_texts(opener_lines)) if beats else None
@@ -682,6 +707,15 @@ def run_show(daypart, config, schedule, live: bool):
                     if not (call_st or {}).get("calls_done") else None)
             _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
             lines, _wb = _cont.enforce(lines, handoff=_is_throw)
+            if daypart.get("id") == "static_hour":
+                lines, _did_numbers = _cont.numbers_guard(
+                    lines, allowed=numbers_pending)
+                if _did_numbers:   # the ritual aired: stamp the cadence clock
+                    _ns = _sstate()
+                    _ns["last_numbers"] = time.time()
+                    _sstate_save(_ns)
+                numbers_pending = _numbers_own(daypart)
+                _numbers_note(daypart, numbers_pending)   # for the NEXT beat
             if daypart.get("_continuity_desk"):   # scoped canon guard (gated)
                 try:
                     from . import canonguard as _cang, arcs as _arcs2, \
