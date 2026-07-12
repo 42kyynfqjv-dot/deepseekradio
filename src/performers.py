@@ -191,6 +191,7 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 {daypart.get('_show_clock') or ''}
 {daypart.get('_numbers') or ''}
 {daypart.get('_watcher_canon') or ''}
+{daypart.get('_contest') or ''}
 - OUTSIDE WORLD (hard): never name real people, companies, brands, or
   products — this universe has its own celebrities, businesses, and
   conspiracies. Anonymize any real-world reference to a role ('a billionaire',

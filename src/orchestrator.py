@@ -169,9 +169,19 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
         if roster:
             name, gag = _rnd.Random(f"billboard:{clock.air_now():%Y-%m-%d-%H}"
                                     ).choice(roster)
+            _temp = ""
+            try:  # radio says time-and-temperature or it isn't radio
+                from . import towndesk as _td0
+                from .world_consumers import _real_forecast as _rf0
+                _tv = _td0._parse_temp(_rf0())
+                if _tv is not None:
+                    _temp = f" {_tv} degrees in Halfway."
+            except Exception:
+                pass
             lines.insert(0, {"speaker": "Station ID", "voice": NEWS_VOICE,
                              "text": f"W-F-R-Q, one oh eight point one, Halfway "
-                                     f"— it's about {clock.spoken_air_time()}. "
+                                     f"— it's about {clock.spoken_air_time()}."
+                                     f"{_temp} "
                                      f"This is The Frequency. This hour is "
                                      f"brought to you by {name} — {gag}."})
     except Exception:
@@ -235,6 +245,33 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                               "text": "Sports desk. " + desk})
     except Exception as e:
         print(f"  (sports desk skipped: {e})")
+    try:  # the Town Desk wire + drive-time traffic ride the bulletin —
+        # code-built copy, guard-true by construction
+        from . import census as _cen3, towndesk as _td2, traffic as _tf2
+        _d3 = f"{clock.air_now():%Y-%m-%d}"
+        _fc3 = None
+        try:
+            from .world_consumers import _real_forecast as _rf2
+            _fc3 = _rf2()
+        except Exception:
+            pass
+        _wl = _td2.wire_lines(_d3, _cen3.load(), _fc3)
+        if _wl:
+            import random as _r3
+            lines.append({"speaker": "Frequency News", "voice": NEWS_VOICE,
+                          "speed": 0.97,
+                          "text": _r3.Random(
+                              f"townwire:{_d3}:{clock.air_now():%H}"
+                          ).choice(_wl)})
+        _sh3 = _tf2.traffic_sheet(_d3, clock.air_now().hour)
+        if _sh3.get("incidents"):
+            from .performers import _spare_voice as _sv2
+            lines.append({"speaker": _tf2.REPORTER,
+                          "voice": _sv2(_tf2.REPORTER), "speed": 0.97,
+                          "text": _tf2.wire_line(
+                              _sh3, f"{_d3}:{clock.air_now():%H}")})
+    except Exception as e:
+        print(f"  (town/traffic wire skipped: {e})")
     try:  # the Dome Desk rides every bulletin once the statehouse gate
         # arms — code-built wire copy off today's civics.json + docket,
         # guard-safe by construction exactly like the Sports Desk above
@@ -382,10 +419,155 @@ def _mint_caller_line(used, seedkey: str, host_speaker: str,
         return ""
 
 
+_EVENT_ENGINES = {"election_night", "blizzard", "trade_deadline", "draft"}
+
+
+def _event_anchor(path: Path, date: str) -> float:
+    """Write-once listener epoch per event date — a restart mid-event must
+    resume the night's reveal clock, never rewind it (the air-anchor rule)."""
+    try:
+        a = json.loads(path.read_text())
+        if a.get("date") == date:
+            return float(a["t0"])
+    except Exception:
+        pass
+    t0 = time.time()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"date": date, "t0": t0}))
+        tmp.replace(path)
+    except Exception:
+        pass
+    return t0
+
+
+def _event_window_secs(daypart) -> int:
+    try:
+        s = dtime.fromisoformat(daypart["window"][0])
+        e = dtime.fromisoformat(daypart["window"][1])
+        return ((((e.hour - s.hour) * 60 + (e.minute - s.minute))
+                 % (24 * 60)) or 240) * 60
+    except Exception:
+        return 4 * 3600
+
+
+def _event_sheet(daypart):
+    """(authoritative block, guard extras) for tonight's event engine — one
+    sheet per show invocation; the reveal clock ticks underneath, so each
+    re-entry sees more of the night and a restart resumes mid-count."""
+    eng = daypart.get("engine")
+    date = f"{clock.air_now():%Y-%m-%d}"
+    wsecs = _event_window_secs(daypart)
+    extras: dict = {}
+    if eng == "election_night":
+        from .statehouse import elections as _els, returns as _ret, \
+            sheets as _shs
+        members = json.loads(
+            Path("data/statehouse/members-ga1.json").read_text())
+        civ = None
+        try:
+            civ = json.loads(Path("data/statehouse/civics.json").read_text())
+        except Exception:
+            pass
+        el = _els.generate_cycle(int(date[:4]), members, 1)
+        plan = _ret.build_night(el, wsecs, f"night:{date}")
+        t0 = _event_anchor(Path("data/statehouse/election-anchor.json"), date)
+        cur = max(0, int(time.time() - t0))
+        revealed = _ret.reveal_at(plan, el, cur)
+        tracked = (el.get("tracked") or el.get("tracked_id")
+                   or (sorted(el.get("races", {})) or [None])[0])
+        extras["_civic_facts"] = _ret.facts_at(plan, el, cur, tracked)
+        return _shs.election_sheet(cur, revealed, tracked, None, civ), extras
+    if eng == "blizzard":
+        from . import blizzard as _bz
+        from .world_consumers import _real_forecast as _rf
+        sheet = _bz.storm_sheet(date, _rf())
+        st = _sstate()
+        k = f"blizzard_beat:{date}"
+        beat = int(st.get(k, 0))
+        st[k] = beat + 1
+        _sstate_save(st)
+        extras["_event_verify"] = ("blizzard", sheet)
+        return _bz.block(sheet, _bz.closings(date, beat)), extras
+    if eng == "trade_deadline":
+        from . import season as _sn
+        from .league import deadline as _dl, engine as _lge
+        n = _sn._load()["season"]
+        tx = (_lge.load_side(f"transactions-s{n}.json") or {}).get("tx", [])
+        pl = _lge.load_side(f"players-s{n}.json") or {}
+        plan = _dl.day_plan(tx, date, wsecs, f"s{n}")
+        t0 = _event_anchor(Path("data/league/deadline-anchor.json"), date)
+        rev = _dl.reveal_at(plan, max(0, int(time.time() - t0)))
+        extras["_event_verify"] = ("deadline", (rev, _sn._ALL))
+        return _dl.sheet(rev, pl, _sn._ALL), extras
+    if eng == "draft":
+        from . import season as _sn
+        from .league import draftday as _dd
+        sst = _sn._load()
+        rec = _dd.record(sst["season"], sst["league"])
+        plan = _dd.picks_plan(rec.get("class", []), rec.get("order", []),
+                              wsecs, f"s{sst['season']}")
+        t0 = _event_anchor(Path("data/league/draft-anchor.json"), date)
+        rev = _dd.reveal_at(plan, max(0, int(time.time() - t0)))
+        extras["_event_verify"] = ("draft", (rev, _sn._ALL))
+        return _dd.sheet(rev, _sn._ALL), extras
+    raise RuntimeError(f"unknown event engine {eng!r}")
+
+
+def _event_guard(lines, ev, daypart):
+    """Hold an event beat to its sheet: a failing beat airs one neutral
+    holding line instead of unverified facts."""
+    kind, payload = ev
+    texts = [ln.get("text", "") for ln in lines]
+    if kind == "blizzard":
+        from . import blizzard as _bz
+        ok = _bz.verify(texts, payload)
+    elif kind == "deadline":
+        from .league import deadline as _dl
+        ok = _dl.verify(texts, *payload)
+    elif kind == "draft":
+        from .league import draftday as _dd
+        ok = _dd.verify(texts, *payload)
+    else:
+        return lines
+    if ok:
+        return lines
+    meta = _cast_meta(daypart, 0)
+    print(f"  !! event guard ({kind}): beat failed sheet verify — held")
+    return [{"speaker": meta.get("speaker", "Host"),
+             "voice": meta.get("voice", "am_adam"),
+             "speed": meta.get("speed", 1.0), "_enforced": True,
+             "text": "We're confirming details at the desk — stay with us, "
+                     "more in a moment."}]
+
+
+def _run_event_show(daypart, config, schedule, live: bool):
+    """Sheet-driven event engines: code computes the moment's authoritative
+    sheet (reveal clocks under it), the everyday show machinery performs it,
+    and per-beat guards hold every number to the sheet."""
+    dp2 = dict(daypart)
+    dp2.pop("engine", None)             # falls to run_show's everyday path
+    try:
+        block, extras = _event_sheet(daypart)
+    except Exception as e:
+        print(f"  !! event sheet failed ({daypart.get('engine')}): {e} — "
+              "bumpers cover the window")
+        time.sleep(60)
+        return
+    dp2["_extra_context"] = ((dp2.get("_extra_context") or "") +
+                             "\nTONIGHT'S DESK SHEET (authoritative — the "
+                             "ONLY facts that exist):\n" + block)
+    dp2.update(extras)
+    return run_show(dp2, config, schedule, live)
+
+
 def run_show(daypart, config, schedule, live: bool):
     eng_key = events.engine_of(daypart)
     if eng_key == "center_ice":             # live sports is its own machine
         return run_center_ice(daypart, config, schedule, live)
+    if eng_key in _EVENT_ENGINES:
+        return _run_event_show(daypart, config, schedule, live)
     if eng_key:
         # an event engine we haven't built yet must NEVER free-associate its
         # way onto air — bumpers cover the window until the engine exists
@@ -500,14 +682,49 @@ def run_show(daypart, config, schedule, live: bool):
         _bible = Path("station/bible.md").read_text()
         _gp = Path("personas/guests.md")
         _ros = _sroster(_bible)
+        # roughly one guest day in three, the guest IS a sponsor's owner —
+        # the ads talk back. Owner name derives from the shop when it wears
+        # one ("Gary's Discount Teeth" -> Gary), else a stable minted first
+        # name; the writer gets the whole premise as the pool description.
+        _guest = _adesk.pick_guest(_gp.read_text() if _gp.exists() else "",
+                                   state.get("guests_seen", []), _arng)
+        if _guest and _ros and _arng.random() < 0.33:
+            _sname, _sgag = _arng.choice(_ros)
+            _m = re.match(r"([A-Z][a-z]+)'s\b", _sname)
+            _owner = _m.group(1) if _m else _adesk.next_caller(
+                set(), random.Random(f"owner:{_sname}")).split()[0]
+            _guest = (f"{_owner}, the owner of {_sname} — {_sgag} — on air to "
+                      f"defend the business: sincerely proud, mildly "
+                      f"defensive about the reviews, ready to take "
+                      f"'customer questions'")
         daypart["_assign"] = {
-            "guest": _adesk.pick_guest(_gp.read_text() if _gp.exists() else "",
-                                       state.get("guests_seen", []), _arng),
+            "guest": _guest,
             "sponsor": _arng.choice(_ros) if _ros else None,
             "callback": _adesk.pick_callback(state, _arng),
             "props": _adesk.prop_candidates(
                 state.get("recent_grounding", []), _arng),
         }
+        try:  # the giveaway desk: code picks the show, prize, and winner
+            from . import contests as _ct
+            _cd = f"{clock.air_now():%Y-%m-%d}"
+            for _c in _ct.todays(_cd, _ros):
+                if _c["show"] != daypart["id"]:
+                    continue
+                if any(w.get("date") == _cd and w.get("show") == daypart["id"]
+                       for w in _ct._load().get("winners", [])):
+                    break               # this show's giveaway already ran
+                _cwin = _adesk.next_caller(
+                    set(_sstate().get("callers_today", [])),
+                    random.Random(f"contest:{_cd}:{daypart['id']}"))
+                daypart["_contest"] = _ct.directive(_c, _cwin)
+                daypart["_contest_meta"] = {"date": _cd,
+                                            "show": daypart["id"],
+                                            "prize": _c["prize"],
+                                            "winner": _cwin}
+                print(f"  contest desk: {_c['prize']!r} -> {_cwin}")
+                break
+        except Exception as e:
+            print(f"  (contest desk skipped: {e})")
         # --- CONTINUITY DESK (arcs+census) — gated, garnish-safe ---
         if Path("data/arcs/ENABLED").exists():
             from . import arcs as _arcs, census as _census
@@ -531,6 +748,31 @@ def run_show(daypart, config, schedule, live: bool):
                                              + "\n\n" + _wb)
     except Exception as e:
         print(f"  (world block skipped: {e})")
+    try:  # Town Desk + traffic: the small-town service furniture
+        _tdate = f"{clock.air_now():%Y-%m-%d}"
+        if daypart.get("id") in ("morning_scramble", "refined_palate"):
+            from . import census as _cen2, contests as _ct2, towndesk as _td
+            _fct = None
+            try:
+                from .world_consumers import _real_forecast as _rf1
+                _fct = _rf1()
+            except Exception:
+                pass
+            _tb = _td.town_block(_tdate, _cen2.load(), _fct)
+            _unc = _ct2.uncollected(_tdate)
+            if _unc:
+                _tb += "\n- prize desk: " + " ".join(_unc[:2])
+            daypart["_extra_context"] = ((daypart.get("_extra_context") or "")
+                                         + "\n" + _tb)
+        if daypart.get("id") in ("morning_scramble", "the_handover"):
+            from . import traffic as _tf
+            _shf = _tf.traffic_sheet(_tdate, clock.air_now().hour)
+            if _shf.get("incidents"):
+                daypart["_extra_context"] = (
+                    (daypart.get("_extra_context") or "")
+                    + "\n" + _tf.block(_shf))
+    except Exception as e:
+        print(f"  (town desk skipped: {e})")
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
     # short beat generates and airs so a cold start never goes quiet
     with ThreadPoolExecutor(max_workers=1) as wpool:
@@ -739,6 +981,31 @@ def run_show(daypart, config, schedule, live: bool):
             # the Watcher's conspiracies, the gossip riffs, all of it: real
             # people and companies never ride along (callers stay whitelisted)
             lines = _ew(lines, extra_ok=used_names)
+            if daypart.get("_event_verify"):
+                try:  # event beats never air numbers their sheet doesn't hold
+                    lines = _event_guard(lines, daypart["_event_verify"],
+                                         daypart)
+                except Exception as e:
+                    print(f"  (event guard skipped: {e})")
+            if daypart.get("_civic_facts"):
+                try:  # election night: the returns clock is the only truth
+                    from .statehouse.civicguard import enforce_civic
+                    lines = enforce_civic(lines, daypart["_civic_facts"])
+                except Exception as e:
+                    print(f"  (civic guard skipped: {e})")
+            _cm = daypart.get("_contest_meta")
+            if _cm and any(ln.get("phone") and str(ln.get("speaker", ""))
+                           .split()[:1] == [_cm["winner"].split()[0]]
+                           for ln in lines):
+                try:  # the winner has aired: record it, retire the directive
+                    from . import contests as _ct3
+                    _ct3.record_winner(_cm["date"], _cm["show"],
+                                       _cm["prize"], _cm["winner"])
+                    print(f"  contest: {_cm['winner']} won {_cm['prize']!r}")
+                except Exception as e:
+                    print(f"  (contest record skipped: {e})")
+                daypart.pop("_contest", None)
+                daypart.pop("_contest_meta", None)
             daypart["_switchboard"] = _switch.prompt_line(
                 call_st, _call_budget(daypart),
                 _call_pacing(daypart, call_st)) + \
