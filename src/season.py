@@ -606,7 +606,9 @@ def _around_rows(st: dict, slate: list) -> list:
         anchor = v2.load_side("air-anchor.json")
         if anchor and anchor.get("date") == st["sim_through"] and \
                 0 <= time.time() - anchor.get("t0", 0) < 5 * 3600:
-            cursor = int(time.time() - anchor["t0"])
+            # trail by the generation buffer: the site tracks what has AIRED
+            cursor = max(0, int(time.time() - anchor["t0"]
+                                - anchor.get("lag", 0)))
         if cursor is not None:
             from .league import briefs as _lgb
             out_rows = []
@@ -617,7 +619,15 @@ def _around_rows(st: dict, slate: list) -> list:
                     continue
                 rv = _lgb.reveal(g, g["drop"], cursor)
                 if rv.get("status") == "upcoming":
-                    continue          # not puck-dropped yet in listener time
+                    # a real out-of-town board LISTS tonight's games before
+                    # they start — matchup visible, score withheld (the booth
+                    # may mention the game exists; nothing to spoil)
+                    row.pop("scorers", None)
+                    row["score"] = None
+                    row["ot"] = False
+                    row["status"] = "upcoming"
+                    out_rows.append(row)
+                    continue
                 row["score"] = rv.get("score", row["score"])
                 row["status"] = rv.get("status")
                 if rv.get("status") == "live":

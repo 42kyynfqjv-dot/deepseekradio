@@ -749,9 +749,13 @@ def run_center_ice(daypart, config, schedule, live: bool):
     t_open = time.time()      # the reveal clock's broadcast anchor (G1)
     try:  # publish the anchor so the WEBSITE reveals other games on the SAME
         # clock as the booth — the site must never show a final the desk is
-        # still calling as in-progress
+        # still calling as in-progress. `lag` = the buffer between generation
+        # and air at anchor time: the booth's reveal choices EMBED in audio
+        # that airs `lag` seconds later, so the site's cursor must trail by it.
         from .league import engine as _lge0
-        _lge0.save_side("air-anchor.json", {"date": date, "t0": t_open})
+        _lge0.save_side("air-anchor.json",
+                        {"date": date, "t0": t_open,
+                         "lag": buffer.buffered_seconds()})
     except Exception:
         pass
     lines_target = int(daypart.get("lines_per_beat", 22))
