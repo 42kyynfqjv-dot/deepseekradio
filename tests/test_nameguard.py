@@ -113,5 +113,40 @@ for ok in ("Officials googled it and remain unsure.",
 check(not news_run(news_run("Aldi's again.")["text"]).get("_enforced"),
       "news replacement is idempotent")
 
+
+# --- world guard: real people and companies never ride along ----------------
+from src.nameguard import enforce_world  # noqa: E402
+
+
+def world_run(text, **kw):
+    return enforce_world([{"speaker": "The Watcher", "voice": "am_onyx",
+                           "text": text}], **kw)[0]
+
+
+for bad in ("The toasters report directly to Elon Musk. Think about it.",
+            "Bill Gates put something in the crosswalk buttons.",
+            "It goes all the way up to Taylor Swift.",
+            "A Tesla idled outside the studio for nine hours.",
+            "Rogan talked about this exact thing."):
+    r = world_run(bad)
+    check(r.get("_enforced") is True, f"world entity scrubbed: {bad[:40]!r}")
+    check(r["speaker"] == "The Watcher", "world replacement keeps speaker")
+for ok in ("The geese unionized behind the substation.",
+            "A billionaire is behind the toasters. I won't say which.",
+            "Swift action from the plow crew this morning.",
+            "The gates of the impound lot were open. Wide open.",
+            "Drake from the hardware store called in again."):
+    check(not world_run(ok).get("_enforced"), f"fiction kept: {ok[:40]!r}")
+check(not world_run("Elon from Fifth Street has a theory.",
+                    extra_ok={"elon"}).get("_enforced"),
+      "collisions favour the fiction via extra_ok")
+check(not world_run(world_run("Musk again.")["text"]).get("_enforced"),
+      "world replacement is idempotent")
+# the news wrapper now backstops people too
+check(enforce_news([{"speaker": "Frequency News", "voice": "am_onyx",
+                     "text": "A statement from Oprah stunned officials."}]
+                   )[0].get("_enforced") is True,
+      "news guard backstops real people")
+
 print(f"\nnameguard {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -111,6 +111,36 @@ _BRANDS_1 = {
 _BRAND_PHRASES = ("taco bell", "burger king", "home depot", "general motors",
                   "trader joe's", "dollar general", "whole foods")
 
+# Real PEOPLE — the names a model reaches for in conspiracies, gossip, and
+# riffs. Same curation: distinctive tokens only; common words and common
+# names (swift, gates, drake, jones, harris, vance, adele) appear only
+# inside unambiguous phrases. The station's universe has its own famous
+# people; the real ones never ride along.
+_PEOPLE_1 = {
+    "musk", "elon", "bezos", "zuckerberg", "oprah", "beyonce", "beyoncé",
+    "rihanna", "kanye", "kardashian", "lebron", "messi", "ronaldo",
+    "ohtani", "trump", "biden", "obama", "putin", "zelensky", "netanyahu",
+    "macron", "trudeau", "epstein", "soros", "rothschild", "rothschilds",
+    "kissinger", "altman", "desantis", "kamala", "markle", "eminem",
+    "timberlake", "bieber", "mrbeast", "pewdiepie", "rogan", "scorsese",
+    "spielberg", "tarantino", "kardashians", "hanks", "keanu", "zendaya",
+}
+_PEOPLE_PHRASES = ("taylor swift", "bill gates", "lady gaga", "pope francis",
+                   "pope leo", "king charles", "prince harry",
+                   "tucker carlson", "alex jones", "joe rogan",
+                   "warren buffett", "steve jobs")
+
+_WORLD_TOKENS = _BRANDS_1 | _PEOPLE_1
+_WORLD_PHRASES = _BRAND_PHRASES + _PEOPLE_PHRASES
+
+# On-air deflections for any show (PG, register-neutral, trip nothing)
+_WORLD_SAFE = [
+    "We don't do real names on this frequency. The pattern is what matters.",
+    "No names. Names are how they find you.",
+    "Let's keep the outside world outside. Where were we.",
+    "This town has enough characters of its own. Back to it.",
+]
+
 _NEWS_SAFE = [
     "In local news: the bridge is still humming in D. Officials call that normal.",
     "Closer to home, the pothole on Fifth has been upgraded to a landmark.",
@@ -119,35 +149,46 @@ _NEWS_SAFE = [
 ]
 
 
-def enforce_news(lines):
-    """The bulletin's entity cop: any line naming a real company or brand is
-    REPLACED with a harmless local brief (never cut — the bulletin's rhythm
-    survives). Word-boundary matches on curated distinctive names, so
-    'googled it' never trips on 'google' and the fiction keeps its words."""
+def enforce_world(lines, *, extra_ok=frozenset(), style="show"):
+    """The station-wide real-world entity cop: any line naming a real
+    company, brand, or famous person is REPLACED (never cut) — a local news
+    brief in the bulletin, an in-character deflection anywhere else. Word-
+    boundary matches on curated distinctive names, so 'googled it' never
+    trips on 'google' and the fiction keeps its words. `extra_ok` lets the
+    fiction keep a colliding name it legitimately owns (collisions always
+    favour the fiction, same rule as the hockey lists)."""
+    allow = {w.lower() for w in extra_ok}
+    pool = _NEWS_SAFE if style == "news" else _WORLD_SAFE
     out = []
     for ln in lines:
         text = ln.get("text", "")
         low = text.lower()
         hit = None
-        for ph in _BRAND_PHRASES:
-            if re.search(r"\b" + re.escape(ph) + r"\b", low):
+        for ph in _WORLD_PHRASES:
+            if ph not in allow and re.search(
+                    r"\b" + re.escape(ph) + r"\b", low):
                 hit = ph
                 break
         if not hit:
             for tok in re.findall(r"[a-z][a-z&'’.-]*[a-z']", low):
-                if tok in _BRANDS_1:
+                if tok in _WORLD_TOKENS and tok not in allow:
                     hit = tok
                     break
         if hit:
-            print(f"  !! nameguard(news): real brand {hit!r} scrubbed: "
+            print(f"  !! nameguard(world): real entity {hit!r} scrubbed: "
                   f"{text[:60]!r}")
             new = dict(ln)
-            new["text"] = _NEWS_SAFE[_stable_hash(text) % len(_NEWS_SAFE)]
+            new["text"] = pool[_stable_hash(text) % len(pool)]
             new["_enforced"] = True
             out.append(new)
         else:
             out.append(ln)
     return out
+
+
+def enforce_news(lines):
+    """The bulletin's entity cop — brands AND people, news-brief flavored."""
+    return enforce_world(lines, style="news")
 
 
 def _allow_set(facts, extra_ok):

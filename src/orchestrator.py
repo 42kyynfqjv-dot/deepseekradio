@@ -435,6 +435,8 @@ def run_show(daypart, config, schedule, live: bool):
                               "this beat.",
                       "no_bit": False}
             opener_lines = perform_beat(opener, daypart, models, state, "")
+            from .nameguard import enforce_world as _ew
+            opener_lines = _ew(opener_lines)
             _emit(opener_lines, f"{daypart['id']}-open", config, live, fx=fx)
             _save_tail(daypart, opener_lines)
         except Exception as e:
@@ -694,6 +696,10 @@ def run_show(daypart, config, schedule, live: bool):
             lines, call_st = _switch.enforce(
                 lines, call_st, budget=_call_budget(daypart),
                 host=_cast_meta(daypart, 0))
+            from .nameguard import enforce_world as _ew
+            # the Watcher's conspiracies, the gossip riffs, all of it: real
+            # people and companies never ride along (callers stay whitelisted)
+            lines = _ew(lines, extra_ok=used_names)
             daypart["_switchboard"] = _switch.prompt_line(
                 call_st, _call_budget(daypart),
                 _call_pacing(daypart, call_st)) + \
@@ -1333,6 +1339,8 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 raw = fut.result()
                 lines = enforce_scoreboard(raw, bi["facts"]) if bi["facts"] else raw
                 lines = enforce_names(lines, bi["facts"], extra_ok=pool_ok)
+                from .nameguard import enforce_world as _ew
+                lines = _ew(lines, extra_ok=pool_ok)
                 lines = tag_sfx(lines, bi["events"], bi["label"])  # arena sound
                 lines, ci_call[0] = _switch.enforce(
                     lines, ci_call[0], budget=_call_budget(daypart), host=pbp)
