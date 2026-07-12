@@ -54,6 +54,7 @@ QUIET_MIN = 90          # a show is cut this long after its last aired file
 LOCAL_KEEP = 15         # local-mode retention (R2 mode keeps everything)
 BITRATE = "64k"
 SCOREBOARD = Path("/var/www/bestairadio/data/sports/hockey/scoreboard.json")
+RESERVE = Path("/opt/kaos/reserve")   # evergreen bumpers bridge the cuts
 
 _FNAME = re.compile(r"^(\d+)_(.+)\.wav$")
 _EXCLUDE = ("-break",)  # the ad-break marker is moved to played/ unplayed
@@ -187,6 +188,33 @@ def ready(state: dict, now: float | None = None) -> list:
     return out
 
 
+def _hash(s: str) -> int:
+    import hashlib
+    return int(hashlib.md5(s.encode()).hexdigest(), 16)
+
+
+def _with_bridges(files: list, feed: str, bday: str) -> list:
+    """Never hard-splice across removed air. The buffer's sequence numbers
+    are global and consecutive, so a gap between staged files means
+    something aired (or was queued) there that this episode drops: an ad
+    break's marker, a news bulletin, a segment outside a cut feed. Each gap
+    gets a station bumper — the host's 'back in a moment' always lands on
+    something, and splices in a cut feed never jump-cut. Deterministic pick
+    per gap; no reserve pool means plain joins (degrade, don't fail)."""
+    bumpers = sorted(RESERVE.glob("bumper*.wav")) if RESERVE.is_dir() else []
+    if not bumpers:
+        return list(files)
+    out, prev = [], None
+    for i, f in enumerate(files):
+        m = _FNAME.match(f.name)
+        seq = int(m.group(1)) if m else None
+        if (prev is not None and seq is not None and seq - prev > 1):
+            out.append(bumpers[_hash(f"{feed}:{bday}:{i}") % len(bumpers)])
+        out.append(f)
+        prev = seq
+    return out
+
+
 def _episode_title(feed: str, bday: str) -> str:
     nice = datetime.fromisoformat(bday).strftime("%A, %B %-d, %Y")
     if feed == "center-ice":
@@ -211,7 +239,8 @@ def _encode(files: list, mp3: Path, title: str, feed: str,
     """Concat -> loudnorm -> mono MP3. Returns duration seconds, or None."""
     WORK.mkdir(parents=True, exist_ok=True)
     lst = WORK / "concat.txt"
-    lst.write_text("".join(f"file '{f.resolve()}'\n" for f in files))
+    lst.write_text("".join(f"file '{f.resolve()}'\n"
+                           for f in _with_bridges(files, feed, bday)))
     r = _run(["nice", "-n", "10", "ffmpeg", "-y", "-v", "error",
               "-f", "concat", "-safe", "0", "-i", str(lst),
               "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",

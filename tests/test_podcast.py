@@ -42,12 +42,17 @@ def wav(name, when):
     return p
 
 
+CONCATS = {}
+
+
 def fake_run(cmd, **kw):
     class R:
         returncode = 0
         stdout = "1234.5\n"
         stderr = ""
     if cmd[0] == "nice":                      # the encoder: emit a fake mp3
+        i = cmd.index("-i")                   # ...and snapshot its edit list
+        CONCATS[Path(cmd[-1]).name] = Path(cmd[i + 1]).read_text()
         Path(cmd[-1]).write_bytes(b"ID3fakemp3" * 100)
     return R()
 
@@ -63,6 +68,10 @@ with tempfile.TemporaryDirectory() as td:
         P.WWW = Path("www/podcasts")
         P.ENV = Path("no-such.env")           # local mode
         P.SCOREBOARD = Path("scoreboard.json")
+        P.RESERVE = Path("reserve")
+        P.RESERVE.mkdir()
+        for b in ("bumper01.wav", "bumper02.wav", "bumper03.wav"):
+            (P.RESERVE / b).write_bytes(b"RIFFbumper")
         P._run = fake_run
 
         # a Night Shift straddling midnight (22:xx + 00:xx -> one episode),
@@ -131,6 +140,18 @@ with tempfile.TemporaryDirectory() as td:
         check(not (P.STAGE / "dream-court" / "2026-07-10").exists(),
               "staging cleaned after publish")
         check("static-hour" in st["published"], "static hour published too")
+
+        # break bridging: staged seqs are 101,102,107 — the 102->107 gap is
+        # removed air (the break marker, the quiet-part segment), so exactly
+        # one bumper bridges it; adjacent files butt-join; never at the ends
+        cl = CONCATS["dream-court-2026-07-10.mp3"].splitlines()
+        check(sum("bumper" in ln for ln in cl) == 1,
+              f"one bumper bridges the sequence gap ({cl})")
+        check("000000101" in cl[0] and "000000107" in cl[-1],
+              "no bumper at episode ends")
+        check("bumper" not in cl[1], "adjacent aired files butt-join")
+        cl2 = CONCATS["static-hour-2026-07-10.mp3"]
+        check("bumper" not in cl2, "single-segment episode has no bridge")
 
         feed = P.WWW / "dream-court" / "feed.xml"
         check(feed.exists(), "feed.xml written")
