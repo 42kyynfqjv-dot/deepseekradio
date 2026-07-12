@@ -182,7 +182,8 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
         shard = _lge.load_side(f"box/{y}.json")
         pl = _lge.load_side(f"players-s{_sn._load()['season']}.json")
         if shard and pl and shard.get("games"):
-            desk = _lgb.scores_desk(y, shard["games"], pl, n=4)
+            desk = _lgb.scores_desk(y, shard["games"], pl, n=4,
+                                    first=tuple(_sn.TRACKED))
             if desk:
                 lines.append({"speaker": "Frequency Sports",
                               "voice": NEWS_VOICE,

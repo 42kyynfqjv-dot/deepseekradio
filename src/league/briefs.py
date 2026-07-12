@@ -222,12 +222,19 @@ def intermission_sheet(date: str, cursor: int, boxes: list, stats: dict,
     return {"around": around, "leaders": top, "race_note": race_note}
 
 
-def scores_desk(date: str, boxes: list, players: dict, n: int = 5) -> str:
+def scores_desk(date: str, boxes: list, players: dict, n: int = 5,
+                first: tuple = ()) -> str:
     """One narratable wire-copy line, named scorers included: 'Last night
-    in the league: Regrets 4, Fog Advisories 2 — Ostberg twice; ...'."""
+    in the league: Regrets 4, Fog Advisories 2 — Ostberg twice; ...'.
+    `first` = team keys whose games LEAD the desk (the tracked franchises —
+    the station's editorial voice and its scoreboard must agree on who we
+    follow)."""
     plook = _plook(players)
+    ordered = sorted(list(boxes),
+                     key=lambda b: 0 if (b.get("home") in first
+                                         or b.get("away") in first) else 1)
     games = []
-    for box in list(boxes)[:n]:
+    for box in ordered[:n]:
         h, a = box.get("final", (0, 0))
         tag = " (OT)" if box.get("ot") else " (SO)" if box.get("so") else ""
         scorers = _scorer_phrase(box, plook)

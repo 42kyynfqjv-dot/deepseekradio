@@ -124,6 +124,11 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                       "below do not apply to them." if beat.get("monologue") else "")
     if daypart.get("arc") == "live sports broadcast":
         register_line = (
+            "- TEAM NAMES ARE STREET NAMES, NOT PUNCHLINES (hard): never "
+            "build a bit on a team's name — no apologizing jokes for the "
+            "Apologies, no honking for the Honkers, no gridlock puns for the "
+            "Gridlock. At MOST one light name-touch per broadcast; the comedy "
+            "lives in the hockey, the callers, and the booth.\n"
             "- FICTIONAL LEAGUE ONLY (hard rule): this is an entirely invented "
             "hockey league. NEVER name a real-world team (Canadiens, Bruins, "
             "Maple Leafs, and the like), a real player past or present, the NHL, "

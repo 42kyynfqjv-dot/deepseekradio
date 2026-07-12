@@ -61,11 +61,14 @@ LEAGUE = {
 }
 
 TRACKED = {
+    # flavor is HOCKEY substance, not name-pun bait — the booth wore the
+    # apology jokes out inside a week. The names carry themselves.
     "mtl": {"arena": "the Pardon Centre",
-            "flavor": "sorry about the forecheck; historically good, "
-                      "emotionally burdened"},
+            "flavor": "historically proud, heavy forecheck, allergic to "
+                      "praise; the oldest barn in the league"},
     "nyg": {"arena": "Standstill Garden",
-            "flavor": "aggressive, perpetually delayed, honks at the referee"},
+            "flavor": "fast, furious, disciplined until the third period; "
+                      "a crowd that arrives late and stays later"},
 }
 
 SEASON_GAMES = 82
