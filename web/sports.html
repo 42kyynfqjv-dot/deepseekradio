@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports · The Frequency</title>
+<meta name="description" content="Scores, standings, and league leaders from The League — the road to the Boreal Lantern. Live on The Frequency, 108.1.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0b12'/%3E%3Crect x='22' y='4' width='3' height='24' fill='%23ff4757'/%3E%3Crect x='4' y='24' width='24' height='2' fill='%23ffb454'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
+    --amber:#ffb454; --red:#ff4757; --cyan:#4ecdc4; --text:#e8e6f0;
+    --dim:#9a97ad; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --display:'Avenir Next Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.55;overflow-x:hidden}
+  main{max-width:1060px;margin:0 auto;padding:32px 20px 110px}
+  a{color:var(--cyan);text-decoration:none}
+  .back{font-family:var(--mono);font-size:.75rem;letter-spacing:.15em;color:var(--dim)}
+  h1{font-family:var(--display);font-size:clamp(2rem,7vw,3.4rem);font-weight:800;margin:10px 0 2px;text-transform:uppercase}
+  h1 em{color:var(--cyan);font-style:normal}
+  .sub{color:var(--dim);font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;margin-bottom:24px}
+  h2{font-family:var(--display);font-size:1.5rem;margin:36px 0 12px;text-transform:uppercase;letter-spacing:.02em}
+  h2 em{color:var(--cyan);font-style:normal}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,71,87,.6)}50%{opacity:.5;box-shadow:0 0 0 6px rgba(255,71,87,0)}}
+
+  /* ── sport tabs ── */
+  .stabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .stab{font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:.95rem;
+    color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:default}
+  .stab.active{color:#181207;background:linear-gradient(145deg,var(--amber),#ff8c42);border-color:var(--amber)}
+  .stab .tro{display:block;font-family:var(--mono);font-weight:400;font-size:.56rem;letter-spacing:.14em;opacity:.85;margin-top:1px}
+  .stab.soon{opacity:.55}
+  .stab.soon .tro{color:var(--red);opacity:1}
+
+  /* ── center ice live-coverage strip ── */
+  .ci-strip{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:22px 0 4px;
+    background:linear-gradient(90deg,rgba(255,71,87,.10),var(--panel));
+    border:1px solid var(--line);border-left:3px solid var(--red);border-radius:12px;padding:14px 18px}
+  .ci-strip .dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite;flex:none}
+  .ci-strip .txt{flex:1;min-width:180px}
+  .ci-strip .txt .h{display:block;font-family:var(--display);font-weight:800;text-transform:uppercase;
+    letter-spacing:.03em;font-size:1.15rem;color:var(--text)}
+  .ci-strip .txt .s{display:block;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--dim);margin-top:2px}
+  .ci-strip .go{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;color:var(--amber);white-space:nowrap;
+    border:1px solid var(--amber);border-radius:8px;padding:8px 12px}
+  .ci-strip:hover .go{background:var(--amber);color:#181207}
+
+  /* ── badges + marks ── */
+  .badge-air{font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;color:var(--amber);
+    border:1px solid var(--amber);border-radius:4px;padding:1px 5px;margin-right:7px;white-space:nowrap}
+  .live-mark{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;color:var(--red);
+    display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .live-mark i{width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite;flex:none}
+
+  /* ── tracked hero cards ── */
+  .heroes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:6px}
+  .hero{background:linear-gradient(180deg,var(--bg2),var(--panel));border:1px solid var(--line);
+    border-left:3px solid var(--cyan);border-radius:14px;padding:18px 20px}
+  .hero .ourtag{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;color:var(--cyan);margin-bottom:8px}
+  .hero .tname{font-family:var(--display);font-weight:700;font-size:1.5rem;line-height:1.05}
+  .hero .tname a{color:var(--text)}
+  .hero .tname a:hover{color:var(--cyan)}
+  .hero .rec{font-family:var(--mono);font-size:.82rem;color:var(--text);font-variant-numeric:tabular-nums;margin-top:6px}
+  .hero .rec .dim{color:var(--dim)}
+  .hero .rows{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;
+    font-family:var(--mono);font-size:.74rem;color:var(--dim)}
+  .hero .rows div{padding:3px 0}
+  .hero .rows b{color:var(--text);font-weight:600}
+  .hero .lab{color:var(--amber);letter-spacing:.14em;font-size:.62rem}
+
+  /* ── scoreboard ── */
+  .pager{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+  .pager button{font-family:var(--mono);font-size:1rem;color:var(--text);background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;width:34px;height:34px;cursor:pointer;line-height:1}
+  .pager button:hover:not(:disabled){border-color:var(--amber);color:var(--amber)}
+  .pager button:disabled{opacity:.3;cursor:default}
+  .pager .date{font-family:var(--mono);font-size:.8rem;letter-spacing:.14em;color:var(--amber);min-width:150px;text-align:center}
+  .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 18px}
+  .game{padding:11px 0;border-bottom:1px solid var(--line)}
+  .game:last-child{border-bottom:none}
+  .game .line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:.92rem}
+  .game .teams a{color:var(--text)}
+  .game .teams a:hover{color:var(--cyan)}
+  .game .teams b{font-family:var(--mono);color:var(--cyan);font-variant-numeric:tabular-nums;font-weight:700}
+  .game .ot{font-family:var(--mono);font-size:.68rem;color:var(--dim);letter-spacing:.1em}
+  .game .meta{font-family:var(--mono);font-size:.72rem;color:var(--dim);letter-spacing:.08em}
+  .game .scorers{margin-top:5px;font-family:var(--mono);font-size:.68rem;color:var(--dim);opacity:.78;letter-spacing:.02em}
+
+  /* ── standings + leaders tables ── */
+  .trophy{font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;color:var(--dim);margin:-4px 0 14px}
+  .trophy b{color:var(--amber);font-weight:600}
+  .confwrap{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .conf .confname{font-family:var(--display);font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+    font-size:1.1rem;color:var(--text);margin:2px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  .divbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;margin-bottom:14px}
+  .divbox h3{font-family:var(--mono);font-size:.68rem;letter-spacing:.2em;color:var(--amber);margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;color:var(--dim);text-align:right;padding:3px 5px;white-space:nowrap}
+  th:first-child{text-align:left}
+  td{padding:4px 5px;text-align:right;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+  td:first-child{text-align:left;white-space:normal}
+  td a{color:var(--text)}
+  td a:hover{color:var(--cyan)}
+  tr.us td{color:var(--cyan);font-weight:600}
+  tr.us td a{color:var(--cyan)}
+  .tm{font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;color:var(--dim);
+    border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:6px}
+  .tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+  footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:.7rem;
+    letter-spacing:.12em;padding:44px 0 20px;line-height:2}
+  footer a{color:var(--dim)}
+  footer a:hover{color:var(--amber)}
+
+  /* ── shared chrome ── */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;
+    background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.07) 3px 4px)}
+  .topnav{position:sticky;top:0;z-index:1001;background:rgba(11,11,18,.92);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topnav .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 24px}
+  .topnav .brand{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;color:var(--amber);text-decoration:none;margin-right:auto}
+  .topnav a.navlink{font-family:var(--display);font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;font-size:.9rem;color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:8px}
+  .topnav a.navlink:hover{color:var(--text)}
+  .topnav a.navlink.active{color:var(--amber)}
+  .ticker{background:var(--red);color:#fff;font-family:var(--mono);font-size:.78rem;
+    letter-spacing:.06em;white-space:nowrap;overflow:hidden;padding:6px 0}
+  .ticker .track{display:inline-flex;animation:tick 90s linear infinite}
+  .ticker span{padding-right:4rem}
+  @keyframes tick{to{transform:translateX(-50%)}}
+  .mini{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:rgba(18,18,29,.96);
+    border-top:1px solid var(--line);backdrop-filter:blur(8px);transform:translateY(110%);transition:transform .25s ease}
+  .mini.show{transform:translateY(0)}
+  .mini .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:10px 24px}
+  .mini button{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;flex:none;
+    background:linear-gradient(145deg,var(--amber),#ff8c42);display:flex;align-items:center;justify-content:center}
+  .mini button svg{width:18px;height:18px;fill:#181207}
+  .mini .mshow{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:.95rem;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .mlab{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--red)}
+  .mini .vu{display:flex;gap:3px;align-items:flex-end;height:22px;flex:none;margin-left:auto}
+  .mini .vu i{width:5px;background:var(--amber);border-radius:2px;opacity:.25;height:30%}
+  .mini.playing .vu i{opacity:.9;animation:vu .55s ease-in-out infinite alternate}
+  .mini .vu i:nth-child(2){animation-delay:.12s}.mini .vu i:nth-child(3){animation-delay:.24s}
+  .mini .vu i:nth-child(4){animation-delay:.06s}.mini .vu i:nth-child(5){animation-delay:.3s}
+  @keyframes vu{from{height:22%}to{height:100%}}
+
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  @media(max-width:900px){.confwrap{grid-template-columns:1fr}}
+  @media(max-width:640px){
+    .heroes{grid-template-columns:1fr}
+    .topnav .in{padding:8px 16px;gap:2px}
+    .topnav .brand{width:100%;margin-bottom:4px}
+    .topnav a.navlink{font-size:.8rem;padding:5px 8px}
+  }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="in">
+    <a class="brand" href="index.html">108.1 · THE FREQUENCY</a>
+    <a class="navlink" href="index.html">HOME</a>
+    <a class="navlink active" href="sports.html" aria-current="page">SPORTS</a>
+    <a class="navlink" href="government.html">LOCAL GOVERNMENT</a>
+    <a class="navlink" href="bestof.html">BEST OF</a>
+  </div>
+</nav>
+<div class="ticker" aria-hidden="true"><div class="track"><span id="tick-a"></span><span id="tick-b"></span></div></div>
+
+<main>
+  <a class="back" href="index.html">&larr; THE FREQUENCY · 108.1</a>
+  <h1>SPO<em>RTS</em></h1>
+  <p class="sub">SCORES · STANDINGS · LEADERS · UPDATED THROUGH THE LAST FINAL WHISTLE</p>
+
+  <div class="stabs" id="stabs"></div>
+
+  <div id="heroes-wrap" hidden>
+    <h2>Our <em>Two</em> Clubs</h2>
+    <div class="heroes" id="heroes"></div>
+  </div>
+
+  <a class="ci-strip" href="center-ice.html">
+    <span class="dot"></span>
+    <span class="txt">
+      <span class="h">Center Ice — Live Game Coverage</span>
+      <span class="s">WEDNESDAYS &amp; SATURDAYS 8PM · THE SCOREBUG IS LIVE WHEN THE PUCK IS</span>
+    </span>
+    <span class="go">GO TO THE BOOTH &rsaquo;</span>
+  </a>
+
+  <div id="sb-wrap" hidden>
+    <h2>Score<em>board</em></h2>
+    <div class="pager">
+      <button id="prevDay" aria-label="Previous day">&lsaquo;</button>
+      <div class="date" id="sbDate"></div>
+      <button id="nextDay" aria-label="Next day">&rsaquo;</button>
+    </div>
+    <div class="board" id="board"></div>
+  </div>
+
+  <div id="standings-wrap" hidden>
+    <h2>The <em>Standings</em></h2>
+    <div class="trophy" id="trophy"></div>
+    <div class="confwrap" id="confwrap"></div>
+  </div>
+
+  <div id="leaders-wrap" hidden>
+    <h2>League <em>Leaders</em></h2>
+    <div class="tables" id="leaders"></div>
+  </div>
+
+  <footer>
+    WFRQ · THE FREQUENCY · EVERY SCORE IS FINAL, INCLUDING THE ONES THAT HAVEN'T HAPPENED<br>
+    <a href="center-ice.html">CENTER ICE — THE BROADCAST BOOTH</a> · <a href="index.html">HOME</a> · <a href="government.html">LOCAL GOVERNMENT</a>
+  </footer>
+</main>
+
+<div class="mini" id="mini">
+  <div class="in">
+    <button id="minibtn" aria-label="Play live stream"><svg id="miniicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+    <div>
+      <div class="mlab">● LIVE</div>
+      <div class="mshow" id="mini-show">THE FREQUENCY</div>
+    </div>
+    <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+</div>
+<audio id="stream" preload="none"></audio>
+<script src="/schedule.js?v=3"></script>
+
+<script>
+/* ══ SPORTS HUB · data → render → 30s refresh ══ */
+const HK = '/data/sports/hockey/';
+const T  = (s)=> (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function getJSON(u){ return fetch(u,{cache:'no-store'}).then(r=>{ if(!r.ok) throw new Error(u); return r.json(); }); }
+function hide(id){ const e=document.getElementById(id); if(e) e.hidden=true; }
+function show(id){ const e=document.getElementById(id); if(e) e.hidden=false; }
+function fmtDate(d){
+  try{ return new Date(d+'T12:00:00')
+    .toLocaleDateString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric'})
+    .replace(',','').toUpperCase(); }
+  catch(e){ return String(d||'').toUpperCase(); }
+}
+function airBadge(on){ return on ? '<span class="badge-air">ON AIR ·</span>' : ''; }
+
+/* ── sport tabs (architecture ready for a 2nd sport) ── */
+let SELECTED = 'hockey';
+function renderTabs(idx){
+  const el = document.getElementById('stabs');
+  const sports = (idx && idx.sports) || [];
+  if(!sports.length){ el.innerHTML = '<span class="stab active">THE LEAGUE</span>'; return; }
+  el.innerHTML = sports.map(s=>{
+    const active = s.key === SELECTED;
+    const tro = s.trophy ? `<span class="tro">${T(s.trophy)}</span>` : '';
+    return `<span class="stab${active?' active':''}">${T(s.name)}${tro}</span>`;
+  }).join('');
+}
+
+/* ── tracked hero cards ── */
+function heroCard(t){
+  if(!t) return '';
+  const r = t.record||{gp:0,w:0,l:0,otl:0,pts:0};
+  const last = (t.results&&t.results.length) ? t.results[t.results.length-1] : null;
+  const next = (t.upcoming&&t.upcoming.length) ? t.upcoming[0] : null;
+  let lastLine = '<div><span class="lab">LAST</span> — no games yet</div>';
+  if(last){
+    lastLine = `<div><span class="lab">LAST</span> ${airBadge(last.air)}<b>${T(last.res)}</b> ${last.gf}–${last.ga} `
+      + `${last.home?'vs':'at'} <b>${T(last.opp)}</b>${last.ot?' (OT)':''}</div>`;
+  }
+  let nextLine = '<div><span class="lab">NEXT</span> — schedule pending</div>';
+  if(next){
+    nextLine = `<div><span class="lab">NEXT</span> ${airBadge(next.air)}${next.home?'vs':'at'} `
+      + `<b>${T(next.opp)}</b> · ${fmtDate(next.date)}</div>`;
+  }
+  return `<div class="hero">
+    <div class="ourtag">▸ OUR CLUB</div>
+    <div class="tname"><a href="team.html?t=${T(t.key)}">${T(t.team)}</a></div>
+    <div class="rec">${r.w}–${r.l}–${r.otl} <span class="dim">· ${r.pts} PTS · ${r.gp} GP · ${T(t.streak||'')} · L10 ${T(t.last10||'')}</span></div>
+    <div class="rows">${lastLine}${nextLine}</div>
+  </div>`;
+}
+function renderHeroes(teams){
+  const cards = (teams||[]).filter(Boolean).map(heroCard).join('');
+  if(!cards){ hide('heroes-wrap'); return; }
+  document.getElementById('heroes').innerHTML = cards;
+  show('heroes-wrap');
+}
+
+/* ── scoreboard w/ day pager ── */
+let SB = null, curDate = null;
+function gameRow(g){
+  const away = `<a href="team.html?t=${T(g.ak)}">${T(g.away)}</a>`;
+  const home = `<a href="team.html?t=${T(g.hk)}">${T(g.home)}</a>`;
+  let body;
+  if(g.status === 'live'){
+    const a = g.score ? g.score[1] : 0, h = g.score ? g.score[0] : 0;
+    const p = (g.period==='OT'||g.period==='SO') ? g.period : ('P'+g.period);
+    const clk = g.clock ? ' '+T(g.clock) : '';
+    body = `<span class="teams">${away} <b>${a}</b>, ${home} <b>${h}</b></span> `
+      + `<span class="live-mark"><i></i>LIVE · ${T(p)}${clk}</span>`;
+  } else if(g.status === 'final' && g.score){
+    const a = g.score[1], h = g.score[0];
+    body = `<span class="teams">${away} <b>${a}</b>, ${home} <b>${h}</b></span>`
+      + (g.ot ? ' <span class="ot">(OT)</span>' : '');
+  } else { /* upcoming / null score */
+    body = `<span class="teams">${away} at ${home}</span> <span class="meta">— TONIGHT</span>`;
+  }
+  const scorers = (g.scorers && g.scorers.length)
+    ? `<div class="scorers">${g.scorers.map(T).join(' · ')}</div>` : '';
+  return `<div class="game"><div class="line">${airBadge(g.air)}${body}</div>${scorers}</div>`;
+}
+function renderScoreboard(sb){
+  SB = sb;
+  const days = (sb && sb.days) || [];
+  if(!days.length){ hide('sb-wrap'); return; }
+  if(curDate === null || !days.some(d=>d.date===curDate)) curDate = days[days.length-1].date;
+  const idx = days.findIndex(d=>d.date===curDate);
+  const day = days[idx];
+  document.getElementById('sbDate').textContent = fmtDate(day.date);
+  document.getElementById('prevDay').disabled = idx <= 0;
+  document.getElementById('nextDay').disabled = idx >= days.length-1;
+  document.getElementById('board').innerHTML = (day.games||[]).map(gameRow).join('')
+    || '<div class="game"><span class="meta">NO GAMES ON THE SLATE.</span></div>';
+  show('sb-wrap');
+}
+function changeDay(delta){
+  if(!SB) return;
+  const days = SB.days;
+  const idx = days.findIndex(d=>d.date===curDate);
+  const ni = Math.min(days.length-1, Math.max(0, idx+delta));
+  curDate = days[ni].date;
+  renderScoreboard(SB);
+}
+document.getElementById('prevDay').addEventListener('click', ()=>changeDay(-1));
+document.getElementById('nextDay').addEventListener('click', ()=>changeDay(1));
+
+/* ── standings ── */
+function stRow(t){
+  return `<tr${t.tracked?' class="us"':''}>`
+    + `<td><a href="team.html?t=${T(t.key)}">${T(t.team)}</a></td>`
+    + `<td>${t.gp}</td><td>${t.w}</td><td>${t.l}</td><td>${t.otl}</td><td>${t.pts}</td>`
+    + `<td>${T(t.last10)}</td><td>${T(t.streak)}</td></tr>`;
+}
+function renderStandings(st){
+  if(!st || !st.conferences){ hide('standings-wrap'); return; }
+  document.getElementById('trophy').innerHTML = st.trophy
+    ? `THE ROAD TO <b>${T(st.trophy).toUpperCase()}</b>` : '';
+  document.getElementById('confwrap').innerHTML = Object.entries(st.conferences).map(([conf,divs])=>{
+    const boxes = Object.entries(divs).map(([dv,rows])=>`
+      <div class="divbox"><h3>${T(dv).toUpperCase()} DIVISION</h3>
+      <table>
+        <tr><th>TEAM</th><th>GP</th><th>W</th><th>L</th><th>OTL</th><th>PTS</th><th>L10</th><th>STRK</th></tr>
+        ${rows.map(stRow).join('')}
+      </table></div>`).join('');
+    return `<div class="conf"><div class="confname">${T(conf)} Conference</div>${boxes}</div>`;
+  }).join('');
+  show('standings-wrap');
+}
+
+/* ── leaders ── */
+function skaterTable(rows){
+  return `<table><tr><th>PLAYER</th><th>GP</th><th>G</th><th>A</th><th>PTS</th></tr>`
+    + rows.map(r=>`<tr><td>${T(r.name)}<span class="tm">${T(r.team).toUpperCase()}</span></td>`
+      + `<td>${r.gp}</td><td>${r.g}</td><td>${r.a}</td><td>${r.p}</td></tr>`).join('')
+    + `</table>`;
+}
+function svpct(v){ return (typeof v==='number') ? v.toFixed(3).replace(/^0/,'') : T(v); }
+function renderLeaders(data){
+  const L = data && data.leaders;
+  if(!L){ hide('leaders-wrap'); return; }
+  const boxes = [];
+  const skater = [['POINTS','points'],['GOALS','goals'],['ASSISTS','assists']];
+  for(const [title,key] of skater){
+    const rows = (L[key]||[]).slice(0,10);
+    if(rows.length) boxes.push(`<div class="divbox"><h3>${title}</h3>${skaterTable(rows)}</div>`);
+  }
+  const sv = (L['sv%']||[]).slice(0,5);
+  if(sv.length){
+    boxes.push(`<div class="divbox"><h3>SAVE %</h3>
+      <table><tr><th>GOALIE</th><th>GP</th><th>SV%</th></tr>
+      ${sv.map(r=>`<tr><td>${T(r.name)}<span class="tm">${T(r.team).toUpperCase()}</span></td>`
+        + `<td>${r.gp}</td><td>${svpct(r['sv%'])}</td></tr>`).join('')}
+      </table></div>`);
+  }
+  const wins = (L.wins||[]).slice(0,5);
+  if(wins.length){
+    boxes.push(`<div class="divbox"><h3>WINS</h3>
+      <table><tr><th>GOALIE</th><th>GP</th><th>W</th><th>SO</th></tr>
+      ${wins.map(r=>`<tr><td>${T(r.name)}<span class="tm">${T(r.team).toUpperCase()}</span></td>`
+        + `<td>${r.gp}</td><td>${r.w}</td><td>${r.so}</td></tr>`).join('')}
+      </table></div>`);
+  }
+  if(!boxes.length){ hide('leaders-wrap'); return; }
+  document.getElementById('leaders').innerHTML = boxes.join('');
+  show('leaders-wrap');
+}
+
+/* ── load + refresh ── */
+function load(){
+  getJSON('/data/sports/index.json').then(renderTabs).catch(()=>renderTabs(null));
+  getJSON(HK+'scoreboard.json').then(renderScoreboard).catch(()=>hide('sb-wrap'));
+  getJSON(HK+'standings.json').then(renderStandings).catch(()=>hide('standings-wrap'));
+  getJSON(HK+'leaders.json').then(renderLeaders).catch(()=>hide('leaders-wrap'));
+  Promise.all(['mtl','nyg'].map(k=>getJSON(HK+'teams/'+k+'.json').catch(()=>null)))
+    .then(renderHeroes).catch(()=>hide('heroes-wrap'));
+}
+load();
+setInterval(load, 30000);
+</script>
+
+<script>
+/* ── ticker + current-show label (page chrome) ── */
+const TICKS = [
+  "WELCOME TO WENDING · THE 51ST STATE · PENDING REVIEW · THE REVIEW IS ALSO PENDING",
+  "THE ROAD TO THE BOREAL LANTERN RUNS THROUGH HALFWAY · SOMEHOW",
+  "CENTER ICE · WEDNESDAYS & SATURDAYS 8PM · BUCKY MERLE & SAL TARANTELLA",
+  "THE APOLOGIES SAY SORRY · THE GRIDLOCK DON'T MOVE · CLASSIC RIVALRY",
+  "EVERY SCORE IS FINAL · INCLUDING THE ONES THAT HAVEN'T HAPPENED",
+  "OFFICIAL STATE WEATHER REMAINS SEASONAL · BEIGE ALERT TILL NOON",
+  "STANDINGS UPDATE AFTER THE LAST WHISTLE · NOT ONE SECOND SOONER",
+  "MOOSE JAW MOOSE (SINGULAR) · THE PARENTHETICAL IS LOAD-BEARING",
+  "SUBCOMMITTEE ON WHICH TIME IT IS · HALF THE STATE THINKS PUCK DROP IS LATER",
+  "FIXTURE 12 STILL FLICKERING · WORK ORDER OLDER THAN THE STAFF",
+  "YOU'RE ON THE FREQUENCY · BROADCASTING FROM A STATE THAT TECHNICALLY ISN'T",
+];
+const tickText = TICKS.join("  ···  ") + "  ···  ";
+document.getElementById("tick-a").textContent = tickText;
+document.getElementById("tick-b").textContent = tickText;
+
+function updateMini(){
+  const F=window.FREQ; if(!F) return;
+  const s=F.currentShow(F.stationDay(), F.stationHour());
+  const el=document.getElementById("mini-show"); if(el) el.textContent=s.name;
+}
+updateMini(); setInterval(updateMini, 60_000);
+</script>
+
+<script>
+/* ══ THE FREQUENCY · shared persistent player (identical on every page) ══ */
+(function(){
+  const audio = document.getElementById("stream");
+  if(!audio) return;
+  const btn     = document.getElementById("playbtn");
+  const minibtn = document.getElementById("minibtn");
+  const player  = document.getElementById("player");
+  const mini    = document.getElementById("mini");
+  const hint    = document.getElementById("hint");
+  const SVG_PLAY  = '<path d="M8 5v14l11-7z"/>';
+  const SVG_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+  const SRC = "https://stream.bestairadio.com/live";
+  const KEY = "freq:playing";
+  let on = false, retries = 0, retryTimer = null, expectPause = false;
+
+  function setIcon(id, playing){ const e = document.getElementById(id); if(e) e.innerHTML = playing ? SVG_PAUSE : SVG_PLAY; }
+  function connect(){ audio.src = SRC + "?t=" + Date.now(); return audio.play(); }
+  function setUI(playing, msg){
+    setIcon("playicon", playing); setIcon("miniicon", playing);
+    const label = playing ? "Pause live stream" : "Play live stream";
+    if(btn)     btn.setAttribute("aria-label", label);
+    if(minibtn) minibtn.setAttribute("aria-label", label);
+    if(player)  player.classList.toggle("playing", playing);
+    if(mini)    mini.classList.toggle("playing", playing);
+    if(hint && msg) hint.textContent = msg;
+  }
+  function reconnect(){
+    if(!on || retryTimer) return;
+    const delay = retries >= 10 ? 60000 : Math.min(2000 * 2 ** retries, 30000);
+    retries++;
+    setUI(false, "⟳ reconnecting — the frequency is experiencing a Wesley");
+    retryTimer = setTimeout(()=>{
+      retryTimer = null;
+      connect().then(()=>{ retries = 0; setUI(true, "live · the frequency is yours"); })
+               .catch(reconnect);
+    }, delay);
+  }
+  ["error","ended","stalled","abort"].forEach(ev => audio.addEventListener(ev, reconnect));
+  audio.addEventListener("pause", ()=>{ if(on && !audio.ended && !expectPause) reconnect(); });
+  audio.addEventListener("playing", ()=>{
+    if(on){ retries = 0; clearTimeout(retryTimer); retryTimer = null; expectPause = false; setUI(true, "live · the frequency is yours"); }
+  });
+  if("mediaSession" in navigator){
+    navigator.mediaSession.setActionHandler("pause", ()=>{ expectPause = true; on = false; try{localStorage.setItem(KEY,"0")}catch(e){} audio.pause(); setUI(false, "paused · press play to rejoin live"); });
+    navigator.mediaSession.setActionHandler("play",  ()=>{ expectPause = false; on = true; try{localStorage.setItem(KEY,"1")}catch(e){} connect().catch(reconnect); });
+  }
+  function play(){
+    on = true; retries = 0; try{localStorage.setItem(KEY,"1")}catch(e){}
+    connect().then(()=>setUI(true, "live · the frequency is yours"))
+             .catch(()=>{ setUI(false, "the frequency sleeps. it does that sometimes. check back."); reconnect(); });
+  }
+  function stop(){
+    on = false; try{localStorage.setItem(KEY,"0")}catch(e){}
+    clearTimeout(retryTimer); retryTimer = null;
+    audio.pause(); audio.src = "";
+    setUI(false, "▶ press play · live · always");
+  }
+  function toggle(){ on ? stop() : play(); }
+  if(btn)     btn.addEventListener("click", toggle);
+  if(minibtn) minibtn.addEventListener("click", toggle);
+
+  if(mini){
+    if(player && "IntersectionObserver" in window){
+      new IntersectionObserver(es => mini.classList.toggle("show", !es[0].isIntersecting), {threshold:0}).observe(player);
+    }else if(player){
+      addEventListener("scroll", ()=> mini.classList.toggle("show", scrollY > 600));
+    }else{
+      mini.classList.add("show");
+    }
+  }
+
+  let want = false; try{ want = localStorage.getItem(KEY) === "1"; }catch(e){}
+  if(want){
+    audio.src = SRC + "?t=" + Date.now();
+    audio.play().then(()=>{ on = true; retries = 0; setUI(true, "live · the frequency is yours"); })
+                .catch(()=>{ on = false; audio.src = ""; setUI(false, "▶ press play · live · always"); });
+  }
+})();
+</script>
+</body>
+</html>
