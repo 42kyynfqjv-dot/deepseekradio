@@ -358,7 +358,7 @@ def write_rss(feed: str, state: dict) -> None:
   <itunes:image href="{SITE}/podcasts/art/{feed}.png?v=2"/>
   <itunes:category text="{_sx.escape(f['category'])}"/>
   <itunes:owner><itunes:name>The Frequency</itunes:name>
-   <itunes:email>tzvishoop@protonmail.com</itunes:email></itunes:owner>
+   <itunes:email>thefrequency@allfromhashem.com</itunes:email></itunes:owner>
 {chr(10).join(items)}
  </channel>
 </rss>
