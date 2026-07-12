@@ -59,6 +59,20 @@ def main() -> int:
     if t.startswith("```"):
         t = t.split("```", 2)[1].lstrip("json").strip()
     highlights = json.loads(t).get("highlights", [])[:5]
+    # a highlight publishes VERBATIM to a public URL: hold every title and
+    # line to the same real-world entity guard the air runs — a tainted
+    # highlight is dropped whole, never edited (curation, not surgery)
+    from src.nameguard import enforce_world
+    clean = []
+    for h in highlights:
+        probe = [{"text": str(h.get("title", ""))}] + \
+                [{"text": str(ln)} for ln in h.get("lines", [])]
+        if any(l.get("_enforced") for l in enforce_world(probe)):
+            print(f"  !! bestof: highlight dropped by nameguard: "
+                  f"{str(h.get('title'))[:50]!r}")
+            continue
+        clean.append(h)
+    highlights = clean
     y = (datetime.now() - timedelta(days=1)).strftime("%A, %B %d")
     prev = []
     if OUT.exists():

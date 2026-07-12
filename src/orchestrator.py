@@ -555,9 +555,8 @@ def _run_event_show(daypart, config, schedule, live: bool):
               "bumpers cover the window")
         time.sleep(60)
         return
-    dp2["_extra_context"] = ((dp2.get("_extra_context") or "") +
-                             "\nTONIGHT'S DESK SHEET (authoritative — the "
-                             "ONLY facts that exist):\n" + block)
+    dp2["_event_block"] = ("TONIGHT'S DESK SHEET (authoritative — the "
+                           "ONLY facts that exist):\n" + block)
     dp2.update(extras)
     return run_show(dp2, config, schedule, live)
 
@@ -578,6 +577,23 @@ def run_show(daypart, config, schedule, live: bool):
     state = lore.load()
     weekday = clock.air_now().strftime("%A")  # the day it will AIR
     fx = daypart.get("id") if daypart.get("id") == "static_hour" else None
+    # _extra_context is rebuilt EVERY invocation (appenders below would
+    # otherwise stack copies on the shared daypart dict); an event engine's
+    # sheet, stashed by _run_event_show, survives the reset
+    daypart["_extra_context"] = daypart.pop("_event_block", "")
+    _daynote = {
+        "Monday": "MONDAY (hard): the town is low-energy and mildly late; "
+                  "the hosts feel it — bits land tired, never manic.",
+        "Friday": "FRIDAY (hard): Feud Friday — the week's petty on-air "
+                  "grudges get RESOLVED or doubled down on; callbacks to "
+                  "the week's grievances are prime material.",
+        "Saturday": "SATURDAY: weekend air — looser, longer stories, no "
+                    "commute urgency; errands, the market, the game.",
+        "Sunday": "SUNDAY: the slowest air of the week — reflective, "
+                  "gentle; everything gets room to breathe.",
+    }.get(weekday)
+    if _daynote:
+        daypart["_extra_context"] += "\n" + _daynote
 
     print(f"\n{'='*70}\n  {daypart['show']}  ({daypart['window'][0]}-{daypart['window'][1]})"
           f"  —  {weekday}\n{'='*70}")
@@ -669,9 +685,10 @@ def run_show(daypart, config, schedule, live: bool):
             # call must never sit in the hot re-outline loop), persists on the
             # shared daypart dict for the rest of the window
             from .spots import _real_forecast
-            daypart["_extra_context"] = (
-                "Wesley's forecast uses TODAY'S REAL weather (keep the numbers "
-                "roughly right; the delivery is all his): " + _real_forecast())
+            daypart["_extra_context"] += (
+                "\nWesley's forecast uses TODAY'S REAL weather (keep the "
+                "numbers roughly right; the delivery is all his): "
+                + _real_forecast())
         except Exception:
             pass
     try:  # the assignment desk: code picks guest/sponsor/callback/props —
@@ -787,9 +804,11 @@ def run_show(daypart, config, schedule, live: bool):
                               "show's own register. Do NOT restate, rephrase, or "
                               "summarize any line already spoken. No callers, no "
                               "greetings, no wrap."}
-            _emit(perform_beat(bridge, daypart, models, state,
-                               _tail_context(opener_lines),
-                               avoid_lines=[l.get("text", "") for l in opener_lines]),
+            from .nameguard import enforce_world as _ewb
+            _emit(_ewb(perform_beat(bridge, daypart, models, state,
+                                    _tail_context(opener_lines),
+                                    avoid_lines=[l.get("text", "")
+                                                 for l in opener_lines])),
                   f"{_lbl}-bridge", config, live, fx=fx)
         except Exception as e:
             print(f"  (bridge skipped: {e})")
@@ -959,6 +978,8 @@ def run_show(daypart, config, schedule, live: bool):
                 lines = perform_beat(_throw_beat(daypart, nxt), daypart,
                                      models, state, _context(i, prev),
                                      _tail_texts(prev))
+                from .nameguard import enforce_world as _ewh
+                lines = _ewh(lines, extra_ok=used_names)
                 _emit(lines, f"{_lbl}-handoff", config, live, fx=fx)
                 # the sign-off is TERMINAL: mark the window handed off so the main
                 # loop won't re-invoke this show and ramble past the goodbye. The
@@ -1114,6 +1135,8 @@ def run_show(daypart, config, schedule, live: bool):
                     tl = perform_beat(throw, daypart, models, state,
                                       _context(i + 1, lines) if i + 1 < len(beats)
                                       else "", _tail_texts(lines))
+                    from .nameguard import enforce_world as _ewt
+                    tl = _ewt(tl, extra_ok=used_names)
                     _emit(tl, f"{_lbl}-adthrow", config, live, fx=fx)
                     daypart["_target_lines"] = target
                     if live:

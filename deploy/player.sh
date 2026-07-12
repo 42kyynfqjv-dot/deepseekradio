@@ -92,6 +92,8 @@ play_spot() {
 import sqlite3, time
 try:
     con = sqlite3.connect("/opt/kaos/app/station.db")
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA busy_timeout=4000")
     r = con.execute("SELECT id, wav FROM spots WHERE retired=0 AND wav != '' "
                     "ORDER BY last_played ASC, plays ASC LIMIT 1").fetchone()
     if r:
@@ -165,8 +167,10 @@ feed() {
         && mv /var/www/bestairadio/data/now.json.tmp /var/www/bestairadio/data/now.json 2>/dev/null
       play_file "$f"
       mv "$f" "$BUF/played/"
-      # keep only the last 50 played segments
-      ls -t "$BUF"/played/*.wav 2>/dev/null | tail -n +51 | xargs -r rm -f
+      # keep the last 120 played segments — well over one podcast-harvest
+      # interval of worst-case dense audio, so the harvester's hard links
+      # always land before the prune (timing margin, not a handshake)
+      ls -t "$BUF"/played/*.wav 2>/dev/null | tail -n +121 | xargs -r rm -f
     else
       # buffer empty: no-repeat shuffled rotation through the reserve pool —
       # every piece airs once before anything repeats; atomic consumption

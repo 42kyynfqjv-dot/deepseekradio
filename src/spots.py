@@ -39,6 +39,10 @@ _SPOT_VOICES = ["am_adam", "af_sarah", "bm_george", "af_nicole", "am_onyx",
 
 def _db() -> sqlite3.Connection:
     con = sqlite3.connect(DB)
+    # the player's rotation picker writes this db from another process —
+    # WAL + a timeout make concurrent writers queue instead of silently fail
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA busy_timeout=4000")
     con.execute("""CREATE TABLE IF NOT EXISTS spots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         kind TEXT NOT NULL,

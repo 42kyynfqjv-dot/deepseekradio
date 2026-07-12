@@ -2,6 +2,9 @@
 Description=The Frequency — streamer (buffer -> Icecast)
 After=network-online.target icecast2.service
 Wants=network-online.target icecast2.service
+# never latch into 'failed' during an Icecast flap: dead air is the one
+# unforgivable sin, so this unit restarts forever rather than giving up
+StartLimitIntervalSec=0
 
 [Service]
 PrivateTmp=true
@@ -11,7 +14,7 @@ Group=kaos
 EnvironmentFile=/opt/kaos/stream.env
 ExecStart=/opt/kaos/app/deploy/player.sh
 Restart=always
-RestartSec=5
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target

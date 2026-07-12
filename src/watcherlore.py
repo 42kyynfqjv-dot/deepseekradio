@@ -144,10 +144,14 @@ def harvest(lines: list, state: dict, date: str) -> int:
         by_low[low] = ents[-1]
         print(f"  watcher canon: new file opened on {name!r}")
         new += 1
-    if len(ents) > BANK_CAP:   # the board only holds so many photos
-        ents.sort(key=lambda e: (e.get("last_night") or "", e.get("nights", 0)),
-                  reverse=True)
-        del ents[BANK_CAP:]
+    if len(ents) > BANK_CAP:   # the board only holds so many photos — but
+        # the SEED files are the permanent collection; only harvested
+        # entities compete for the remaining pins
+        seeds = [e for e in ents if e.get("seeded") is not False]
+        grown = [e for e in ents if e.get("seeded") is False]
+        grown.sort(key=lambda e: (e.get("last_night") or "",
+                                  e.get("nights", 0)), reverse=True)
+        ents[:] = seeds + grown[:max(0, BANK_CAP - len(seeds))]
     return new
 
 
@@ -184,6 +188,11 @@ def current_theory(date: str, now: float) -> tuple:
 
 def begin_theory(date: str, n: int, subject: str, now: float) -> None:
     led = _tload()
+    if _real_world(subject):
+        # the subject becomes a PUBLIC podcast title — a real-world name in
+        # the outline premise must never publish; the title falls back to a
+        # file number instead
+        subject = ""
     led.append({"date": date, "n": n, "subject": subject[:90],
                 "started": now})
     del led[:-80]

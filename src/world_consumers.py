@@ -133,7 +133,26 @@ def _halfway_coords() -> dict:
     return dict(HALFWAY_LATLON)
 
 
+_FC_CACHE: dict = {}
+_FC_TTL = 1800   # the forecast fan-out grew silently (town desk, traffic,
+                 # blizzard, time-and-temp all read it) — one fetch per half
+                 # hour serves every caller; weather doesn't move faster
+
+
 def _real_forecast(coords: dict | None = None) -> str:
+    import time as _t
+    c = coords or dict(HALFWAY_LATLON)
+    key = (round(float(c.get("lat", 0)), 2), round(float(c.get("lon", 0)), 2))
+    hit = _FC_CACHE.get(key)
+    if hit and _t.time() - hit[0] < _FC_TTL:
+        return hit[1]
+    out = _real_forecast_fetch(coords)
+    if "(no forecast" not in out:      # never cache the failure sentinel
+        _FC_CACHE[key] = (_t.time(), out)
+    return out
+
+
+def _real_forecast_fetch(coords: dict | None = None) -> str:
     """EXACT-DIFF COPY of `spots._real_forecast`, with ONE change: a `coords`
     parameter (default: the Halfway canon coord) replaces the hard-coded NYC
     latitude/longitude. Real numbers from Open-Meteo (free, keyless) for the

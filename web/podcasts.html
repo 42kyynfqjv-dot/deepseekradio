@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Podcasts · The Frequency</title>
+<meta name="description" content="The Frequency's shows, cut nightly into podcast feeds: Center Ice game broadcasts, Dream Court's late-night calls, and The Static Hour's rabbit holes.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0b12'/%3E%3Crect x='22' y='4' width='3' height='24' fill='%23ff4757'/%3E%3Crect x='4' y='24' width='24' height='2' fill='%23ffb454'/%3E%3C/svg%3E">
+<link rel="alternate" type="application/rss+xml" title="Center Ice on The Frequency" href="/podcasts/center-ice/feed.xml">
+<link rel="alternate" type="application/rss+xml" title="Dream Court" href="/podcasts/dream-court/feed.xml">
+<link rel="alternate" type="application/rss+xml" title="The Static Hour" href="/podcasts/static-hour/feed.xml">
+<style>
+  :root{
+    --bg:#0b0b12; --bg2:#12121d; --panel:#161624; --line:#26263a;
+    --amber:#ffb454; --red:#ff4757; --cyan:#4ecdc4; --text:#e8e6f0;
+    --dim:#9a97ad; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --display:'Avenir Next Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6}
+  a{color:var(--cyan);text-decoration:none}
+  .topnav{position:sticky;top:0;z-index:1001;background:rgba(11,11,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topnav .in{max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:6px;padding:10px 20px;flex-wrap:wrap}
+  .topnav .brand{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;color:var(--amber);margin-right:12px}
+  .topnav a.navlink{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:.9rem;letter-spacing:.06em;color:var(--dim);padding:4px 10px}
+  .topnav a.navlink:hover{color:var(--text)}
+  .topnav a.navlink.active{color:var(--amber)}
+  main{max-width:760px;margin:0 auto;padding:32px 20px 60px}
+  h1{font-family:var(--display);font-size:clamp(2rem,7vw,3.4rem);font-weight:800;margin:10px 0 2px}
+  h1 em{color:var(--amber);font-style:normal}
+  .sub{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;color:var(--dim);margin-bottom:26px}
+  .pod{display:flex;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px;align-items:flex-start}
+  .pod img{width:96px;height:96px;border-radius:8px;border:1px solid var(--line);flex-shrink:0}
+  .pod h2{font-family:var(--display);font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  .pod p{color:var(--dim);font-size:.92rem;margin-bottom:10px}
+  .feedrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .feedrow code{font-family:var(--mono);font-size:.72rem;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--text);word-break:break-all}
+  .feedrow a{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;border:1px solid var(--cyan);border-radius:6px;padding:6px 10px}
+  .how{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:.88rem;color:var(--dim);margin:24px 0}
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:22px;text-align:center;font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;color:var(--dim)}
+  @media(max-width:560px){.pod{flex-direction:column}.pod img{width:72px;height:72px}}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <div class="in">
+    <a class="brand" href="index.html">108.1 · THE FREQUENCY</a>
+    <a class="navlink" href="index.html">HOME</a>
+    <a class="navlink" href="sports.html">SPORTS</a>
+    <a class="navlink" href="government.html">LOCAL GOVERNMENT</a>
+    <a class="navlink" href="bestof.html">BEST OF</a>
+    <a class="navlink active" href="podcasts.html" aria-current="page">PODCASTS</a>
+  </div>
+</nav>
+
+<main>
+  <h1>THE <em>PODCASTS</em></h1>
+  <p class="sub">THE SHOWS THAT SURVIVE THE NIGHT · CUT FRESH AFTER EVERY BROADCAST · FREE, LIKE THE AIR</p>
+
+  <div class="pod">
+    <img src="/podcasts/art/center-ice.png" alt="Center Ice cover art" loading="lazy">
+    <div>
+      <h2>Center Ice on The Frequency</h2>
+      <p>Every broadcast game, pregame to postgame call-in. Bucky Merle and Sal Tarantella on the call, live from the barn. The run for the Boreal Lantern, two nights a week.</p>
+      <div class="feedrow"><code>https://bestairadio.com/podcasts/center-ice/feed.xml</code><a href="/podcasts/center-ice/feed.xml">RSS ↗</a></div>
+    </div>
+  </div>
+
+  <div class="pod">
+    <img src="/podcasts/art/dream-court.png" alt="Dream Court cover art" loading="lazy">
+    <div>
+      <h2>Dream Court</h2>
+      <p>Vivian Nightshade takes the night's calls — small 3am worries and bizarre dreams, interpreted with legal authority. Court is in session when the town can't sleep.</p>
+      <div class="feedrow"><code>https://bestairadio.com/podcasts/dream-court/feed.xml</code><a href="/podcasts/dream-court/feed.xml">RSS ↗</a></div>
+    </div>
+  </div>
+
+  <div class="pod">
+    <img src="/podcasts/art/static-hour.png" alt="The Static Hour cover art" loading="lazy">
+    <div>
+      <h2>The Static Hour</h2>
+      <p>One theory, one descent. The Watcher connects the toasters to the crosswalk buttons to the geese while the town sleeps. Each rabbit hole is its own episode.</p>
+      <div class="feedrow"><code>https://bestairadio.com/podcasts/static-hour/feed.xml</code><a href="/podcasts/static-hour/feed.xml">RSS ↗</a></div>
+    </div>
+  </div>
+
+  <div class="how">
+    <b>HOW TO LISTEN:</b> paste a feed URL into any podcast app ("add show by URL" — Apple Podcasts, Overcast, Pocket Casts, AntennaPod all take it). Directory listings are on the way; the feeds are the real thing either way. New episodes appear within a couple of hours of each broadcast.
+  </div>
+
+  <footer>WFRQ · THE FREQUENCY · TAKE THE NIGHT SHIFT WITH YOU<br>
+  <span style="opacity:.55;font-size:.85em">The Frequency is a work of fiction. All characters, businesses, callers, leagues, and events are invented; any resemblance to real entities is coincidental. Except the goose.</span></footer>
+</main>
+</body>
+</html>

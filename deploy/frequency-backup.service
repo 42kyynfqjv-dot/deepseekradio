@@ -1,0 +1,19 @@
+[Unit]
+Description=The Frequency — nightly world-state backup to object storage
+# The entire simulator history (league careers, residents, politics, the
+# Watcher's files, spot rotation) lives on one disk; this is its offsite copy.
+
+[Service]
+Type=oneshot
+User=kaos
+WorkingDirectory=/opt/kaos/app
+Nice=15
+ExecStart=/bin/bash -c 'set -e; \
+  tar czf /tmp/freq-backup.tgz --ignore-failed-read \
+    data season.json station.db station_state.json lore_state.json \
+    civics.json world-events.json podcast/state.json schedule.yaml \
+    events/registry.yaml; \
+  rclone copyto /tmp/freq-backup.tgz \
+    "r2:frequency-media/backups/freq-$(date +%%F).tgz"; \
+  rm -f /tmp/freq-backup.tgz; \
+  rclone delete --min-age 15d r2:frequency-media/backups/'

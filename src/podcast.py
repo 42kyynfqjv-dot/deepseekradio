@@ -50,6 +50,10 @@ WWW = Path("/var/www/bestairadio/podcasts")
 ENV = Path("/opt/kaos/podcast.env")
 SITE = "https://bestairadio.com"
 
+DISCLAIMER = ("The Frequency is a work of fiction; all characters, "
+              "businesses, leagues, and events are invented, and any "
+              "resemblance to real entities is coincidental.")
+MAX_ATTEMPTS = 5        # a poison episode never spins ffmpeg forever
 QUIET_MIN = 90          # a show is cut this long after its last aired file
 LOCAL_KEEP = 15         # local-mode retention (R2 mode keeps everything)
 BITRATE = "64k"
@@ -64,7 +68,7 @@ FEEDS = {
     "center-ice": {
         "title": "Center Ice on The Frequency",
         "desc": "Every broadcast game, pregame to postgame call-in. "
-                "Bucky Barnes and Sal DiNapoli on the call, live from "
+                "Bucky Merle and Sal Tarantella on the call, live from "
                 "the barn. The run for the Boreal Lantern, two nights "
                 "a week.",
         "match": lambda label: label.startswith("center-ice-"),
@@ -230,9 +234,12 @@ def _episode_title(feed: str, bday: str) -> str:
     nice = datetime.fromisoformat(date_part).strftime("%A, %B %-d, %Y")
     if feed == "static-hour" and tpart:
         subj = None
-        try:  # the theory ledger names the descent
+        try:  # the theory ledger names the descent (belt: a title is PUBLIC,
+            # so a subject touching the real-world lists never publishes)
             from . import watcherlore as _wl
             subj = _wl.theory_subject(date_part, int(tpart))
+            if subj and _wl._real_world(subj):
+                subj = None
         except Exception:
             pass
         if subj:
@@ -342,7 +349,7 @@ def write_rss(feed: str, state: dict) -> None:
  <channel>
   <title>{_sx.escape(f['title'])}</title>
   <link>{SITE}</link>
-  <description>{_sx.escape(f['desc'])}</description>
+  <description>{_sx.escape(f['desc'] + " " + DISCLAIMER)}</description>
   <language>en-us</language>
   <atom:link href="{SITE}/podcasts/{feed}/feed.xml" rel="self" type="application/rss+xml"/>
   <itunes:author>The Frequency</itunes:author>
@@ -379,15 +386,27 @@ def main() -> None:
     if n:
         print(f"  podcast: staged {n} new segment(s)")
     for feed, bday, files in ready(state):
+        akey = f"{feed}:{bday}"
+        fails = state.setdefault("failed", {})
+        if fails.get(akey, 0) >= MAX_ATTEMPTS:
+            continue                    # quarantined: a human looks at it
         title = _episode_title(feed, bday)
         mp3 = WORK / f"{feed}-{bday}.mp3"
         secs = _encode(files, mp3, title, feed, bday)
         if secs is None:
+            fails[akey] = fails.get(akey, 0) + 1
+            if fails[akey] >= MAX_ATTEMPTS:
+                print(f"  !! podcast: {akey} quarantined after "
+                      f"{MAX_ATTEMPTS} failed encodes")
+            _save_state(state)
             continue
         size = mp3.stat().st_size
         url = _publish_audio(mp3, feed, bday, cfg)
         if not url:
+            fails[akey] = fails.get(akey, 0) + 1
+            _save_state(state)
             continue                    # upload hiccup: retry next tick
+        fails.pop(akey, None)
         state["published"].setdefault(feed, {})[bday] = {
             "title": title, "url": url, "bytes": size, "secs": secs,
             "pub": formatdate(time.time())}
