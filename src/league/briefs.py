@@ -47,6 +47,7 @@ intermission sheet, the scores desk, and (per the design) export()'s
 from __future__ import annotations
 
 import random
+import re
 
 from . import stats as leaguestats
 
@@ -223,13 +224,15 @@ def intermission_sheet(date: str, cursor: int, boxes: list, stats: dict,
 
 
 def scores_desk(date: str, boxes: list, players: dict, n: int = 5,
-                first: tuple = ()) -> str:
+                first: tuple = (), names: dict | None = None) -> str:
     """One narratable wire-copy line, named scorers included: 'Last night
     in the league: Regrets 4, Fog Advisories 2 — Ostberg twice; ...'.
     `first` = team keys whose games LEAD the desk (the tracked franchises —
     the station's editorial voice and its scoreboard must agree on who we
-    follow)."""
+    follow). `names` maps team keys to on-air names — box shards carry KEYS,
+    and an anchor must never read 'tbr 4, hfx 2' aloud."""
     plook = _plook(players)
+    names = names or {}
     ordered = sorted(list(boxes),
                      key=lambda b: 0 if (b.get("home") in first
                                          or b.get("away") in first) else 1)
@@ -239,11 +242,122 @@ def scores_desk(date: str, boxes: list, players: dict, n: int = 5,
         tag = " (OT)" if box.get("ot") else " (SO)" if box.get("so") else ""
         scorers = _scorer_phrase(box, plook)
         tail = f" — {', '.join(scorers)}" if scorers else ""
-        games.append(f"{box.get('away', 'the road team')} {a}, "
-                     f"{box.get('home', 'the home team')} {h}{tag}{tail}")
+        away = names.get(box.get("away"), box.get("away", "the road team"))
+        home = names.get(box.get("home"), box.get("home", "the home team"))
+        games.append(f"{away} {a}, {home} {h}{tag}{tail}")
     if not games:
         return f"No other league games to report for {date}."
     return "Last night in the league: " + "; ".join(games) + "."
+
+
+# --- the Sports Desk proper: sheet -> LLM anchor -> verify-or-fallback ------
+
+def desk_sheet(date: str, boxes: list, players: dict, names: dict,
+               first: tuple = (), sched_days: dict | None = None,
+               stats: dict | None = None) -> dict:
+    """Everything the Sports Desk anchor may say, structured: tracked games
+    first (with their top scorer), up to four finals total, the scoring
+    leader, and the next broadcast. The anchor AUTHORS the read; this sheet
+    is the only truth, and desk_verify holds the read to it."""
+    plook = _plook(players)
+    ordered = sorted(list(boxes),
+                     key=lambda b: 0 if (b.get("home") in first
+                                         or b.get("away") in first) else 1)
+    games = []
+    for box in ordered[:4]:
+        h, a = box.get("final", (0, 0))
+        tracked = box.get("home") in first or box.get("away") in first
+        scorers = _scorer_phrase(box, plook)
+        games.append({"away": names.get(box.get("away"), box.get("away")),
+                      "home": names.get(box.get("home"), box.get("home")),
+                      "ag": a, "hg": h,
+                      "ot": bool(box.get("ot") or box.get("so")),
+                      "tracked": tracked,
+                      "scorer": scorers[0] if (scorers and tracked) else None})
+    leader = None
+    if stats:
+        top = leaguestats.leaders(stats, players, "p", 1)
+        if top:
+            leader = {"name": top[0]["name"], "p": top[0]["p"],
+                      "gp": top[0]["gp"]}
+    nxt = None
+    for d in sorted(sched_days or {}):
+        if d <= date:
+            continue
+        for row in sched_days[d]:
+            if len(row) > 2 and row[2] == "AIR":
+                from datetime import date as _dd
+                nxt = {"date": d,
+                       "weekday": _dd.fromisoformat(d).strftime("%A"),
+                       "away": names.get(row[1], row[1]),
+                       "home": names.get(row[0], row[0])}
+                break
+        if nxt:
+            break
+    return {"date": date, "games": games, "leader": leader, "next_air": nxt}
+
+
+def desk_block(sheet: dict) -> str:
+    """The authoritative facts block handed to the desk writer."""
+    ln = ["SPORTS DESK SHEET (authoritative — the ONLY results that exist):"]
+    for g in sheet["games"]:
+        tag = " (OT)" if g["ot"] else ""
+        star = f" | top scorer: {g['scorer']}" if g.get("scorer") else ""
+        ln.append(f"- {'OUR CLUB: ' if g['tracked'] else ''}"
+                  f"{g['away']} {g['ag']}, {g['home']} {g['hg']}{tag}{star}")
+    if sheet.get("leader"):
+        led = sheet["leader"]
+        ln.append(f"- scoring leader: {led['name']}, {led['p']} points "
+                  f"in {led['gp']} games")
+    if sheet.get("next_air"):
+        n = sheet["next_air"]
+        ln.append(f"- next broadcast: {n['away']} at {n['home']}, "
+                  f"{n['weekday']} night, 8 PM, on The Frequency")
+    return "\n".join(ln)
+
+
+_NUM_WORDS = {"zero": 0, "nothing": 0, "nil": 0, "one": 1, "two": 2,
+              "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+              "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+              "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+              "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20}
+# team words too common to key a violation on by themselves
+_TEAM_STOP = {"talk", "static", "stories", "moose"}
+
+
+def desk_verify(texts: list, sheet: dict, all_names: list | None = None):
+    """Nothing airs that isn't on the sheet: every small number in the read
+    must be a sheet number (spelled numbers count — the chartguard lesson),
+    every score-shaped pair a sheet final, and every league team mentioned a
+    sheet team. One strike and the caller falls back to wire copy."""
+    body = " " + " ".join(texts).lower() + " "
+    for w, v in _NUM_WORDS.items():
+        body = re.sub(rf"\b{w}\b", f" {v} ", body)
+    allowed = {8}                       # the broadcast hour in the block
+    pairs = set()
+    for g in sheet["games"]:
+        allowed |= {g["ag"], g["hg"]}
+        pairs.add(tuple(sorted((g["ag"], g["hg"]))))
+    if sheet.get("leader"):
+        allowed |= {sheet["leader"]["p"], sheet["leader"]["gp"]}
+    for tok in re.findall(r"\b\d{1,2}\b", body):
+        if int(tok) not in allowed:
+            return False
+    for m in re.finditer(r"\b(\d{1,2})\s*(?:-|to|,)\s*(\d{1,2})\b", body):
+        if tuple(sorted((int(m.group(1)), int(m.group(2))))) not in pairs:
+            return False
+    if all_names:
+        ok = " ".join([f"{g['away']} {g['home']}" for g in sheet["games"]]
+                      + ([f"{sheet['next_air']['away']} "
+                          f"{sheet['next_air']['home']}"]
+                         if sheet.get("next_air") else [])).lower()
+        for full in all_names:
+            nick = full.split()[-1].lower().strip("()")
+            for probe in {full.lower(), nick} - _TEAM_STOP:
+                if re.search(rf"\b{re.escape(probe)}\b", body) \
+                        and probe not in ok:
+                    return False
+    return True
 
 
 # --- pregame blocks (LINES / INJURY REPORT / LEADERS / MILESTONE WATCH)

@@ -174,21 +174,62 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                                      f"brought to you by {name} — {gag}."})
     except Exception:
         pass
-    try:  # the Sports Desk rides every bulletin: last night in the league,
-        # named scorers, straight off the box shards — wire copy, guard-true
+    try:  # the Sports Desk rides every bulletin: Donna Marsh reads a WRITTEN
+        # desk authored from an authoritative sheet and verified against it
+        # line by line — if the draft strays by one number or one team, the
+        # whole read falls back to code-built wire copy. Never a keys-and-
+        # semicolons ticker sprint again.
         from datetime import date as _d, timedelta as _td
         from .league import engine as _lge, briefs as _lgb
         from . import season as _sn
         y = (_d.fromisoformat(f"{clock.air_now():%Y-%m-%d}")
              - _td(days=1)).isoformat()
+        sst = _sn._load()
+        season_n = sst["season"]
         shard = _lge.load_side(f"box/{y}.json")
-        pl = _lge.load_side(f"players-s{_sn._load()['season']}.json")
-        if shard and pl and shard.get("games"):
-            desk = _lgb.scores_desk(y, shard["games"], pl, n=4,
-                                    first=tuple(_sn.TRACKED))
-            if desk:
+        pl = _lge.load_side(f"players-s{season_n}.json")
+        games = list(shard.get("games", [])) if shard else []
+        bg = sst.get("games", {}).get(y)
+        if bg and bg.get("recorded") and bg.get("final"):
+            # the BROADCAST game folds via the live log, never the day shard
+            # — without this, the desk skips our own result
+            games.insert(0, {"home": bg["home_key"], "away": bg["away_key"],
+                             "final": bg["final"], "ot": bg.get("ot", False),
+                             "so": bg.get("so", False), "goals": []})
+        if games and pl:
+            desk_lines = None
+            try:
+                sched = _lge.load_side(f"schedule-s{season_n}.json") or {}
+                stt = _lge.load_side(f"stats-s{season_n}.json")
+                sheet = _lgb.desk_sheet(y, games, pl, _sn._ALL,
+                                        first=tuple(_sn.TRACKED),
+                                        sched_days=sched.get("days"),
+                                        stats=stt)
+                from .news import write_sports_desk
+                script = write_sports_desk(_lgb.desk_block(sheet),
+                                           config["models"], bible)
+                texts = [re.sub(r"^\**\s*Donna(?:\s+Marsh)?\s*:?\**\s*", "",
+                                t).strip("* ").strip()
+                         for t in script.splitlines()]
+                texts = [t for t in texts if t]
+                if texts and _lgb.desk_verify(texts, sheet,
+                                              list(_sn._ALL.values())):
+                    from .performers import _spare_voice
+                    dv = _spare_voice("Donna Marsh")
+                    desk_lines = [{"speaker": "Donna Marsh", "voice": dv,
+                                   "speed": 0.96, "text": t} for t in texts]
+                else:
+                    print("  !! sports desk: draft failed verify — wire copy")
+            except Exception as e:
+                print(f"  (sports desk writer skipped: {e})")
+            if desk_lines:
+                lines.extend(desk_lines)
+            else:
+                desk = _lgb.scores_desk(y, games, pl, n=3,
+                                        first=tuple(_sn.TRACKED),
+                                        names=_sn._ALL)
                 lines.append({"speaker": "Frequency Sports",
-                              "voice": NEWS_VOICE,
+                              "voice": NEWS_VOICE, "speed": 0.96,
                               "text": "Sports desk. " + desk})
     except Exception as e:
         print(f"  (sports desk skipped: {e})")

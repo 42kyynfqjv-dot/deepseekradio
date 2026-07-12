@@ -334,5 +334,60 @@ inter_lines = [L(_render_row(row)), L(sheet["race_note"])]
 _guard_clean("intermission_sheet", inter_lines, facts_other)
 
 
+# --- the Sports Desk proper: sheet -> block -> verify-or-fallback -----------
+NAMES = {"mtl": "Montreal Apologies", "tbr": "Thunder Bay Regrets",
+         "hfx": "Halifax Fog Advisories", "yon": "Yonkers Honkers",
+         "nyg": "New York Gridlock", "scr": "Scranton Small Talk"}
+dboxes = [
+    {"home": "hfx", "away": "yon", "final": [2, 1], "ot": False, "goals": []},
+    {"home": "mtl", "away": "tbr", "final": [4, 2], "ot": True,
+     "goals": [{"scorer": "p1", "t": "h"}, {"scorer": "p1", "t": "h"}]},
+]
+dpl = {"players": {"p1": {"name": "Brick Lindqvist", "team": "mtl"}}}
+dsched = {"2026-07-14": [["hfx", "tbr"]],
+          "2026-07-15": [["mtl", "nyg", "AIR"], ["hfx", "yon"]]}
+dstats = {"skaters": {"p1": [8, 10, 7, 0, 1, 0]}, "goalies": {}}
+sheet = B.desk_sheet("2026-07-13", dboxes, dpl, NAMES, first=("mtl", "nyg"),
+                     sched_days=dsched, stats=dstats)
+check(sheet["games"][0]["home"] == "Montreal Apologies",
+      "desk sheet: tracked game leads, keys resolved to names")
+check(sheet["games"][0]["scorer"] and "Lindqvist" in sheet["games"][0]["scorer"],
+      "tracked game carries its top scorer")
+check(sheet["games"][1]["scorer"] is None, "other games stay scorer-less")
+check(sheet["next_air"] == {"date": "2026-07-15", "weekday": "Wednesday",
+                            "away": "New York Gridlock",
+                            "home": "Montreal Apologies"},
+      f"next broadcast from the AIR tag (got {sheet['next_air']})")
+check(sheet["leader"]["p"] == 17 and sheet["leader"]["gp"] == 8,
+      "scoring leader folded in")
+blk = B.desk_block(sheet)
+check("OUR CLUB" in blk and "Thunder Bay Regrets 2, Montreal Apologies 4 (OT)"
+      in blk, f"block renders away-score-home-score ({blk!r})")
+check("8 PM" in blk and "Wednesday" in blk, "block points at the broadcast")
+
+ALL = list(NAMES.values())
+good = ["The Apologies took it 4 to 2 in overtime against the Regrets.",
+        "Brick Lindqvist had 2 of them.",
+        "Elsewhere the Fog Advisories edged the Honkers, 2, 1.",
+        "Lindqvist now leads the league — 17 points in 8 games.",
+        "Gridlock at the Apologies, Wednesday night, 8 PM, right here.",
+        "Donna Marsh, Frequency Sports."]
+check(B.desk_verify(good, sheet, ALL), "a faithful read passes")
+check(not B.desk_verify(["The Apologies won 5 to 2."], sheet, ALL),
+      "a wrong score pair fails")
+check(not B.desk_verify(["They fired 31 shots."], sheet, ALL),
+      "a stray stat number fails")
+check(not B.desk_verify(["The Apologies won four to three."], sheet, ALL),
+      "a spelled wrong score fails (spelled numbers count)")
+check(not B.desk_verify(["The Gridlock also won, I hear."],
+                        {**sheet, "next_air": None}, ALL),
+      "a league team not on the sheet fails")
+check(B.desk_verify(["Small talk around the rink says plenty."],
+                    sheet, ALL + ["Scranton Small Talk"]),
+      "stoplisted common words alone never trip the guard")
+check(not B.desk_verify(["Even the Scranton Small Talk noticed."],
+                        sheet, ALL + ["Scranton Small Talk"]),
+      "the full team name still trips it")
+
 print(f"\nleague_briefs {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
