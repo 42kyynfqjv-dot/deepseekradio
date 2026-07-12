@@ -73,9 +73,12 @@ def write_bulletin(headlines: list[str], models: dict, bible: str,
         "kernel of the real story but report it like the station's unhinged news "
         "desk would. Clean, PG. HARD RULES: never name any real person — "
         "anonymize to a role ('a senator', 'a pop star', 'a tech CEO'); never "
-        "mock real tragedies; skip entirely any headline about death, war, "
-        "disaster, or political violence and invent a harmless local story "
-        "instead.\n\n" + bible
+        "name a real company, brand, product, app, or organization — "
+        "anonymize to its role too ('a discount grocery chain', 'a streaming "
+        "service', 'a ride-share app'); Halfway's own local businesses are "
+        "fine. Never mock real tragedies; skip entirely any headline about "
+        "death, war, disaster, or political violence and invent a harmless "
+        "local story instead.\n\n" + bible
     )
     user = ("Today's real headlines:\n" +
             "\n".join(f"- {h}" for h in headlines) +

@@ -158,6 +158,8 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     script = write_bulletin(heads, config["models"], bible, coming_up=coming)
     lines = [{"speaker": "Frequency News", "voice": NEWS_VOICE, "text": ln.strip()}
              for ln in script.splitlines() if ln.strip()]
+    from .nameguard import enforce_news
+    lines = enforce_news(lines)   # real brands never survive to air
     # radio furniture: the legal ID + this hour's billboard sponsor lead the
     # bulletin — code-picked (date+hour seeded) so the LLM never chooses
     try:

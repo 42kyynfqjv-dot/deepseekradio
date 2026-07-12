@@ -88,6 +88,68 @@ def _stable_hash(s: str) -> int:
     return int(hashlib.md5(s.encode()).hexdigest(), 16)
 
 
+# ------------------------------------------------------------- news guard
+# Real-world COMPANIES and brands (the discount-grocer incident): the news
+# desk twists real headlines sideways, and a twisted story that still NAMES
+# the company is legal exposure, not a joke. Same curation philosophy as the
+# hockey lists — distinctive names only; common words that double as brands
+# (apple, target, shell, subway, delta, visa, ford, sprint, marvel, gap,
+# oracle, meta) are OMITTED so the fiction keeps its vocabulary. The prompt
+# rule anonymizes to a role; this is the backstop.
+_BRANDS_1 = {
+    "aldi", "aldi's", "aldis", "walmart", "costco", "kroger", "walgreens",
+    "safeway",
+    "mcdonald's", "mcdonalds", "starbucks", "chipotle", "wendy's", "wendys",
+    "dunkin", "coca-cola", "pepsi", "nestle", "nike", "adidas", "ikea",
+    "lego", "netflix", "spotify", "tiktok", "instagram", "facebook",
+    "youtube", "google", "amazon", "microsoft", "openai", "iphone",
+    "android", "samsung", "sony", "nintendo", "tesla", "toyota", "honda",
+    "hyundai", "boeing", "airbus", "pfizer", "moderna", "fedex", "airbnb",
+    "uber", "lyft", "doordash", "disney", "pixar", "verizon", "comcast",
+    "t-mobile", "at&t", "exxon", "chevron", "walgreen's",
+}
+_BRAND_PHRASES = ("taco bell", "burger king", "home depot", "general motors",
+                  "trader joe's", "dollar general", "whole foods")
+
+_NEWS_SAFE = [
+    "In local news: the bridge is still humming in D. Officials call that normal.",
+    "Closer to home, the pothole on Fifth has been upgraded to a landmark.",
+    "And the crosswalk button at Fifth and Pine remains, officials insist, a real button.",
+    "Elsewhere: a Halfway resident reports her mailbox is fine. Developing.",
+]
+
+
+def enforce_news(lines):
+    """The bulletin's entity cop: any line naming a real company or brand is
+    REPLACED with a harmless local brief (never cut — the bulletin's rhythm
+    survives). Word-boundary matches on curated distinctive names, so
+    'googled it' never trips on 'google' and the fiction keeps its words."""
+    out = []
+    for ln in lines:
+        text = ln.get("text", "")
+        low = text.lower()
+        hit = None
+        for ph in _BRAND_PHRASES:
+            if re.search(r"\b" + re.escape(ph) + r"\b", low):
+                hit = ph
+                break
+        if not hit:
+            for tok in re.findall(r"[a-z][a-z&'’.-]*[a-z']", low):
+                if tok in _BRANDS_1:
+                    hit = tok
+                    break
+        if hit:
+            print(f"  !! nameguard(news): real brand {hit!r} scrubbed: "
+                  f"{text[:60]!r}")
+            new = dict(ln)
+            new["text"] = _NEWS_SAFE[_stable_hash(text) % len(_NEWS_SAFE)]
+            new["_enforced"] = True
+            out.append(new)
+        else:
+            out.append(ln)
+    return out
+
+
 def _allow_set(facts, extra_ok):
     """Everything the fiction legitimately owns, lowercased: tonight's roster,
     refs, hosts, team words (all already in names_ok) plus the caller's own

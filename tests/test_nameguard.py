@@ -88,5 +88,30 @@ check(not enforce_names([r], facts(), extra_ok=POOL)[0].get("_enforced")
       or enforce_names([r], facts(), extra_ok=POOL)[0]["text"] == r["text"],
       "replacement is idempotent (trips no check)")
 
+
+# --- news guard: real brands never survive to air ---------------------------
+from src.nameguard import enforce_news  # noqa: E402
+
+
+def news_run(text):
+    return enforce_news([{"speaker": "Frequency News", "voice": "am_onyx",
+                          "text": text}])[0]
+
+
+for bad in ("A shopper at Aldi's reported the carts have formed a union.",
+            "Aldis says the carts are fine.",
+            "The new Taco Bell item is, legally speaking, a cube.",
+            "A recall notice from Toyota puzzled local mechanics."):
+    r = news_run(bad)
+    check(r.get("_enforced") is True, f"brand scrubbed: {bad[:38]!r}")
+    check(r["speaker"] == "Frequency News", "news replacement keeps speaker")
+for ok in ("Officials googled it and remain unsure.",
+            "A discount grocery chain says its carts have formed a union.",
+            "This hour is brought to you by Gary's Discount Teeth.",
+            "The bridge is still humming in D."):
+    check(not news_run(ok).get("_enforced"), f"clean news kept: {ok[:38]!r}")
+check(not news_run(news_run("Aldi's again.")["text"]).get("_enforced"),
+      "news replacement is idempotent")
+
 print(f"\nnameguard {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
