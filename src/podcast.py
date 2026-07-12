@@ -55,6 +55,7 @@ LOCAL_KEEP = 15         # local-mode retention (R2 mode keeps everything)
 BITRATE = "64k"
 SCOREBOARD = Path("/var/www/bestairadio/data/sports/hockey/scoreboard.json")
 RESERVE = Path("/opt/kaos/reserve")   # evergreen bumpers bridge the cuts
+BEDS = Path("/opt/kaos/beds")         # show beds mixed under the episode
 
 _FNAME = re.compile(r"^(\d+)_(.+)\.wav$")
 _EXCLUDE = ("-break",)  # the ad-break marker is moved to played/ unplayed
@@ -68,6 +69,7 @@ FEEDS = {
                 "a week.",
         "match": lambda label: label.startswith("center-ice-"),
         "category": "Sports",
+        "bed": "crowd*.wav",          # the arena under the call, like air
     },
     "dream-court": {
         "title": "Dream Court",
@@ -79,6 +81,7 @@ FEEDS = {
         "match": lambda label: label.startswith("night-shift-") and any(
             s in label for s in ("dream-court", "cant-sleep")),
         "category": "Society & Culture",
+        "bed": "night*.wav",          # the late-night bed, like air
     },
     "static-hour": {
         "title": "The Static Hour",
@@ -241,9 +244,24 @@ def _encode(files: list, mp3: Path, title: str, feed: str,
     lst = WORK / "concat.txt"
     lst.write_text("".join(f"file '{f.resolve()}'\n"
                            for f in _with_bridges(files, feed, bday)))
+    # the show's bed under the episode, same gentle duck as air (beds are
+    # loudnorm'd to -30 LUFS at rest); no bed on disk -> clean encode
+    bed = None
+    if FEEDS[feed].get("bed") and BEDS.is_dir():
+        beds = sorted(BEDS.glob(FEEDS[feed]["bed"]))
+        if beds:
+            bed = beds[_hash(f"bed:{feed}:{bday}") % len(beds)]
+    bed_in = ["-stream_loop", "-1", "-i", str(bed)] if bed else []
+    if bed:
+        filt = ["-filter_complex",
+                "[1:a][0:a]sidechaincompress=threshold=0.02:ratio=4:"
+                "attack=120:release=1200:makeup=1[duck];"
+                "[0:a][duck]amix=inputs=2:duration=first:normalize=0[m];"
+                "[m]loudnorm=I=-16:TP=-1.5:LRA=11[out]", "-map", "[out]"]
+    else:
+        filt = ["-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]
     r = _run(["nice", "-n", "10", "ffmpeg", "-y", "-v", "error",
-              "-f", "concat", "-safe", "0", "-i", str(lst),
-              "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+              "-f", "concat", "-safe", "0", "-i", str(lst), *bed_in, *filt,
               "-ar", "24000", "-ac", "1", "-b:a", BITRATE,
               "-metadata", f"title={title}",
               "-metadata", "artist=The Frequency",

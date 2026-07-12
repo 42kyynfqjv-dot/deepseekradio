@@ -53,12 +53,14 @@ show_of() {
 }
 
 bed_for() {
-  # music under dialogue only where music belongs: the ambient dawn hour.
-  # talk shows air clean — beds under conversation read as noise, not polish.
-  # center ice gets the arena: a synthesized crowd wash ducked under the call
-  # (generate with: python -m src.sfx bed /opt/kaos/beds/crowd-center-ice.wav)
+  # music under dialogue where music belongs: the ambient dawn hour, the
+  # late-night companion (owner call: Dream Court plays over a bed), and
+  # the arena crowd under the game call. Daytime talk still airs clean.
+  # Beds are loudnorm'd to -30 LUFS at rest (see deploy/renorm_beds.sh) —
+  # the duck below assumes that reference level.
   case "$(basename "$1")" in
     *dawn-patrol*) ls "$BEDS/night"*.wav 2>/dev/null | shuf -n1 ;;
+    *night-shift*) ls "$BEDS/night"*.wav 2>/dev/null | shuf -n1 ;;
     *center-ice*)  ls "$BEDS/crowd"*.wav 2>/dev/null | shuf -n1 ;;
     *) echo "" ;;
   esac
@@ -69,8 +71,11 @@ play_file() {
   local f="$1" bed
   bed=$(bed_for "$f")
   if [ -f "$bed" ]; then
+    # gentle duck (4:1, slow release): the bed BREATHES under speech and
+    # swells in the pauses. The old 10:1/vol-0.3 stack measured -64.7dB —
+    # beds were technically playing and humanly inaudible.
     ffmpeg -v quiet -i "$f" -stream_loop -1 -i "$bed" -filter_complex \
-      "[1:a]volume=0.3[bq];[bq][0:a]sidechaincompress=threshold=0.015:ratio=10:attack=40:release=900:makeup=1[duck];[0:a][duck]amix=inputs=2:duration=first:normalize=0[out]" \
+      "[1:a][0:a]sidechaincompress=threshold=0.02:ratio=4:attack=120:release=1200:makeup=1[duck];[0:a][duck]amix=inputs=2:duration=first:normalize=0[out]" \
       -map "[out]" -f s16le -ar 24000 -ac 1 - </dev/null
   else
     ffmpeg -v quiet -i "$f" -f s16le -ar 24000 -ac 1 - </dev/null
@@ -131,6 +136,10 @@ feed() {
           date +%s > "$LAST_SPOT_FILE"
           play_spot && true
           play_spot && true
+          # rejoin through station imaging — spots -> sweeper -> show, the
+          # classic break shape (and the sweepers' main airtime)
+          sw=$(pick_reserve)
+          [ -n "$sw" ] && ffmpeg -v quiet -i "$sw" -f s16le -ar 24000 -ac 1 - </dev/null
           ffmpeg -v quiet -i "$FILLER" -t 1.0 -f s16le -ar 24000 -ac 1 - </dev/null
         else
           # guard biting or empty pool: back the host's "we'll be right back"

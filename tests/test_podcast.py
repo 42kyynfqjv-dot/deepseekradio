@@ -43,6 +43,7 @@ def wav(name, when):
 
 
 CONCATS = {}
+ENCODES = {}
 
 
 def fake_run(cmd, **kw):
@@ -53,6 +54,7 @@ def fake_run(cmd, **kw):
     if cmd[0] == "nice":                      # the encoder: emit a fake mp3
         i = cmd.index("-i")                   # ...and snapshot its edit list
         CONCATS[Path(cmd[-1]).name] = Path(cmd[i + 1]).read_text()
+        ENCODES[Path(cmd[-1]).name] = list(cmd)
         Path(cmd[-1]).write_bytes(b"ID3fakemp3" * 100)
     return R()
 
@@ -72,6 +74,9 @@ with tempfile.TemporaryDirectory() as td:
         P.RESERVE.mkdir()
         for b in ("bumper01.wav", "bumper02.wav", "bumper03.wav"):
             (P.RESERVE / b).write_bytes(b"RIFFbumper")
+        P.BEDS = Path("beds")
+        P.BEDS.mkdir()
+        (P.BEDS / "night_0.wav").write_bytes(b"RIFFbed")
         P._run = fake_run
 
         # a Night Shift straddling midnight (22:xx + 00:xx -> one episode),
@@ -152,6 +157,18 @@ with tempfile.TemporaryDirectory() as td:
         check("bumper" not in cl[1], "adjacent aired files butt-join")
         cl2 = CONCATS["static-hour-2026-07-10.mp3"]
         check("bumper" not in cl2, "single-segment episode has no bridge")
+
+        # bed parity with air: dream-court mixes the night bed (ducked),
+        # bed-less shows encode clean
+        dc_cmd = ENCODES["dream-court-2026-07-10.mp3"]
+        check("-stream_loop" in dc_cmd
+              and any("sidechaincompress" in a for a in dc_cmd),
+              "dream-court episode carries the ducked night bed")
+        check(any("night_0.wav" in a for a in dc_cmd), "bed file is the input")
+        sh_cmd = ENCODES["static-hour-2026-07-10.mp3"]
+        check("-stream_loop" not in sh_cmd
+              and not any("sidechaincompress" in a for a in sh_cmd),
+              "bed-less show encodes clean")
 
         feed = P.WWW / "dream-court" / "feed.xml"
         check(feed.exists(), "feed.xml written")
