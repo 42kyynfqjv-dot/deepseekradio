@@ -290,6 +290,59 @@ def tick_v2(st: dict, air_date: str, apply_fn, tracked: dict,
     return {"players": pl, "schedule": sched, "stats": stt, "coaches": coaches}
 
 
+def backfill_boxes(st: dict, root: Path | None = None) -> int:
+    """Heal days the v1 mirror simmed while v2 was dark (the pre-cutover
+    tail): their finals are folded canon, but no box shard or stats fold ever
+    happened — scorers, leaders, and the reveal clock are blind for those
+    dates. For each recent slate day with no shard, retrofit boxes from the
+    recorded finals (box_from_final: the score is canon, only the names are
+    allocated), fold them into the stats sidecar, and save the shard.
+    Idempotent: a day with a shard (live or .bak) is never touched, and the
+    window stays inside shard retention so a pruned v2 day can't double-fold.
+    Broadcast games are skipped — fold_live folded them at the horn."""
+    from . import boxscore, players, stats as statsmod
+    root = root or SIDE
+    season_n = st["season"]
+    today = st.get("sim_through") or ""
+    if not today or not v2_on(season_n, root):
+        return 0
+    lo = (_date.fromisoformat(today) - timedelta(days=20)).isoformat()
+    pl = load_side(f"players-s{season_n}.json", root)
+    if pl is None:
+        return 0
+    stt = load_side(f"stats-s{season_n}.json", root) or \
+        {"schema": 1, "season": season_n, "skaters": {}, "goalies": {}}
+    healed = 0
+    for day in sorted(st.get("slates", {})):
+        if day < lo:
+            continue
+        shard_p = _p(f"box/{day}.json", root)
+        if shard_p.exists() or shard_p.with_suffix(".bak").exists():
+            continue
+        game = st.get("games", {}).get(day)
+        bpair = ({game.get("home_key"), game.get("away_key")}
+                 if game else set())
+        box_games = []
+        for hk, ak, hg, ag, o in st["slates"][day]:
+            if hk in bpair and ak in bpair:
+                continue
+            home = players.dress(pl, hk, day)
+            away = players.dress(pl, ak, day)
+            rng = random.Random(f"retrofit:{season_n}:{day}:{hk}-{ak}")
+            box = boxscore.box_from_final(home, away, [hg, ag],
+                                          bool(o), False, rng)
+            box["home"], box["away"] = hk, ak
+            box["drop"] = _virtual_drop(season_n, day, hk, ak)
+            statsmod.fold_box(stt, box)
+            box_games.append(box)
+        save_side(f"box/{day}.json", {"date": day, "games": box_games}, root)
+        healed += 1
+    if healed:
+        save_side(f"stats-s{season_n}.json", stt, root)
+        print(f"  league: retrofitted {healed} day(s) of box shards")
+    return healed
+
+
 def _prune_boxes(root: Path, today: str, keep: int = 21) -> None:
     cutoff = (_date.fromisoformat(today) - timedelta(days=keep)).isoformat()
     box = (root or SIDE) / "box"

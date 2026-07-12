@@ -449,6 +449,10 @@ def tick(air_date: str) -> None:
         except Exception as e:
             print(f"  !! league v2 tick failed ({e}) — v1 fallback this pass")
             _sim_through(st, air_date)
+        try:  # heal shardless v1-simmed days (pre-cutover tail) — idempotent
+            v2.backfill_boxes(st)
+        except Exception as e:
+            print(f"  (league backfill skipped: {e})")
     else:
         _sim_through(st, air_date)
     if _maybe_rollover(st):
@@ -615,6 +619,12 @@ def _around_rows(st: dict, slate: list) -> list:
             for row, (h, a, *_r) in zip(rows, slate):
                 g = by_pair.get((h, a))
                 if not g or "drop" not in g:
+                    # no reveal info mid-broadcast: WITHHOLD — never show a
+                    # final the booth hasn't reached (backfill heals the shard)
+                    row.pop("scorers", None)
+                    row["score"] = None
+                    row["ot"] = False
+                    row["status"] = "upcoming"
                     out_rows.append(row)
                     continue
                 rv = _lgb.reveal(g, g["drop"], cursor)
@@ -771,6 +781,11 @@ def export(path: str = "/var/www/bestairadio/data/league.json") -> None:
         tmp = p.with_suffix(f".tmp.{os.getpid()}")   # per-writer: the generator
         tmp.write_text(json.dumps(out))              # and the 30s publisher race
         tmp.replace(p)
+        try:  # the sports section rides the same tick, gated by the same `out`
+            from .league import sitefeed as _sfeed
+            _sfeed.export_sports(st, out, root=p.parent)
+        except Exception as e:
+            print(f"  (sports feeds skipped: {e})")
     except Exception as e:
         # the website is decoration; the broadcast is the product — but say so,
         # or a missing web dir is an invisible no-publish
