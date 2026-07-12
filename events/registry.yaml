@@ -1,0 +1,169 @@
+# events/registry.yaml  — schema: 1  (Track D, the special-events register)
+#
+# One human-authored file. Each record is either LITERAL-DATED (date/dates) or
+# DERIVED (deriver: names a pure fn in events/derivers.py that yields ISO dates
+# from sim state). A record's `show:` block is a schedule.yaml daypart fragment,
+# VERBATIM — the overlay copies it into the daypart dict and adds {id, window,
+# date, engine}. `{..}` in site/promo is filled from the deriver's per-date meta.
+#
+# gate: a path that must EXIST to arm the event (the dark-ship lever). null =
+# always armed. Removing this file (or clearing a gate) instantly reverts to the
+# evergreen station — the league engine's instant-fallback guarantee.
+schema: 1
+events:
+
+  # ── Election Night — literal, gated dark until the civicguard soaks ────────
+  # Belt-and-suspenders literal date; the election deriver generalises to every
+  # future cycle. Window wraps past midnight (you don't cut away from a live
+  # count) — it belongs to the date it STARTED on. Pre-empts Culture Vulture +
+  # Night Shift at priority 90.
+  - id: election_night
+    engine: election_night
+    dates: ["2026-11-03"]
+    gate: "data/statehouse/ELECTION-ENABLED"
+    window: ["19:00", "01:00"]
+    priority: 90
+    show:
+      show: "Election Night"
+      cast: [vivian, cosima]     # the returns-desk anchors; analysts from pool
+      news: false                # you don't cut away from a live count
+      parts_per_beat: 2
+      lines_per_beat: 20
+      ad_cadence: structural
+      energy: "live returns desk; AP-style calls, precinct by precinct"
+      segments:
+        - "The Desk Opens — polls close, the first precincts report"
+        - "The Board — race by race, the count as it lands, calls when earned"
+        - "The Analysts — a guest reads the map; no call ahead of the reveal"
+        - "The Call — the night's decisive race, named the moment it's safe"
+    site:
+      name: "Election Night"
+      hook: "Live returns from all 171 precincts."
+      who: "THE RETURNS DESK"
+    promo:
+      lead_days: 7
+      copy:
+        - "Wending votes. Live returns Tuesday night, all 171 precincts, on The Frequency."
+
+  # ── Playoff series nights — derived from the league bracket ────────────────
+  # The bracket is the single source; no playoff schedule lives here. Most
+  # emitted dates coincide with the static Wed/Sat center_ice block (the overlay
+  # dedupes); the NEW value is slip nights and Game-7 nights the promo can name.
+  # Stable id across every night it fires (Center Ice tail/handoff keys on id).
+  # Gate: the league spine itself — playoff nights ship FIRST (the engine is
+  # run_center_ice, already live); the economy gate belongs to draft/deadline.
+  - id: playoff_night
+    engine: center_ice           # reuses run_center_ice, UNCHANGED
+    deriver: playoff_nights
+    gate: "data/league/ENABLED"
+    window: ["20:00", "23:00"]   # may be overridden per derived date via meta
+    priority: 50
+    show:
+      show: "Center Ice — Playoffs"
+      cast: [bucky, sal]
+      news: false
+      parts_per_beat: 2
+      lines_per_beat: 22
+      ad_cadence: structural
+      energy: "playoff hockey; every shift is the season"
+      segments:
+        - "Pregame — the stakes, the storylines, Sal's first unverifiable stat"
+        - "The Periods — live play-by-play; goals, penalties, momentum"
+        - "Intermission — booth chatter, a rink-side 'interview'"
+        - "Postgame — final horn, three stars, then the call-in show"
+    site:
+      name: "Center Ice — Playoffs"
+      hook: "Win or go home. Live from {arena}."
+      who: "BUCKY · SAL"
+    promo:
+      lead_days: 4
+      copy:
+        - "Center Ice, {round}, Game {game}: {away} at {home}. Live {weekday} night on The Frequency."
+        - "The run for the Boreal Lantern continues. Center Ice, {weekday}, only here."
+
+  # ── Draft Night — thin engine, dark until Gate 2 (ECON-ENABLED) ────────────
+  # Fixed offset into the league calendar's offseason draft window; meta names
+  # the tracked teams' picks/needs from the economy sidecars (guard-verified).
+  # Gate: its OWN lever, armed only when run_draft exists — a show whose
+  # engine isn't built must never reach air on someone else's gate.
+  - id: draft_day
+    engine: draft
+    deriver: draft_day
+    gate: "data/events/DRAFT-ENABLED"
+    window: ["20:00", "22:00"]
+    priority: 45
+    show:
+      show: "Draft Night"
+      cast: [bucky, sal]
+      news: false
+      parts_per_beat: 2
+      lines_per_beat: 20
+      energy: "the league's amateur draft; picks, needs, reaches, and reaches on reaches"
+      segments:
+        - "On The Clock — the board, the consensus, the chaos about to unfold"
+        - "The Pick Is In — each selection, the reaction, the fit"
+        - "War Room — a tracked team's needs vs. who's still on the board"
+    site:
+      name: "Draft Night"
+      hook: "The future arrives. Live from the draft floor."
+      who: "BUCKY · SAL"
+    promo:
+      lead_days: 3
+      copy:
+        - "Draft Night on The Frequency. The future of the league, {weekday}, pick by pick."
+
+  # ── Trade Deadline — thin engine, dark until Gate 2 (ECON-ENABLED) ─────────
+  - id: trade_deadline
+    engine: trade_deadline
+    deriver: trade_deadline
+    gate: "data/events/DEADLINE-ENABLED"
+    window: ["16:00", "19:00"]
+    priority: 45
+    show:
+      show: "Deadline Day"
+      cast: [hank, kai]
+      news: false
+      parts_per_beat: 2
+      lines_per_beat: 20
+      energy: "trade-deadline desk; rumors, done deals, and immediate overreaction"
+      segments:
+        - "The Board — buyers, sellers, and who's pretending to be neither"
+        - "Deal Breaks — each trade as it lands, graded on no evidence"
+        - "The Fallout — what a tracked team did, or conspicuously didn't, do"
+    site:
+      name: "Deadline Day"
+      hook: "Buyers and sellers. Every deal as it breaks."
+      who: "HANK · KAI"
+    promo:
+      lead_days: 2
+      copy:
+        - "Deadline Day. Every trade as it lands, {weekday} afternoon on The Frequency."
+
+  # ── Blizzard / Storm Watch — real weather, same-day only, no promo ─────────
+  # Uniquely reactive: weather isn't known days out, so lead_days: 0 and no
+  # promo (a storm promo mid-storm is noise). A SOFT takeover — rides the
+  # Morning Scramble slot with Wesley + a closings sheet, energy shifts, not a
+  # jarring format break. Gated dark until run_blizzard exists — once built,
+  # this gate stays armed year-round and the weather deriver does the rest.
+  - id: blizzard
+    engine: blizzard
+    deriver: blizzard_days
+    gate: "data/events/BLIZZARD-ENABLED"
+    window: ["06:00", "10:00"]
+    priority: 40
+    show:
+      show: "Storm Watch"
+      cast: [wesley]
+      news: true
+      energy: "calm emergency service; closings, the plow, the goose"
+      segments:
+        - "The Closings — what's shut, what's open, what's pretending to be open"
+        - "The Plow Report — where the plow is, where it isn't, where the goose is"
+        - "Stay Warm — a genuinely useful, genuinely calm wind-down"
+    site:
+      name: "Storm Watch"
+      hook: "Halfway digs out. Closings and the plow, live."
+      who: "WESLEY"
+    promo:
+      lead_days: 0
+      copy: []

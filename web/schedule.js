@@ -5,6 +5,12 @@
  * to TAKEOVERS — it slots into the grid and the now/next readout automatically.
  * Mirrors src/schedule.yaml (day-gated blocks win their window on their days).
  *
+ * Date-specific pre-empts (playoff Game 7, Election Night, a blizzard) arrive
+ * as DATA: F.loadTakeovers() fetches /data/takeovers.json (no-store) and concats
+ * date-keyed rows ({date:"YYYY-MM-DD", ...} instead of {days:[...]}) into
+ * TAKEOVERS. A new event needs no code edit and no ?v bump — only this one-time
+ * date-branch diff does.
+ *
  * CACHE: Cloudflare caches this file ~4h. After editing it, bump the ?v=N on
  * the <script src="/schedule.js?v=N"> include in every HTML page (the pages
  * are served uncached, so the new version propagates immediately).
@@ -46,6 +52,23 @@
   F.stationHour = function () { return Math.floor(F.stationHM() / 60); };
   F.stationDay = function () { return get(parts(), "weekday"); };
 
+  // station-time ISO date. NEVER new Date().toISOString(): that is UTC and, at
+  // 19:00-23:59 ET, already reports TOMORROW — mis-gating an evening takeover.
+  // en-CA renders YYYY-MM-DD; STATION_TZ matches parts()/stationDay above so
+  // this stays on station time like every other helper here.
+  F.todayISO = function () {
+    return new Intl.DateTimeFormat("en-CA", {timeZone: STATION_TZ,
+      year: "numeric", month: "2-digit", day: "2-digit"}).format(new Date());
+  };
+
+  // is takeover t live on `day`? weekday-keyed rows gate on `days`; date-keyed
+  // rows (from the feed) gate on `date === today`. Guards every `t.days` access
+  // so a date-keyed row (t.days === undefined) never throws and blanks the grid.
+  function onDay(t, day) {
+    return t.days ? t.days.indexOf(day) !== -1 : t.date === F.todayISO();
+  }
+  F.onDay = onDay;
+
   // is hour h inside slot s (handles windows that wrap past midnight, end > 24)
   F.inWin = function (h, s) {
     return s.end > 24 ? (h >= s.start || h < s.end - 24)
@@ -56,7 +79,7 @@
   F.activeTakeover = function (day, h) {
     for (var i = 0; i < F.TAKEOVERS.length; i++) {
       var t = F.TAKEOVERS[i];
-      if (t.days.indexOf(day) !== -1 && F.inWin(h, t)) return t;
+      if (onDay(t, day) && F.inWin(h, t)) return t;
     }
     return null;
   };
@@ -79,7 +102,7 @@
     function clone(o) { var c = {}; for (var k in o) c[k] = o[k]; return c; }
     var blocks = F.SCHEDULE.map(clone);
     F.TAKEOVERS.forEach(function (t) {
-      if (t.days.indexOf(day) === -1) return;
+      if (!onDay(t, day)) return;
       var out = [], inserted = false;
       function pushTakeover() {
         if (!inserted) { var tk = clone(t); tk._takeover = true; out.push(tk); inserted = true; }
@@ -95,6 +118,21 @@
       blocks = out;
     });
     return blocks;
+  };
+
+  // fetch the dynamic feed and concat date-keyed rows into TAKEOVERS, dropping
+  // past ones so a stale feed can't resurrect a finished event. Feed down ->
+  // the evergreen lineup still renders (the catch is a no-op). Callers pass a
+  // re-render callback (the page owns render()).
+  F.loadTakeovers = function (onLoaded) {
+    fetch("/data/takeovers.json", {cache: "no-store"}).then(function (r) { return r.json(); })
+      .then(function (j) {
+        var today = F.todayISO();
+        F.TAKEOVERS = F.TAKEOVERS.concat(
+          (j.takeovers || []).filter(function (t) { return t.date >= today; }));
+        if (typeof onLoaded === "function") onLoaded();
+      })
+      .catch(function () {});
   };
 
   root.FREQ = F;

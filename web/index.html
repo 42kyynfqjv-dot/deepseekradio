@@ -222,7 +222,7 @@
       </div>
       <div class="hint" id="hint" role="status" aria-live="polite">▶ press play · live · always</div>
       <audio id="stream" preload="none"></audio>
-<script src="/schedule.js?v=2"></script>
+<script src="/schedule.js?v=3"></script>
     </div>
   </div>
 </header>
@@ -365,9 +365,13 @@ function render(){
     if (on) liveIdx = i;
     const el = document.createElement("div");
     el.className = "slot" + (on ? " now" : "") + (s._takeover ? " takeover" : "");
-    const badge = s._takeover
-      ? `<span style="${BADGE}">${s.days.map(d => d.slice(0,3).toUpperCase()).join(" · ")}</span>`
-      : "";
+    const badge = !s._takeover ? ""
+      : `<span style="${BADGE}">${
+          s.days
+            ? s.days.map(d => d.slice(0,3).toUpperCase()).join(" · ")
+            : new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",
+                month:"short", day:"numeric"}).format(new Date(s.date+"T12:00"))
+              .toUpperCase()}</span>`;   // weekday row -> "WED · SAT"; dated -> "NOV 3"
     el.innerHTML = `<div class="time">${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}${badge}</div>
       <div><div class="name">${s.name}</div><div class="hook">${s.hook}</div><div class="who">${s.who}</div></div>
       <span class="livechip">● LIVE</span>`;
@@ -406,6 +410,8 @@ function render(){
   });
 }
 render(); setInterval(render, 60_000);
+// pull date-specific pre-empts from the feed, then re-render (feed down -> no-op)
+F.loadTakeovers(render);
 
 </script>
 

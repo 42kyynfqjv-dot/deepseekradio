@@ -22,6 +22,20 @@ LAST_SPOT_FILE="$BUF/.last_spot"
 [ -f "$LAST_SPOT_FILE" ] || date +%s > "$LAST_SPOT_FILE"
 LAST_SHOW=""
 
+pick_reserve() {
+  # prefer a promo whose event is still upcoming (embedded date >= today),
+  # else fall back to an evergreen bumper exactly as before. Hard expiry
+  # (deleting past-event promos) is owned by purge_expired on the app side;
+  # this date check is only a best-effort preference.
+  local today p d
+  today=$(date +%F)
+  for p in $(ls "$RESERVE"/promo_*.wav 2>/dev/null | shuf); do
+    d=$(basename "$p" | sed -E 's/^promo_.*_([0-9]{4}-[0-9]{2}-[0-9]{2})_[0-9]+\.wav$/\1/')
+    [ "$d" \> "$today" ] || [ "$d" = "$today" ] && { echo "$p"; return; }
+  done
+  ls "$RESERVE"/bumper*.wav 2>/dev/null | shuf -n1
+}
+
 show_of() {
   # 000000123_night-shift-the-quiet-part.wav -> night-shift (etc.)
   local n; n=$(basename "$1"); n=${n#*_}
@@ -121,7 +135,7 @@ feed() {
         else
           # guard biting or empty pool: back the host's "we'll be right back"
           # with a bumper + breath so it reads as a real break, not a false ending
-          bb=$(ls "$RESERVE"/bumper*.wav 2>/dev/null | shuf -n1)
+          bb=$(pick_reserve)
           [ -n "$bb" ] && ffmpeg -v quiet -i "$bb" -f s16le -ar 24000 -ac 1 - </dev/null
           ffmpeg -v quiet -i "$FILLER" -t 1.0 -f s16le -ar 24000 -ac 1 - </dev/null
         fi
@@ -130,7 +144,7 @@ feed() {
       # produced handover at show boundaries: bumper + a breath
       sh=$(show_of "$f")
       if [ -n "$sh" ] && [ -n "$LAST_SHOW" ] && [ "$sh" != "$LAST_SHOW" ]; then
-        b=$(ls "$RESERVE"/bumper*.wav 2>/dev/null | shuf -n1)
+        b=$(pick_reserve)
         [ -n "$b" ] && ffmpeg -v quiet -i "$b" -f s16le -ar 24000 -ac 1 - </dev/null
         ffmpeg -v quiet -i "$FILLER" -t 1.5 -f s16le -ar 24000 -ac 1 - </dev/null
       fi

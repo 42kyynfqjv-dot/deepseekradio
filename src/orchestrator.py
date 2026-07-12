@@ -23,7 +23,7 @@ from pathlib import Path
 
 import yaml
 
-from . import buffer, clock, lore
+from . import buffer, clock, events, lore
 from . import switchboard as _switch
 from . import continuity as _cont
 from .openrouter import METER
@@ -64,6 +64,8 @@ def _current_daypart(schedule: dict, now: datetime) -> dict:
         days = dp.get("days")
         if days and now.strftime("%A") not in days:
             continue
+        if not events.daypart_matches_date(dp, now):
+            continue  # event blocks own the air only on their date (wrap-aware)
         start = dtime.fromisoformat(dp["window"][0])
         end = dtime.fromisoformat(dp["window"][1])
         # handle windows that wrap past midnight (e.g. 22:00 -> 01:00)
@@ -287,8 +289,15 @@ def _mint_caller_line(used, seedkey: str, host_speaker: str,
 
 
 def run_show(daypart, config, schedule, live: bool):
-    if daypart.get("id") == "center_ice":   # live sports is its own machine
+    eng_key = events.engine_of(daypart)
+    if eng_key == "center_ice":             # live sports is its own machine
         return run_center_ice(daypart, config, schedule, live)
+    if eng_key:
+        # an event engine we haven't built yet must NEVER free-associate its
+        # way onto air — bumpers cover the window until the engine exists
+        print(f"  (event engine '{eng_key}' not built — skipping generation)")
+        time.sleep(60)
+        return
     models = config["models"]
     state = lore.load()
     weekday = clock.air_now().strftime("%A")  # the day it will AIR
@@ -578,7 +587,8 @@ def run_show(daypart, config, schedule, live: bool):
                 break
             # never generate past the daypart's AIR boundary — the next show
             # owns everything that would air after it
-            if _current_daypart(schedule, clock.air_now()) is not daypart:
+            if not events.same_air(_current_daypart(schedule, clock.air_now()),
+                                   daypart):
                 print("  (daypart ended — handing over to the next show)")
                 break
             _throttle(config, live)
@@ -870,7 +880,8 @@ def run_center_ice(daypart, config, schedule, live: bool):
         return _minutes_left(daypart, clock.air_now())
 
     def _owns_air():
-        return _current_daypart(schedule, clock.air_now()) is daypart
+        return events.same_air(_current_daypart(schedule, clock.air_now()),
+                               daypart)
 
     wpool = ThreadPoolExecutor(max_workers=1)
 
@@ -1272,8 +1283,12 @@ def main(argv=None):
     buffer.ensure_dirs()
 
     while True:
-        # write for the show that owns the AIR slot this content will land in
-        dp = _current_daypart(schedule, clock.air_now())
+        # write for the show that owns the AIR slot this content will land in.
+        # `eff` = the base schedule with today's special-event blocks overlaid
+        # (memoized; with no active event it IS the base object, a pure no-op)
+        eff = events.effective_schedule(schedule,
+                                        events.build_ctx(clock.air_now()))
+        dp = _current_daypart(eff, clock.air_now())
         try:  # league plays every night whether we broadcast or not
             from . import season
             season.tick(f"{clock.air_now():%Y-%m-%d}")
@@ -1309,6 +1324,25 @@ def main(argv=None):
                 _sstate_save(st)
         except Exception as e:
             print(f"  (spot refresh skipped: {e})")
+        try:  # events: site takeover feed + lead-window promos, same cadence
+            st = _sstate()
+            if args.live and time.time() - st.get("last_events", 0) > 30 * 60:
+                from datetime import timedelta as _td
+                from .events import promo as _evpromo, publish as _evpub
+                _evpub.publish_takeovers()
+                upcoming, _seen = [], set()
+                for k in range(8):   # promos need the lead window, not just today
+                    for ev in events.active_events(
+                            events.build_ctx(clock.air_now() + _td(days=k))):
+                        if (ev.get("id"), ev.get("date")) not in _seen:
+                            _seen.add((ev.get("id"), ev.get("date")))
+                            upcoming.append(ev)
+                _evpromo.render_promos(upcoming, f"{clock.air_now():%Y-%m-%d}")
+                _evpromo.purge_expired(f"{clock.air_now():%Y-%m-%d}")
+                st["last_events"] = time.time()
+                _sstate_save(st)
+        except Exception as e:
+            print(f"  (events hook skipped: {e})")
         # if this window already signed off, don't ramble past the handoff —
         # idle until the next show owns the air (the buffer + bumper cover it)
         if _sstate().get("handed_off") == f"{dp['id']}:{clock.air_now():%Y-%m-%d}":
@@ -1317,16 +1351,23 @@ def main(argv=None):
             time.sleep(30)
             continue
         try:
-            run_show(dp, config, schedule, live=args.live)
+            run_show(dp, config, eff, live=args.live)
         except Exception as e:  # a bad show must not kill the station
             print(f"!! show crashed, continuing: {e}")
             time.sleep(60)
         if args.once:
             return
-        # wait until the buffer needs more, or the AIR daypart changes
-        while (_current_daypart(schedule, clock.air_now()) is dp
-               and buffer.buffered_seconds() >
-               config["generation"]["buffer_target_minutes"] * 60 * 0.5):
+        # wait until the buffer needs more, or the AIR daypart changes.
+        # Recompute the overlay each pass and compare by (id, date) — a memo
+        # miss hands back a fresh dict, so object identity would busy-loop
+        while True:
+            eff = events.effective_schedule(schedule,
+                                            events.build_ctx(clock.air_now()))
+            cur = _current_daypart(eff, clock.air_now())
+            if not (events.same_air(cur, dp)
+                    and buffer.buffered_seconds() >
+                    config["generation"]["buffer_target_minutes"] * 60 * 0.5):
+                break
             time.sleep(60)
 
 

@@ -194,6 +194,8 @@ function render(d){
     aroundWrap.hidden=false;
     document.getElementById('around-date').textContent=d.updated?('AS OF '+d.updated).toUpperCase():'';
     document.getElementById('around').innerHTML=d.around.map(g=>{
+      if(!g.score) // listed but not puck-dropped yet in listener time
+        return `<div>${g.away} at ${g.home} <b>TONIGHT</b></div>`;
       const scorers=(g.scorers&&g.scorers.length)
         ?`<div class="scorers">${g.scorers.join(' · ')}</div>`:'';
       return `<div>${g.away} <b>${g.score[1]}</b>, ${g.home} <b>${g.score[0]}</b>${g.ot?' (OT)':''}${scorers}</div>`;
@@ -249,7 +251,7 @@ setInterval(load,60_000);
   </div>
 </div>
 <audio id="stream" preload="none"></audio>
-<script src="/schedule.js?v=2"></script>
+<script src="/schedule.js?v=3"></script>
 
 <script>
 /* ── ticker + current-show label (page chrome) ── */
