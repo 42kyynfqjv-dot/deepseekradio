@@ -11,3 +11,4 @@ lore_state.json
 kokoro/*.onnx
 kokoro/*.bin
 *.log
+/podcast/

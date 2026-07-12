@@ -1,0 +1,10 @@
+[Unit]
+Description=Podcast harvest/cut every 10 minutes (links aired audio before the player prunes it)
+
+[Timer]
+OnBootSec=120
+OnUnitActiveSec=600
+AccuracySec=30
+
+[Install]
+WantedBy=timers.target

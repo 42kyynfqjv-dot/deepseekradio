@@ -1,0 +1,10 @@
+[Unit]
+Description=The Frequency — podcast harvester/cutter (episode feeds)
+
+[Service]
+Type=oneshot
+User=kaos
+WorkingDirectory=/opt/kaos/app
+EnvironmentFile=-/opt/kaos/podcast.env
+ExecStart=/opt/kaos/.venv/bin/python scripts/podcast_tick.py
+Nice=10
