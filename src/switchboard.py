@@ -3,12 +3,32 @@
 Scoreguard owns the score, nameguard owns the names; the switchboard owns WHO
 IS ON THE LINE. The LLM never guesses call state: every beat's prompt carries
 an authoritative SWITCHBOARD line (like SCOREBOARD), and after generation this
-module enforces it — once the host wraps a call, that caller's later lines are
-DROPPED (they hung up); a call that overruns its budget gets the host's wrap
-line INJECTED (the scoreguard injection pattern) and the overflow dropped; a
-wrapped caller cannot be resurrected in a later beat without a fresh on-air
-greeting. Caller lines are identified structurally (the voice-attacher's phone
-flag), never by guessing at names.
+module enforces it. Caller lines are identified structurally (the voice-
+attacher's phone flag), never by guessing at names.
+
+PRIME RULE — repair toward two-sided coherence, never amputate one side.
+The LLM writes calls as coherent two-voice dialogue; dropping only the
+caller's lines while airing the host's replies manufactures one-sided phone
+theater (the Eugene incident: minutes of the host counseling dead air).
+So enforcement works like this:
+
+- A host wrap-tell only ENDS the call if the caller is silent for the rest
+  of the beat (full lookahead) — "take care, Eugene" mid-conversation is a
+  pleasantry, not a hangup.
+- The call's hard terminator is the BUDGET (per-show caller-line cap). At
+  ~75% the beat prompt tells the host to land the ending in his own words;
+  at 100% code injects the host's wrap and cuts the REST OF THE BEAT — both
+  sides — so the ending airs clean and nobody talks to a ghost.
+- A caller arriving with no on-air announcement gets the host's greeting
+  INJECTED before their first line — announce-before-air is enforced, not
+  requested.
+- A wrapped caller returning in a later beat is dropped only when isolated
+  (a stray line); if the beat carries a real continued conversation the call
+  is un-wrapped and keeps counting against the SAME budget — leniency can
+  change how a call ends, never whether it ends.
+- Pacing is code-owned: the state tracks calls taken and the prompt carries
+  the show's call target, so a call-in hour takes a realistic number of
+  distinct callers instead of one marathon or none.
 
 Stdlib-only leaf module: orchestrator imports this, never the reverse.
 """
@@ -49,22 +69,40 @@ _PHANTOM = re.compile(r"hang(?:s|ing)? up|hung up|we lost (?:him|her|the "
 
 DEFAULT_BUDGET = 12          # caller lines per call before code wraps it
 
+# a caller signing themselves off (terminal only if they then stay silent)
+_CALLER_BYE = re.compile(r"\bgood ?night\b|\bbye(?:\s+now)?\b|"
+                         r"I(?:'ll)? (?:let you go|hang up)|"
+                         r"gotta (?:go|run)\b|I can (?:actually )?sleep now",
+                         re.I)
+# the injected on-air greeting when the LLM forgot to announce a caller
+_ANNOUNCE = ["Let's go to the phones — {name}, you're on The Frequency.",
+             "The board is lit. {name}, you're on the air — go ahead.",
+             "We've got {name} on the line. {name}, go ahead."]
+
 
 def _caller_name(ln: dict) -> str:
     return str(ln.get("speaker", "")).strip()
 
 
-def prompt_line(state: dict | None, budget: int = DEFAULT_BUDGET) -> str:
-    """The authoritative call-state block for the beat prompt."""
+def prompt_line(state: dict | None, budget: int = DEFAULT_BUDGET,
+                pacing: dict | None = None) -> str:
+    """The authoritative call-state block for the beat prompt. `pacing` =
+    {"target": calls this show should take, "done": calls taken so far} —
+    rendered so the phones neither die after one marathon call nor churn."""
     if state and state.get("status") == "live":
         used = state.get("lines_used", 0)
-        return (f"SWITCHBOARD (authoritative): {state['name']} is ON THE LINE "
+        line = (f"SWITCHBOARD (authoritative): {state['name']} is ON THE LINE "
                 f"({used} caller lines used, budget {budget}). Continue or "
                 "wrap THIS call; when the host wraps it in his own words the "
                 "caller is GONE — no further lines from or about them.")
+        if used >= max(1, int(budget * 0.75)):
+            line += (" This call's time is NEARLY SPENT — land the ending "
+                     "within the next few lines, in the host's own words, "
+                     "warmly. Do not start a new topic with this caller.")
+        return line
     gone = f" {state['name']} already hung up and CANNOT return." if state and \
         state.get("name") else ""
-    return ("SWITCHBOARD (authoritative): all lines CLEAR — no caller is on "
+    line = ("SWITCHBOARD (authoritative): all lines CLEAR — no caller is on "
             f"the line.{gone} A NEW caller may only join if a host brings "
             "them on air ('you're on...'). NEVER announce, tease, or 'hold "
             "for' an incoming call unless that caller actually speaks in "
@@ -73,67 +111,144 @@ def prompt_line(state: dict | None, budget: int = DEFAULT_BUDGET) -> str:
             "'hold that thought, there's a call.' You cannot speak TO, hang "
             "up ON, thank, or lose a caller who has not spoken — one-sided "
             "phone theater is forbidden.")
+    if pacing and pacing.get("target"):
+        done, target = pacing.get("done", 0), pacing["target"]
+        if done < target:
+            line += (f" PACING: this show takes about {target} calls across "
+                     f"its window; {done} taken so far — when it fits "
+                     "naturally in THIS beat, announce and bring on the "
+                     "next caller.")
+        else:
+            line += (" PACING: the phones are done for this show — no new "
+                     "callers; carry the hour without them.")
+    return line
+
+
+def _wrap_tell(text: str, name: str) -> bool:
+    if _WRAP.search(text):
+        return True
+    first = (name.split() or [""])[0]
+    return bool(first and re.search(
+        r"\b(?:bye|good ?night|take care),?\s+%s\b" % re.escape(first),
+        text, re.I))
 
 
 def enforce(lines: list[dict], state: dict | None = None,
             budget: int = DEFAULT_BUDGET, host: dict | None = None) -> tuple:
     """Walk the beat's lines against the call state. Returns (new_lines,
-    new_state). Never mutates inputs. Rules:
-    - a caller line (phone flag) after the host's wrap is a ghost: dropped;
-    - a WRAPPED/absent caller speaking again without a fresh on-air greeting
-      is dropped (no resurrections);
-    - a live call exceeding `budget` caller lines gets the host wrap INJECTED
-      (host dict = {speaker, voice, speed}) and the overflow dropped."""
-    st = dict(state) if state else {"name": "", "status": "clear",
-                                    "lines_used": 0}
+    new_state). Never mutates inputs. Rules (see module docstring):
+    - a host wrap-tell (or the caller's own goodbye) ends the call ONLY if
+      that caller stays silent for the rest of the beat — mid-call
+      pleasantries never amputate a living conversation;
+    - a call exceeding `budget` TOTAL caller lines gets the host's wrap
+      INJECTED and the remainder of the beat cut (both sides): the ending
+      airs clean, nobody converses with a ghost;
+    - a caller whose first line arrives unannounced gets the host's
+      greeting injected before it;
+    - a WRAPPED caller speaking again is dropped when isolated, un-wrapped
+      (same budget) when the beat carries a real continued conversation;
+    - state carries {name, status, lines_used, calls_done} across beats."""
+    st = dict(state) if state else {}
+    st.setdefault("name", "")
+    st.setdefault("status", "clear")
+    st.setdefault("lines_used", 0)
+    st.setdefault("calls_done", 0)
+    # lookahead: is there a caller line at any index > k?
+    phone_after = [False] * len(lines)
+    seen = False
+    for k in range(len(lines) - 1, -1, -1):
+        phone_after[k] = seen
+        if lines[k].get("phone"):
+            seen = True
+    # does index k sit inside a continued conversation? (a host line and then
+    # another caller line still follow — the LLM wrote a real exchange)
+    def _conversing(k):
+        host_seen = False
+        for j in range(k + 1, len(lines)):
+            if not lines[j].get("phone"):
+                host_seen = True
+            elif host_seen:
+                return True
+        return False
+
+    def _inject(text):
+        h = host or {}
+        return {"speaker": h.get("speaker", "Host"),
+                "voice": h.get("voice", "am_adam"),
+                "speed": h.get("speed", 1.0),
+                "text": text, "_enforced": True}
+
     out = []
     greeted = False
-    injected = False
-    for ln in lines:
+    cut = False
+    for k, ln in enumerate(lines):
+        if cut:            # budget fired: the call's ending already aired —
+            continue       # the rest of this beat is cut, BOTH sides
         text = ln.get("text", "")
         if not ln.get("phone"):
             out.append(ln)
             if _GREET.search(text):
                 greeted = True
                 if st["status"] != "live":
-                    st = {"name": "", "status": "pending", "lines_used": 0}
-            if st["status"] == "live" and (_WRAP.search(text) or re.search(
-                    r"\b(?:bye|good ?night|take care),?\s+%s\b"
-                    % re.escape(st["name"].split()[0] or "\x00"), text, re.I)
-                    if st["name"] else _WRAP.search(text)):
-                st["status"] = "wrapped"
+                    st = {**st, "name": "", "status": "pending",
+                          "lines_used": 0}
+            if st["status"] == "live" and _wrap_tell(text, st["name"]):
+                if not phone_after[k]:   # real hangup: caller stays silent
+                    st = {**st, "status": "wrapped"}
+                # else: a pleasantry mid-call — the conversation continues
             continue
-        # a caller line
+        # ── a caller line ────────────────────────────────────────────────
         name = _caller_name(ln)
         if st["status"] == "wrapped":
-            if name.lower() == st["name"].lower() or not greeted:
-                print(f"  !! switchboard: ghost caller line dropped: "
-                      f"{text[:50]!r}")
-                continue
-            st = {"name": name, "status": "live", "lines_used": 0}  # new call
+            if name.lower() == st["name"].lower():
+                if _conversing(k):
+                    # the goodbye was premature — the call ran long. Keep the
+                    # conversation two-sided; the budget still binds it.
+                    st = {**st, "status": "live"}
+                    print(f"  !! switchboard: premature wrap re-opened for "
+                          f"{name!r} (call runs long)")
+                else:
+                    print(f"  !! switchboard: ghost caller line dropped: "
+                          f"{text[:50]!r}")
+                    continue
+            else:                        # a NEW caller after the last call
+                if not greeted:
+                    out.append(_inject(_ANNOUNCE[
+                        _stable_hash(name) % len(_ANNOUNCE)].format(
+                            name=name.split()[0] if name else "caller")))
+                    greeted = True
+                    print(f"  !! switchboard: missing announcement injected "
+                          f"for {name!r}")
+                st = {**st, "name": name, "status": "live", "lines_used": 0,
+                      "calls_done": st["calls_done"] + 1}
         elif st["status"] in ("clear", "pending"):
-            if st["status"] == "clear" and not greeted:
-                # no greeting anywhere before this? tolerate mid-scene pickup
+            if not greeted:
+                out.append(_inject(_ANNOUNCE[
+                    _stable_hash(name) % len(_ANNOUNCE)].format(
+                        name=name.split()[0] if name else "caller")))
                 greeted = True
-            st = {"name": name, "status": "live", "lines_used": 0}
+                print(f"  !! switchboard: missing announcement injected "
+                      f"for {name!r}")
+            st = {**st, "name": name, "status": "live", "lines_used": 0,
+                  "calls_done": st["calls_done"] + 1}
         elif st["status"] == "live" and name.lower() != st["name"].lower():
-            st = {"name": name, "status": "live", "lines_used": 0}  # handoff
+            st = {**st, "name": name, "status": "live", "lines_used": 0,
+                  "calls_done": st["calls_done"] + 1}     # caller handoff
         if st["lines_used"] >= budget:
-            if not injected and host:
-                out.append({"speaker": host.get("speaker", "Host"),
-                            "voice": host.get("voice", "am_adam"),
-                            "speed": host.get("speed", 1.0),
-                            "text": f"Thanks for the call, "
-                                    f"{st['name'].split()[0] or 'friend'} — "
-                                    "we'll leave it right there.",
-                            "_enforced": True})
-                injected = True
-                print(f"  !! switchboard: budget wrap injected for "
-                      f"{st['name']!r}")
-            st["status"] = "wrapped"
+            out.append(_inject(
+                f"Thanks for the call, {st['name'].split()[0] or 'friend'} — "
+                "we'll leave it right there."))
+            print(f"  !! switchboard: budget wrap injected for "
+                  f"{st['name']!r}; beat cut")
+            st = {**st, "status": "wrapped"}
+            cut = True
             continue
-        st["lines_used"] += 1
+        st = {**st, "lines_used": st["lines_used"] + 1}
         out.append(ln)
+        # the caller signing off, then silent: that goodbye is terminal
+        if (st["status"] == "live" and _CALLER_BYE.search(text)
+                and not phone_after[k]):
+            st = {**st, "status": "wrapped"}
     # Announcement discipline. Two failure modes, one pass:
     # (a) the STUTTER — "caller on line two" ... "hold that thought, there's
     #     a caller" ... then the caller: a call is announced AT MOST ONCE, so
@@ -187,5 +302,5 @@ def enforce(lines: list[dict], state: dict | None = None,
                   f"{out[k]['text'][:50]!r}")
             out[k] = new
     if st.get("status") == "pending":
-        st = {"name": "", "status": "clear", "lines_used": 0}
+        st = {**st, "name": "", "status": "clear", "lines_used": 0}
     return out, st

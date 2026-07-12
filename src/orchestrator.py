@@ -261,6 +261,34 @@ def _tail_context(lines):
             if tail else "")
 
 
+def _call_budget(daypart) -> int:
+    """Caller-line budget per call, honest to the show's format (Dream Court
+    is one long call; the Static Hour is quick sightings)."""
+    pol = daypart.get("caller_policy") or {}
+    if pol.get("budget"):
+        return pol["budget"]
+    if pol.get("max_lines"):
+        return 3 * pol["max_lines"]
+    return _switch.DEFAULT_BUDGET
+
+
+def _call_pacing(daypart, call_st) -> dict | None:
+    """Code-owned call cadence: per_hour x window hours = the show's target,
+    so a call-in hour takes a realistic number of DISTINCT callers."""
+    pol = daypart.get("caller_policy") or {}
+    per_hour = pol.get("per_hour")
+    if not per_hour:
+        return None
+    try:
+        s = dtime.fromisoformat(daypart["window"][0])
+        e = dtime.fromisoformat(daypart["window"][1])
+        dur = ((e.hour * 60 + e.minute) - (s.hour * 60 + s.minute)) % (24 * 60)
+    except Exception:
+        dur = 60
+    return {"target": max(1, round(per_hour * dur / 60)),
+            "done": (call_st or {}).get("calls_done", 0)}
+
+
 def _mint_caller_line(used, seedkey: str, host_speaker: str,
                       identity=None) -> str:
     """The desk's next-caller assignment, CONTRAST-CAST: default the caller
@@ -557,7 +585,9 @@ def run_show(daypart, config, schedule, live: bool):
             _fu_id = (_cdesk0.switchboard_identity(_fu) or [None])[0]
         except Exception:
             _fu_id = None
-        daypart["_switchboard"] = _switch.prompt_line(call_st) + _mint_caller_line(
+        daypart["_switchboard"] = _switch.prompt_line(
+            call_st, _call_budget(daypart),
+            _call_pacing(daypart, call_st)) + _mint_caller_line(
             used_names, f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:0",
             _cast_meta(daypart, 0).get("speaker", ""), identity=_fu_id)
         fut = pool.submit(perform_beat, beats[0], daypart, models, state,
@@ -593,17 +623,20 @@ def run_show(daypart, config, schedule, live: bool):
                 break
             _throttle(config, live)
             lines = fut.result()
-            _pol = (daypart.get("caller_policy") or {}).get("max_lines")
             lines, call_st = _switch.enforce(
-                lines, call_st,
-                budget=3 * _pol if _pol else _switch.DEFAULT_BUDGET,
+                lines, call_st, budget=_call_budget(daypart),
                 host=_cast_meta(daypart, 0))
-            daypart["_switchboard"] = _switch.prompt_line(call_st) + \
+            daypart["_switchboard"] = _switch.prompt_line(
+                call_st, _call_budget(daypart),
+                _call_pacing(daypart, call_st)) + \
                 _mint_caller_line(
                     used_names,
                     f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{i}",
                     _cast_meta(daypart, 0).get("speaker", ""),
-                    identity=_fu_id if call_st is None else None)
+                    # the returning resident stays pinned until the show's
+                    # FIRST call actually happens, then the desk rotates
+                    identity=_fu_id
+                    if not (call_st or {}).get("calls_done") else None)
             _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
             lines, _wb = _cont.enforce(lines, handoff=_is_throw)
             if daypart.get("_continuity_desk"):   # scoped canon guard (gated)
@@ -1199,7 +1232,9 @@ def run_center_ice(daypart, config, schedule, live: bool):
             def _submit(bi):
                 dp = dict(daypart)
                 dp["_target_lines"] = bi["lines"]
-                dp["_switchboard"] = _switch.prompt_line(ci_call[0]) + \
+                dp["_switchboard"] = _switch.prompt_line(
+                    ci_call[0], _call_budget(daypart),
+                    _call_pacing(daypart, ci_call[0])) + \
                     _mint_caller_line(
                         ci_used, f"cic:{date}:{bi['label']}:{len(ci_used)}",
                         pbp.get("speaker", ""))
@@ -1222,7 +1257,8 @@ def run_center_ice(daypart, config, schedule, live: bool):
                 lines = enforce_scoreboard(raw, bi["facts"]) if bi["facts"] else raw
                 lines = enforce_names(lines, bi["facts"], extra_ok=pool_ok)
                 lines = tag_sfx(lines, bi["events"], bi["label"])  # arena sound
-                lines, ci_call[0] = _switch.enforce(lines, ci_call[0], host=pbp)
+                lines, ci_call[0] = _switch.enforce(
+                    lines, ci_call[0], budget=_call_budget(daypart), host=pbp)
                 lines, _wb = _cont.enforce(lines,
                                            handoff=(bi["label"] == "handoff"))
                 aired.extend(bi["events"])

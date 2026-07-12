@@ -22,6 +22,9 @@ dayparts:
     parts_per_beat: 2         # 16 beats x 2 parts fits the 2h window w/ OT room
     lines_per_beat: 22
     ad_cadence: structural
+    caller_policy:            # postgame call-in: quick fan takes. No per_hour
+      budget: 10              # target — callers only live in the postgame
+                              # segment, not the whole game window
     energy: "live sports broadcast; professional urgency about an absurd league"
     segments:
       - "Pregame — lines, storylines, Sal's first unverifiable statistic"
@@ -68,6 +71,9 @@ dayparts:
     cast: [complaints_desk]   # rotating employee-of-the-day (see persona file)
     guest: wednesday          # guest-day wildcard mans the phones
     guest_role: host          # the guest IS the day's host, not a cameo
+    caller_policy:            # grievances are quick; the queue is long
+      per_hour: 5
+      budget: 12
     energy: "customer-service line manned by someone wildly unqualified"
     segments:
       - "Grievance of the Hour — an absurd listener complaint, mishandled"
@@ -103,6 +109,10 @@ dayparts:
     show: "The Night Shift"
     window: ["22:00", "01:00"]
     cast: [vivian]
+    caller_policy:            # code-enforced call cadence, real late-night shape
+      per_hour: 4             # one anchor call + three shorter ones an hour
+      budget: 24              # caller lines per call; the prompt lands the
+                              # ending at ~75%, code cuts clean at 100%
     energy: "cozy late-night companion for insomniacs; warm, clean, philosophical"
     segments:
       - "Can't Sleep? — takes 'calls' about small 3am worries"
