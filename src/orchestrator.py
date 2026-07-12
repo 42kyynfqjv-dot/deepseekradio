@@ -762,10 +762,14 @@ def run_center_ice(daypart, config, schedule, live: bool):
         # still calling as in-progress. `lag` = the buffer between generation
         # and air at anchor time: the booth's reveal choices EMBED in audio
         # that airs `lag` seconds later, so the site's cursor must trail by it.
+        # The anchor is the LISTENER's show-open epoch: a restart mid-show
+        # must not rewrite it, or the whole out-of-town board rewinds.
         from .league import engine as _lge0
-        _lge0.save_side("air-anchor.json",
-                        {"date": date, "t0": t_open,
-                         "lag": buffer.buffered_seconds()})
+        _prev = _lge0.load_side("air-anchor.json")
+        if not (_prev and _prev.get("date") == date):
+            _lge0.save_side("air-anchor.json",
+                            {"date": date, "t0": t_open,
+                             "lag": buffer.buffered_seconds()})
     except Exception:
         pass
     lines_target = int(daypart.get("lines_per_beat", 22))
