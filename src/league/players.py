@@ -417,7 +417,10 @@ def dress(pl: dict, team: str, date: str) -> dict:
 
     return {"skaters": names, "goalie": starter[1]["name"] if starter[1] else None,
             "ids": ids, "weights": weights, "pweights": pweights,
-            "backup": backup[1]["name"] if backup[1] else None}
+            "backup": backup[1]["name"] if backup[1] else None,
+            # pids so box goalies fold under ids, never bare names — a
+            # name-keyed stats row can't join back to the roster
+            "goalie_id": starter[0], "backup_id": backup[0], "team": team}
 
 
 # --- injuries ------------------------------------------------------------

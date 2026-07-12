@@ -203,6 +203,8 @@ def export_sports(st: dict, out: dict, root: Path | str) -> None:
         wins = []
         plook = _lgs._lookup(players)
         for pid, arr in (stats.get("goalies") or {}).items():
+            if pid not in plook:
+                continue            # malformed row (name-keyed): never publish
             gp, w, l, otl, sa, sv, so = arr
             name, team = _lgs._name_team(plook, pid)
             wins.append({"pid": pid, "name": name, "team": team, "gp": gp,
