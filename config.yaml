@@ -49,8 +49,9 @@ generation:
   words_per_minute: 145
   # Spoken lines per beat (bigger = more audio per LLM call = steadier buffer).
   lines_per_beat: 22
-  # Each beat plays out as N chained parts of one continuous scene (~2 min each):
-  # callers stay on the line, bits escalate, segments run 5-6+ minutes.
+  # Each outline beat plays out as N chained generated parts of one continuous
+  # scene (~2 min each): callers stay on the line, bits escalate, segments run
+  # 5-6+ minutes.
   parts_per_beat: 3
   # Keep the buffer this many minutes ahead of playback.
   buffer_target_minutes: 45
@@ -63,6 +64,8 @@ news:
     - https://feeds.bbci.co.uk/news/world/rss.xml
     - https://hnrss.org/frontpage
   headlines_per_bulletin: 4
+  max_lines: 22
+  max_seconds: 120
   # small writer call each hour: ~1.2k in / 300 out on the writer model
 
 tts:

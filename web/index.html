@@ -96,6 +96,13 @@
   .vu i:nth-child(4){animation-delay:.06s}.vu i:nth-child(5){animation-delay:.3s}
   @keyframes vu{from{height:22%}to{height:100%}}
   .deck .hint{margin-top:14px;font-size:.8rem;color:var(--dim);font-family:var(--mono);text-align:center}
+  .transcript{margin-top:18px;border-top:1px solid var(--line);padding-top:12px;
+    text-align:left;max-height:240px;overflow:auto}
+  .transcript .lab{font-family:var(--mono);font-size:.66rem;letter-spacing:.2em;color:var(--dim);margin-bottom:6px}
+  .transcript .line{font-family:var(--mono);font-size:.72rem;line-height:1.45;margin:4px 0}
+  .transcript .speaker{color:var(--amber);font-weight:700}
+  .transcript .speaker.phone{color:var(--cyan)}
+  .transcript .dim{color:var(--dim)}
 
   /* ── sections ── */
   section{padding:64px 0 8px}
@@ -228,6 +235,12 @@
         <div class="vu"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
       <div class="hint" id="hint" role="status" aria-live="polite">▶ press play · live · always</div>
+      <div class="transcript" aria-label="Live transcript">
+        <div class="lab">LIVE TEXT</div>
+        <div id="live-transcript" role="log" aria-live="polite">
+          Waiting for the next aired segment.
+        </div>
+      </div>
       <audio id="stream" preload="none"></audio>
 <script src="/schedule.js?v=3"></script>
     </div>
@@ -361,6 +374,20 @@ function fmtViewer(stationH){
   return `${hr}:${String(mm).padStart(2, "0")} ${ampm}`;
 }
 const BADGE = "margin-left:8px;font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:1px 5px;vertical-align:middle";
+function escText(v){ const d=document.createElement("div"); d.textContent=String(v ?? ""); return d.innerHTML; }
+function refreshTranscript(){
+  const el = document.getElementById("live-transcript");
+  if(!el) return;
+  fetch("/data/live-transcript.json?ts=" + Date.now(), {cache:"no-store"})
+    .then(r=>r.json()).then(t=>{
+      const fresh = t && t.updated && Date.now()/1000 - t.updated < 900;
+      if(!fresh){ el.innerHTML = "<div class='dim'>Waiting for the next aired segment.</div>"; return; }
+      el.innerHTML = (t.lines || []).slice(-18).map(l =>
+        `<div class="line"><span class="speaker ${l.phone ? "phone" : ""}">${escText(l.speaker || "Radio")}</span> ${escText(l.text)}</div>`
+      ).join("");
+      el.scrollTop = el.scrollHeight;
+    }).catch(()=>{});
+}
 function render(){
   const day = F.stationDay(), h = stationHour();
   const lineup = F.effective(day);        // today's lineup, takeovers spliced in
@@ -414,10 +441,11 @@ function render(){
     Intl.DateTimeFormat().resolvedOptions().timeZone.replace("_", " ");
   document.querySelectorAll(".when").forEach(el => {
     const s = F.SCHEDULE[parseInt(el.dataset.slot, 10)];
-    if (s) el.textContent = `DAILY · ${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}`;
+      if (s) el.textContent = `DAILY · ${fmtViewer(s.start)} – ${fmtViewer(s.end % 24)}`;
   });
+  refreshTranscript();
 }
-render(); setInterval(render, 60_000);
+render(); setInterval(render, 60_000); setInterval(refreshTranscript, 5_000);
 // pull date-specific pre-empts from the feed, then re-render (feed down -> no-op)
 F.loadTakeovers(render);
 

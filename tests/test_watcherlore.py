@@ -109,7 +109,13 @@ with tempfile.TemporaryDirectory() as td2:
         cont, n = W.current_theory("2026-07-12", T0)
         check(cont is None and n == 1, "fresh night starts at t1")
         W.begin_theory("2026-07-12", 1, "the streetlights blink in a pattern",
-                       T0)
+                       T0, frame="the Streetlight Ledger is steering Tuesday",
+                       payoff="the blinking is how Tuesday files its reports")
+        entry = W.current_entry("2026-07-12", T0 + 30 * 60)
+        check(entry["frame"] == "the Streetlight Ledger is steering Tuesday",
+              "active theory keeps its durable frame")
+        check("the blinking is how Tuesday files its reports" in W.spine_block(entry),
+              "active theory carries its chapter landing")
         cont, n = W.current_theory("2026-07-12", T0 + 30 * 60)
         check(cont == "the streetlights blink in a pattern" and n == 1,
               "re-entry inside the hour continues the SAME theory")
@@ -121,6 +127,38 @@ with tempfile.TemporaryDirectory() as td2:
         check(W.theory_subject("2026-07-12", 2) == "the lids click three times",
               "ledger answers the podcast title lookup")
         check(W.theory_subject("2026-07-12", 9) is None, "unknown file is None")
+    finally:
+        os.chdir(prev)
+
+# --- closed chapters wait three later episodes before sequel reuse ------------
+with tempfile.TemporaryDirectory() as td3:
+    os.chdir(td3)
+    try:
+        for n in range(1, 5):
+            W.close_chapter(
+                "2026-07-12", n,
+                f"the Pen Bureau chapter {n}",
+                f"the pen case closes for chapter {n}",
+                [L("The Pen Bureau files another harmless report.")],
+                loose_threads=["find the next stamp"],
+            )
+        block = ""
+        candidate_episode = None
+        for episode in range(5, 40):
+            block = W.chapter_block("2026-07-13", episode)
+            if block:
+                candidate_episode = episode
+                break
+        check(block and candidate_episode and "2026-07-12-t1" in block,
+              "a past chapter becomes eligible after three later closures")
+        check("CLOSED PAYOFF" in block and "OPTIONAL LOOSE THREADS" in block,
+              "eligible sequel carries closure and optional threads")
+        W.close_chapter(
+            "2026-07-13", candidate_episode, "a fresh chapter", "a new ending",
+            [], builds_on="2026-07-12-t1")
+        jailed = W._eligible_chapters("2026-07-14", candidate_episode + 1)
+        check(not any(c.get("id") == "2026-07-12-t1" for c in jailed),
+              "a reused theory is jailed again after its sequel")
     finally:
         os.chdir(prev)
 

@@ -18,7 +18,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 
 import yaml
@@ -26,6 +26,8 @@ import yaml
 from . import buffer, clock, events, lore
 from . import switchboard as _switch
 from . import continuity as _cont
+from . import leakguard as _leak
+from . import showstate as _showstate
 from .openrouter import METER
 from .performers import perform_beat, _persona
 from .writer import write_outline
@@ -36,9 +38,33 @@ _STATION_STATE = Path("station_state.json")
 _BANNED_SEGMENT = re.compile(r"\b(intro|outro|monolog|open(ing)?|sign.?off|wrap|goodbye|farewell)\b", re.I)
 
 
+class _ResumeNoBridge(Exception):
+    """Internal control flow: an active buffered show needs no new bridge."""
+
+
+def _air_show_key(daypart: dict, now=None) -> str:
+    """Stable show-day key, including for windows that cross midnight."""
+    now = now or clock.air_now()
+    start = dtime.fromisoformat(daypart["window"][0])
+    end = dtime.fromisoformat(daypart["window"][1])
+    if start > end and now.time() < end:
+        now -= timedelta(days=1)
+    return f"{daypart['id']}:{now:%Y-%m-%d}"
+
+
 def _sstate() -> dict:
     try:
-        return json.loads(_STATION_STATE.read_text())
+        state = json.loads(_STATION_STATE.read_text())
+        tail = state.get("tail") or {}
+        if isinstance(tail.get("lines"), list):
+            tail["lines"] = _leak.sanitize_speakers(
+                _leak.sanitize_lines(tail["lines"]))
+            state["tail"] = tail
+        state["callers_today"] = [
+            str(name) for name in (state.get("callers_today") or [])
+            if not _leak.is_meta_speaker(name) and not _leak.has_leak(name)
+        ]
+        return state
     except Exception:
         return {}
 
@@ -127,8 +153,23 @@ def _throttle(config: dict, live: bool):
         time.sleep(30)
 
 
+def _write_segment_meta(out: Path, label: str, lines: list[dict]) -> None:
+    """Store the spoken text beside a queued WAV for the player to publish."""
+    meta = {
+        "label": label,
+        "lines": [{"speaker": str(ln.get("speaker") or "Radio"),
+                   "text": str(ln.get("text") or "").strip(),
+                   "phone": bool(ln.get("phone"))}
+                  for ln in lines if str(ln.get("text") or "").strip()],
+    }
+    tmp = out.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(meta, ensure_ascii=False))
+    tmp.replace(out.with_suffix(".json"))
+
+
 def _emit(lines: list[dict], label: str, config: dict, live: bool, fx=None):
     """Print the dialogue; in live mode also synthesize into the buffer."""
+    lines = _leak.sanitize_lines(lines)
     for ln in lines:
         print(f"  [{ln.get('speaker')}] {ln.get('text')}")
     if live and lines:
@@ -136,7 +177,31 @@ def _emit(lines: list[dict], label: str, config: dict, live: bool, fx=None):
         out = buffer.next_path(label)
         if synth_segment(lines, out, config, fx=fx) is None:
             return
+        _write_segment_meta(out, label, lines)
         print(f"  ♪ {out.name}  (buffer: {buffer.buffered_seconds()/60:.1f} min)")
+
+
+_NEWS_DESK_CYCLE = ("town", "traffic", "statehouse", "world")
+
+
+def _bound_news_lines(lines: list[dict], hour: int | None = None,
+                      max_lines: int = 22, max_seconds: int = 120) -> list[dict]:
+    """Keep the bulletin radio-sized while rotating its secondary desks."""
+    if hour is None:
+        hour = clock.air_now().hour
+    rotating = _NEWS_DESK_CYCLE[int(hour) % len(_NEWS_DESK_CYCLE)]
+    allowed = {"id", "news", "sports", rotating}
+    selected = [ln for ln in lines
+                if ln.get("_news_desk", "news") in allowed]
+    max_words = max(1, round(max_seconds * 145 / 60))
+    out, words = [], 0
+    for ln in selected:
+        count = len(str(ln.get("text") or "").split())
+        if out and (len(out) >= max_lines or words + count > max_words):
+            break
+        out.append(ln)
+        words += count
+    return out
 
 
 def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
@@ -156,7 +221,8 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
     coming = daypart["show"] if daypart else ""
     bible = Path("station/bible.md").read_text()
     script = write_bulletin(heads, config["models"], bible, coming_up=coming)
-    lines = [{"speaker": "Frequency News", "voice": NEWS_VOICE, "text": ln.strip()}
+    lines = [{"speaker": "Frequency News", "voice": NEWS_VOICE,
+              "text": ln.strip(), "_news_desk": "news"}
              for ln in script.splitlines() if ln.strip()]
     from .nameguard import enforce_news
     lines = enforce_news(lines)   # real brands never survive to air
@@ -179,6 +245,7 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
             except Exception:
                 pass
             lines.insert(0, {"speaker": "Station ID", "voice": NEWS_VOICE,
+                             "_news_desk": "id",
                              "text": f"W-F-R-Q, one oh eight point one, Halfway "
                                      f"— it's about {clock.spoken_air_time()}."
                                      f"{_temp} "
@@ -229,7 +296,8 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                     from .performers import _spare_voice
                     dv = _spare_voice("Donna Marsh")
                     desk_lines = [{"speaker": "Donna Marsh", "voice": dv,
-                                   "speed": 0.96, "text": t} for t in texts]
+                                   "speed": 0.96, "text": t,
+                                   "_news_desk": "sports"} for t in texts]
                 else:
                     print("  !! sports desk: draft failed verify — wire copy")
             except Exception as e:
@@ -242,7 +310,8 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                                         names=_sn._ALL)
                 lines.append({"speaker": "Frequency Sports",
                               "voice": NEWS_VOICE, "speed": 0.96,
-                              "text": "Sports desk. " + desk})
+                              "text": "Sports desk. " + desk,
+                              "_news_desk": "sports"})
     except Exception as e:
         print(f"  (sports desk skipped: {e})")
     try:  # the Town Desk wire + drive-time traffic ride the bulletin —
@@ -260,6 +329,7 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
             import random as _r3
             lines.append({"speaker": "Frequency News", "voice": NEWS_VOICE,
                           "speed": 0.97,
+                          "_news_desk": "town",
                           "text": _r3.Random(
                               f"townwire:{_d3}:{clock.air_now():%H}"
                           ).choice(_wl)})
@@ -268,6 +338,7 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
             from .performers import _spare_voice as _sv2
             lines.append({"speaker": _tf2.REPORTER,
                           "voice": _sv2(_tf2.REPORTER), "speed": 0.97,
+                          "_news_desk": "traffic",
                           "text": _tf2.wire_line(
                               _sh3, f"{_d3}:{clock.air_now():%H}")})
     except Exception as e:
@@ -286,6 +357,7 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
                 if _desk and not _desk.startswith("No Dome wire"):
                     lines.append({"speaker": "Frequency Statehouse",
                                   "voice": NEWS_VOICE,
+                                  "_news_desk": "statehouse",
                                   "text": "From the Half-Dome. " + _desk})
     except Exception as e:
         print(f"  (dome desk skipped: {e})")
@@ -294,9 +366,16 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
         _wl = news_world_line(f"{clock.air_now():%Y-%m-%d}")
         if _wl:
             lines.append({"speaker": "Frequency World", "voice": NEWS_VOICE,
+                          "_news_desk": "world",
                           "text": "Around Wending. " + _wl})
     except Exception as e:
         print(f"  (world desk skipped: {e})")
+    before = len(lines)
+    lines = _bound_news_lines(
+        lines, max_lines=int(ncfg.get("max_lines", 22)),
+        max_seconds=int(ncfg.get("max_seconds", 120)))
+    if len(lines) < before:
+        print(f"  (news bounded: {before} -> {len(lines)} lines)")
     print("\n--- Frequency News ---")
     _emit(lines, "news", config, live)
     st["last_news"] = time.time()
@@ -308,6 +387,7 @@ def _news_bulletin(config: dict, live: bool, daypart: dict | None = None):
 
 def _save_tail(daypart, lines):
     """Persist the last aired lines so a restart resumes mid-thought."""
+    lines = _leak.sanitize_speakers(_leak.sanitize_lines(lines))
     if not lines:
         return
     st = _sstate()
@@ -370,6 +450,8 @@ def _call_budget(daypart) -> int:
     pol = daypart.get("caller_policy") or {}
     if pol.get("budget"):
         return pol["budget"]
+    if pol.get("per_beat") and pol.get("max_lines"):
+        return int(pol["max_lines"])
     if pol.get("max_lines"):
         return 3 * pol["max_lines"]
     return _switch.DEFAULT_BUDGET
@@ -392,32 +474,128 @@ def _call_pacing(daypart, call_st) -> dict | None:
             "done": (call_st or {}).get("calls_done", 0)}
 
 
+_WATCHER_PHASES = (
+    ("OPENING", "establish the chapter frame with one concrete observation"),
+    ("DEEPER", "intensify an existing clue; do not add a new theory"),
+    ("WIDER", "annex one everyday phenomenon into the same theory"),
+    ("DEEPER", "raise the stakes around a named clue or organization"),
+    ("CONVERGENCE", "gather the named clues without introducing a new one"),
+    ("PAYOFF", "explain what the named clues mean and close the chapter"),
+)
+
+
+def _normalize_watcher_outline(outline: dict, daypart: dict,
+                               active_frame: str | None = None,
+                               active_payoff: str | None = None,
+                               allowed_parents: set[str] | None = None) -> dict:
+    """Make the Watcher's chapter skeleton code-authoritative.
+
+    The writer supplies material and jokes; it does not get to change the
+    number or role of acts. A fixed six-beat spine makes the payoff reachable
+    and prevents a malformed outline from becoming a sampler of new theories.
+    """
+    if daypart.get("id") != "static_hour":
+        return outline
+    from . import leakguard as _watcher_leak
+
+    beats = [dict(b) for b in (outline.get("beats") or [])
+             if isinstance(b, dict) and str(b.get("beat") or "").strip()]
+    target = 6
+    segments = list(daypart.get("segments") or ["Tonight's Theory"])
+    if not beats:
+        beats = [{"segment": segments[0], "premise": segments[0],
+                  "beat": "begin the night's one connected theory"}]
+    beats = beats[:target]
+    while len(beats) < target:
+        idx = len(beats)
+        segment = segments[idx % len(segments)]
+        beats.append({
+            "segment": segment,
+            "premise": f"continue the same chapter through {segment}",
+            "beat": (f"Use {segment} as one new piece of evidence for the "
+                     "established chapter frame; keep the thread connected."),
+        })
+
+    raw_frame = active_frame or outline.get("theory") or beats[0].get("premise")
+    frame = _watcher_leak.clean_public_text(
+        str(raw_frame or "tonight's outside-world pattern").strip(),
+        "tonight's outside-world pattern")[:180]
+    raw_payoff = active_payoff or outline.get("payoff")
+    payoff = _watcher_leak.clean_public_text(
+        str(raw_payoff or f"the named clues all point back to {frame}").strip(),
+        f"the named clues all point back to {frame}")[:260]
+    parent = str(outline.get("builds_on") or "").strip()
+    if not allowed_parents or parent not in allowed_parents:
+        parent = None
+
+    callbacks = []
+    normalized = []
+    for idx, (phase, job) in enumerate(_WATCHER_PHASES):
+        beat = beats[idx]
+        link = str(beat.get("link") or "").strip()
+        if not link:
+            link = job.capitalize() + "."
+        link = (f"{link} It remains evidence for the same chapter frame: "
+                f"{frame}.")[:420]
+        callback = str(beat.get("callback") or "").strip() or None
+        if callback and len(callbacks) < 2:
+            callbacks.append(callback)
+        else:
+            callback = None
+        beat["segment"] = str(beat.get("segment") or segments[idx % len(segments)])
+        beat["premise"] = str(beat.get("premise") or job).strip()
+        beat["beat"] = str(beat.get("beat") or job).strip()
+        beat["link"] = link
+        beat["move"] = phase
+        beat["_watcher_phase"] = phase
+        beat["_watcher_job"] = job
+        beat["callback"] = callback
+        if phase == "PAYOFF":
+            beat["grounding"] = ""
+            beat["no_bit"] = False
+            beat["beat"] += " Gather only the named clues; add no new object."
+        normalized.append(beat)
+
+    outline["theory"] = frame
+    outline["payoff"] = payoff
+    outline["builds_on"] = parent
+    outline["loose_threads"] = [
+        _watcher_leak.clean_public_text(str(x).strip(), "an ordinary loose thread")
+        for x in (outline.get("loose_threads") or []) if str(x).strip()
+    ][:4]
+    outline["beats"] = normalized
+    return outline
+
+
 def _mint_caller_line(used, seedkey: str, host_speaker: str,
                       identity=None) -> str:
-    """The desk's next-caller assignment, CONTRAST-CAST: default the caller
-    to the opposite gender of the host, so caller and host can never blur
-    into one voice through the telephone bandpass (the Maureen incident).
-    A returning RESIDENT (census follow-up) pins her own name instead — her
-    voice is _spare_voice(name), deterministic, so she sounds like herself."""
+    """Render the code-owned next-caller label without reserving it early."""
     try:
         if identity:
-            try:
-                used.add(identity)
-            except Exception:
-                pass
-            return f" If a NEW caller joins, their name is {identity}."
+            return (f" If a NEW caller joins, their speaker label MUST be exactly "
+                    f"{identity}; never use a bare Caller label or another name.")
         from . import assignments as _adesk
         from .performers import _gender_of
         want = {"f": "m", "m": "f"}.get(_gender_of(host_speaker or ""))
         nm = _adesk.next_caller(set(used), random.Random(seedkey), want=want)
-        try:
-            used.add(nm)        # minted names never repeat within the day
-        except Exception:
-            pass
-        return f" If a NEW caller joins, their name is {nm}."
+        return (f" If a NEW caller joins, their speaker label MUST be exactly "
+                f"{nm}; never use a bare Caller label or another name.")
     except Exception:
         return ""
 
+
+def _caller_identity(used, seedkey: str, host_speaker: str,
+                     identity=None) -> str | None:
+    """Choose a bounded-format caller label without reserving it early."""
+    try:
+        if identity:
+            return str(identity).strip()
+        from . import assignments as _adesk
+        from .performers import _gender_of
+        want = {"f": "m", "m": "f"}.get(_gender_of(host_speaker or ""))
+        return _adesk.next_caller(set(used), random.Random(seedkey), want=want)
+    except Exception:
+        return None
 
 _EVENT_ENGINES = {"election_night", "blizzard", "trade_deadline", "draft"}
 
@@ -603,6 +781,16 @@ def run_show(daypart, config, schedule, live: bool):
     # same theory; the ordinal rides every emit label (-tN-) so the podcast
     # cutter can cut one episode per theory.
     _theory_cont, _theory_n = None, None
+    _bd = None
+    _theory_entry = None
+    _watcher_frame = ""
+    _watcher_payoff = ""
+    _watcher_builds_on = None
+    _watcher_threads = []
+    _watcher_prior_ids = set()
+    for _watcher_key in ("_watcher_history", "_watcher_spine",
+                         "_watcher_plan", "_watcher_prior_ids"):
+        daypart.pop(_watcher_key, None)
     if daypart.get("id") == "static_hour":
         try:
             from . import watcherlore as _wl0
@@ -610,6 +798,16 @@ def run_show(daypart, config, schedule, live: bool):
             _bd = (_anow - __import__("datetime").timedelta(days=1)
                    if _anow.hour < 5 else _anow).strftime("%Y-%m-%d")
             _theory_cont, _theory_n = _wl0.current_theory(_bd, time.time())
+            _theory_entry = _wl0.current_entry(_bd, time.time())
+            if not _theory_cont:
+                _watcher_prior_ids = _wl0.sequel_candidate_ids(
+                    _bd, _theory_n)
+                daypart["_watcher_prior_ids"] = sorted(_watcher_prior_ids)
+                daypart["_watcher_history"] = _wl0.chapter_block(
+                    _bd, _theory_n)
+            else:
+                daypart["_watcher_spine"] = _wl0.spine_block(
+                    _theory_entry or {"frame": _theory_cont})
             if _theory_cont:
                 print(f"  (theory clock: continuing t{_theory_n} — "
                       f"{_theory_cont[:50]!r})")
@@ -617,13 +815,40 @@ def run_show(daypart, config, schedule, live: bool):
             print(f"  (theory clock skipped: {e})")
     _lbl = (f"{daypart['id']}-t{_theory_n}" if _theory_n
             else daypart["id"])
+    opened_key = _air_show_key(daypart)
+    st0 = _sstate()
+    active_show = st0.get("active_show") or {}
+    show_snapshot = _showstate.load(daypart)
+    if (not active_show and show_snapshot.get("key") == opened_key
+            and show_snapshot.get("outline") and not show_snapshot.get("completed")):
+        active_show = {
+            "key": opened_key,
+            "dp": daypart["id"],
+            "outline": show_snapshot["outline"],
+            "next_beat": show_snapshot.get("next_beat", 0),
+            "opened_at": show_snapshot.get("updated", time.time()),
+        }
+        st0["active_show"] = active_show
+        _sstate_save(st0)
+        print("  (daily show ledger recovered active outline)")
+    if active_show and active_show.get("key") != opened_key:
+        st0.pop("active_show", None)
+        _sstate_save(st0)
+        active_show = {}
+    resume_active = bool(
+        active_show.get("key") == opened_key
+        and isinstance(active_show.get("outline"), dict))
+    daypart["_show_continuity"] = _showstate.prompt_block(show_snapshot)
 
     # quick open — UNLESS this show aired within the last 15 min (a restart),
     # in which case resume mid-thought from the persisted tail: no opener loop
     opener_lines = []
     st0 = _sstate()
     tail = st0.get("tail") or {}
-    if tail.get("dp") == daypart["id"] and time.time() - tail.get("ts", 0) < 15 * 60:
+    if resume_active:
+        opener_lines = tail.get("lines", [])
+        print("  (active show state found — resuming without a new opener)")
+    elif tail.get("dp") == daypart["id"] and time.time() - tail.get("ts", 0) < 15 * 60:
         opener_lines = tail.get("lines", [])
         print("  (recent tail found — skipping opener, resuming mid-thought)")
     else:
@@ -661,7 +886,8 @@ def run_show(daypart, config, schedule, live: bool):
             print(f"  (opener skipped: {e})")
 
     try:
-        _news_bulletin(config, live, daypart)
+        if not resume_active:
+            _news_bulletin(config, live, daypart)
     except Exception as e:  # news must never kill the show
         print(f"  (news skipped: {e})")
 
@@ -678,7 +904,7 @@ def run_show(daypart, config, schedule, live: bool):
             _sstate_save(st)
         except Exception as e:  # storylines are garnish, never a blocker
             print(f"  (arc tick skipped: {e})")
-    opened_key = f"{daypart['id']}:{clock.air_now():%Y-%m-%d}"
+    # opened_key is computed before the opener so restart recovery uses one key.
     first_of_window = st.get("opened") != opened_key
     if daypart.get("id") == "morning_scramble" and first_of_window:
         try:  # Wesley's REAL forecast: fetched ONCE per show window (network
@@ -793,9 +1019,11 @@ def run_show(daypart, config, schedule, live: bool):
     # bridge the outline latency: while the writer thinks (~1-3 min), a second
     # short beat generates and airs so a cold start never goes quiet
     with ThreadPoolExecutor(max_workers=1) as wpool:
-        outline_fut = wpool.submit(write_outline, daypart, models, state,
-                                   weekday, first_of_window, _theory_cont)
+        outline_fut = (None if resume_active else
+                       wpool.submit(write_outline, daypart, models, state,
+                                    weekday, first_of_window, _theory_cont))
         try:
+            if resume_active: raise _ResumeNoBridge
             daypart["_target_lines"] = 10
             bridge = {"segment": "Bridge",
                       "premise": "carrying the moment while the show gathers itself",
@@ -804,15 +1032,30 @@ def run_show(daypart, config, schedule, live: bool):
                               "show's own register. Do NOT restate, rephrase, or "
                               "summarize any line already spoken. No callers, no "
                               "greetings, no wrap."}
+            if daypart.get("id") == "static_hour":
+                bridge["_theory_phase"] = "BRIDGE"
+                bridge["_theory_link"] = (
+                    f"Hold the existing frame — {_theory_cont}. Do not add a "
+                    "new theory or clue; hand the hour to the first chapter beat."
+                    if _theory_cont else
+                    "Do not establish a second theory or name a new organization; "
+                    "keep this short bridge atmospheric until the chapter opens.")
+                bridge["beat"] = (
+                    "Deliver a short spoken bridge that hands the hour into the "
+                    "chapter. Do not introduce a new theory, organization, or "
+                    "concrete clue before the chapter outline arrives.")
             from .nameguard import enforce_world as _ewb
             _emit(_ewb(perform_beat(bridge, daypart, models, state,
                                     _tail_context(opener_lines),
                                     avoid_lines=[l.get("text", "")
                                                  for l in opener_lines])),
                   f"{_lbl}-bridge", config, live, fx=fx)
+        except _ResumeNoBridge:
+            pass
         except Exception as e:
             print(f"  (bridge skipped: {e})")
-        outline = outline_fut.result()
+        outline = (active_show["outline"] if resume_active
+                   else outline_fut.result())
     st["opened"] = opened_key
     _sstate_save(st)
     if outline.get("guest"):
@@ -820,16 +1063,71 @@ def run_show(daypart, config, schedule, live: bool):
     # drop structurally banned beats — the prompt ban demonstrably fails at temp 0.9
     outline["beats"] = [b for b in outline.get("beats", [])
                         if not _BANNED_SEGMENT.search(str(b.get("segment", "")))]
-    if _theory_n and not _theory_cont and outline.get("beats"):
-        try:  # a fresh descent begins: stamp the ledger with its subject
+    if daypart.get("id") == "static_hour":
+        outline = _normalize_watcher_outline(
+            outline, daypart,
+            active_frame=((_theory_entry or {}).get("frame")
+                          if _theory_cont else None),
+            active_payoff=((_theory_entry or {}).get("payoff")
+                           if _theory_cont else None),
+            allowed_parents=_watcher_prior_ids)
+    if daypart.get("id") == "static_hour" and outline.get("beats"):
+        try:
             from . import watcherlore as _wl1
             b0 = outline["beats"][0]
-            _subj = str(b0.get("premise") or b0.get("segment") or
-                        "tonight's theory").strip()
-            _wl1.begin_theory(_bd, _theory_n, _subj, time.time())
-            print(f"  (theory clock: t{_theory_n} opened — {_subj[:50]!r})")
+            blast = outline["beats"][-1]
+            if _theory_cont:
+                # A continuation may invent new evidence, but it cannot rename
+                # or drop the chapter's original frame.
+                _watcher_frame = str(
+                    (_theory_entry or {}).get("frame") or _theory_cont).strip()
+                _watcher_payoff = str(
+                    (_theory_entry or {}).get("payoff")
+                    or outline.get("payoff") or "").strip()
+            else:
+                _watcher_frame = str(
+                    outline.get("theory") or b0.get("premise")
+                    or b0.get("segment") or "tonight's theory").strip()
+                _watcher_payoff = str(
+                    outline.get("payoff") or blast.get("premise")
+                    or blast.get("beat") or
+                    "all the evidence points back to the same harmless pattern"
+                ).strip()
+                _wl1.begin_theory(
+                    _bd, _theory_n, _watcher_frame, time.time(),
+                    frame=_watcher_frame, payoff=_watcher_payoff)
+                # Use the sanitized persisted frame for the prompt too. This
+                # keeps a real-world token from surviving only in memory.
+                _stored = _wl1.current_entry(_bd, time.time()) or {}
+                _watcher_frame = str(
+                    _stored.get("frame") or _watcher_frame).strip()
+                _watcher_payoff = str(
+                    _stored.get("payoff") or _watcher_payoff).strip()
+                print(f"  (theory clock: t{_theory_n} opened — "
+                      f"{_watcher_frame[:50]!r})")
+            daypart["_watcher_spine"] = _wl1.spine_block({
+                "frame": _watcher_frame,
+                "payoff": _watcher_payoff,
+            })
         except Exception as e:
             print(f"  (theory ledger skipped: {e})")
+    if daypart.get("id") == "static_hour":
+        _watcher_builds_on = outline.get("builds_on")
+        _watcher_threads = list(outline.get("loose_threads") or [])[:4]
+    if not resume_active:
+        st["active_show"] = {
+            "key": opened_key,
+            "dp": daypart["id"],
+            "outline": outline,
+            "next_beat": 0,
+            "opened_at": time.time(),
+        }
+        _sstate_save(st)
+    show_snapshot = _showstate.begin(
+        daypart, opened_key, outline, frame=_watcher_frame,
+        payoff=_watcher_payoff, guest=outline.get("guest"))
+    daypart["_show_continuity"] = _showstate.prompt_block(show_snapshot)
+
     # persist premises AND grounding props IMMEDIATELY so anti-repetition
     # (including the worn-out-subject ban) survives restarts
     lore.remember(state,
@@ -841,19 +1139,68 @@ def run_show(daypart, config, schedule, live: bool):
 
     daypart["_target_lines"] = daypart.get(
         "lines_per_beat", config["generation"].get("lines_per_beat", 22))
+    outline_total = len(outline.get("beats", []))
     parts = daypart.get("parts_per_beat",
                         config["generation"].get("parts_per_beat", 3))
     # each outline beat becomes N chained parts of one continuous scene
     beats = []
-    for b in outline.get("beats", []):
+    for bi, b in enumerate(outline.get("beats", [])):
         arc_show = bool(daypart.get("arc"))
         for pi in range(parts):
             bb = dict(b)
             bb["_part"] = pi
+            bb["_part_number"] = pi + 1
+            bb["_parts_total"] = parts
+            bb["_outline_beat"] = bi + 1
+            bb["_outline_beats"] = outline_total
+            bb["_chapter_final_part"] = bool(
+                daypart.get("id") == "static_hour"
+                and bi == outline_total - 1 and pi == parts - 1)
             bb["_guest"] = outline.get("guest")
+            if daypart.get("id") == "static_hour":
+                prior = [
+                    f"- Outline beat {pidx}: {planned.get('beat') or planned.get('premise')}; "
+                    f"LINK: {planned.get('link') or 'same chapter frame'}; "
+                    f"MOVE: {str(planned.get('move') or 'ADVANCE').upper()}"
+                    for pidx, planned in enumerate(outline.get("beats", [])[:bi], 1)
+                ]
+                bb["_watcher_plan"] = (
+                    "WATCHER CHAPTER MAP (already aired; authoritative):\n"
+                    + ("\n".join(prior) if prior else "- No earlier outline beat yet.")
+                    + "\nDo not contradict these named developments or silently replace the frame.")
+                link = str(b.get("link") or "").strip()
+                if not link:
+                    link = (
+                        "Establish the chapter frame and its shadow organization."
+                        if bi == 0 else
+                        "Explain how this new evidence follows the previous clue "
+                        "and points back to the chapter frame."
+                    )
+                phase = str(b.get("move") or "").strip().upper()
+                if bi == 0:
+                    phase = phase or "OPENING"
+                elif bi == len(outline.get("beats", [])) - 1:
+                    phase = "PAYOFF"
+                else:
+                    phase = phase or "ADVANCE"
+                bb["_theory_link"] = link
+                bb["_theory_phase"] = phase
             if pi > 0:
                 bb["grounding"] = ""  # props don't repeat across parts
-                if arc_show:
+                if daypart.get("id") == "static_hour":
+                    job = (
+                        "DEEPEN the exact clue already named in this outline beat; "
+                        "explain one consequence without introducing another object, "
+                        "organization, or subject"
+                        if pi < parts - 1 else
+                        "LAND this same clue and make its connection to the chapter "
+                        "frame explicit; do not add a second clue")
+                    bb["beat"] = (
+                        f"{b.get('beat')} (CONTINUE part {pi+1} of {parts} of this "
+                        f"same single clue. {job}. The named chapter frame and any "
+                        "shadow organization stay unchanged. Never use a naked pivot "
+                        "to a new subject.)")
+                elif arc_show:
                     job = ("COMPLICATE it: introduce exactly one new wrinkle, "
                            "detail, or implication that moves the idea FORWARD"
                            if pi < parts - 1 else
@@ -893,6 +1240,22 @@ def run_show(daypart, config, schedule, live: bool):
                                   "the scene or repeat imagery already used. The host stays "
                                   "grounded and sincere no matter how odd the caller gets"
                                   + ("" if pi < parts - 1 else ". You may gently land the bit now"))
+            if daypart.get("id") == "static_hour":
+                landing = (
+                    " No new clue is allowed here; gather every named object, "
+                    "caller, and organization into the chapter's conclusion."
+                    if bb.get("_chapter_final_part") else
+                    " No new clue is allowed here; prepare the chapter conclusion, "
+                    "which lands in the final generated part."
+                    if bb.get("_theory_phase") == "PAYOFF" else
+                    " Keep the same chapter frame and make the connection explicit "
+                    "before advancing."
+                )
+                bb["beat"] = (
+                    f"{bb.get('beat')} CHAPTER LINK (authoritative): "
+                    f"{bb.get('_theory_link')} CHAPTER PHASE: "
+                    f"{bb.get('_theory_phase')}.{landing}"
+                )
             beats.append(bb)
 
     # the guest is sent off ONCE, on their final beat — never mid-interview,
@@ -900,6 +1263,19 @@ def run_show(daypart, config, schedule, live: bool):
     _gidx = [j for j, gb in enumerate(beats) if gb.get("_guest")]
     if _gidx:
         beats[_gidx[-1]]["_guest_last"] = True
+        if daypart.get("guest_role") == "persistent":
+            beats[_gidx[0]]["_guest_entry"] = True
+    resume_beat = (max(0, int(active_show.get("next_beat", 0)))
+                   if resume_active else 0)
+    resume_beat = min(resume_beat, outline_total)
+    start_part = min(len(beats), resume_beat * parts)
+    if resume_active and start_part >= len(beats):
+        st_done = _sstate()
+        if (st_done.get("active_show") or {}).get("key") == opened_key:
+            st_done.pop("active_show", None)
+            _sstate_save(st_done)
+        _showstate.finish(daypart, show_snapshot, True)
+        return
 
     day_key = f"{clock.air_now():%Y-%m-%d}"
     if st.get("callers_day") != day_key:
@@ -944,11 +1320,23 @@ def run_show(daypart, config, schedule, live: bool):
             _fu_id = (_cdesk0.switchboard_identity(_fu) or [None])[0]
         except Exception:
             _fu_id = None
+        def _bounded_caller_identity(state_for_prompt, seed_index):
+            if not (daypart.get("caller_policy") or {}).get("per_beat"):
+                return None
+            if state_for_prompt and state_for_prompt.get("status") == "live":
+                return str(state_for_prompt.get("name") or "").strip() or None
+            forced = _fu_id if not (state_for_prompt or {}).get("calls_done") else None
+            return _caller_identity(
+                used_names,
+                f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{seed_index}",
+                _cast_meta(daypart, 0).get("speaker", ""), identity=forced)
+        _initial_caller_identity = _bounded_caller_identity(call_st, start_part)
         daypart["_switchboard"] = _switch.prompt_line(
             call_st, _call_budget(daypart),
             _call_pacing(daypart, call_st)) + _mint_caller_line(
-            used_names, f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:0",
-            _cast_meta(daypart, 0).get("speaker", ""), identity=_fu_id)
+            used_names, f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{start_part}",
+            _cast_meta(daypart, 0).get("speaker", ""),
+            identity=_initial_caller_identity)
         numbers_pending = _numbers_own(daypart)
         _numbers_note(daypart, numbers_pending)
         _wcanon = None
@@ -960,17 +1348,23 @@ def run_show(daypart, config, schedule, live: bool):
                     _wcanon, f"{clock.air_now():%Y-%m-%d}")
             except Exception as e:
                 print(f"  (watcher canon skipped: {e})")
-        fut = pool.submit(perform_beat, beats[0], daypart, models, state,
-                          _context(0, opener_lines),
-                          _tail_texts(opener_lines)) if beats else None
+        fut = pool.submit(perform_beat, beats[start_part], daypart, models, state,
+                          _context(start_part, opener_lines),
+                          _tail_texts(opener_lines),
+                          caller_identity=_initial_caller_identity) if beats else None
         threw = False
+        chapter_complete = True
+        chapter_lines = []
         parts_since_break = 0
         for i, beat in enumerate(beats):
+            if i < start_part:
+                continue
             # near the window's end ON AIR: throw to the next show instead of
             # starting another beat the boundary would cut off. Wall time is
             # wrong here — this beat airs buffered_seconds from now, so a
             # wall-clock check teases a handoff and then keeps generating.
             if not threw and _minutes_left(daypart, clock.air_now()) < 7:
+                chapter_complete = False
                 nxt = _next_daypart(schedule, daypart)
                 print(f"\n--- Handoff -> {nxt['show']} ---")
                 daypart["_target_lines"] = 6
@@ -991,6 +1385,7 @@ def run_show(daypart, config, schedule, live: bool):
             # owns everything that would air after it
             if not events.same_air(_current_daypart(schedule, clock.air_now()),
                                    daypart):
+                chapter_complete = False
                 print("  (daypart ended — handing over to the next show)")
                 break
             _throttle(config, live)
@@ -1002,6 +1397,7 @@ def run_show(daypart, config, schedule, live: bool):
             # the Watcher's conspiracies, the gossip riffs, all of it: real
             # people and companies never ride along (callers stay whitelisted)
             lines = _ew(lines, extra_ok=used_names)
+            lines = _leak.sanitize_lines(lines)
             if daypart.get("_event_verify"):
                 try:  # event beats never air numbers their sheet doesn't hold
                     lines = _event_guard(lines, daypart["_event_verify"],
@@ -1027,6 +1423,16 @@ def run_show(daypart, config, schedule, live: bool):
                     print(f"  (contest record skipped: {e})")
                 daypart.pop("_contest", None)
                 daypart.pop("_contest_meta", None)
+            if (i + 1 < len(beats)
+                    and beats[i + 1].get("_part", 0) == 0):
+                # _context already tells the model the previous caller is gone.
+                # Make the code-owned switchboard state agree with that scene
+                # break while preserving the show-wide call count.
+                call_st = {
+                    "name": "", "status": "clear", "lines_used": 0,
+                    "calls_done": (call_st or {}).get("calls_done", 0),
+                }
+            _next_caller_identity = _bounded_caller_identity(call_st, i)
             daypart["_switchboard"] = _switch.prompt_line(
                 call_st, _call_budget(daypart),
                 _call_pacing(daypart, call_st)) + \
@@ -1034,10 +1440,7 @@ def run_show(daypart, config, schedule, live: bool):
                     used_names,
                     f"caller:{clock.air_now():%Y-%m-%d}:{daypart['id']}:{i}",
                     _cast_meta(daypart, 0).get("speaker", ""),
-                    # the returning resident stays pinned until the show's
-                    # FIRST call actually happens, then the desk rotates
-                    identity=_fu_id
-                    if not (call_st or {}).get("calls_done") else None)
+                    identity=_next_caller_identity)
             _is_throw = bool(beat.get("scheduled_handoff") or beat.get("ad_throw"))
             lines, _wb = _cont.enforce(lines, handoff=_is_throw)
             if daypart.get("id") == "static_hour":
@@ -1105,13 +1508,29 @@ def run_show(daypart, config, schedule, live: bool):
             if i + 1 < len(beats):
                 fut = pool.submit(perform_beat, beats[i + 1], daypart, models,
                                   state, _context(i + 1, lines),
-                                  _tail_texts(lines))
+                                  _tail_texts(lines),
+                                  caller_identity=_next_caller_identity)
+            chapter_lines.extend(lines)
             print(f"\n--- {beat.get('segment')} ---")
             _emit(lines, f"{_lbl}-{beat.get('segment', 'seg')}", config, live, fx=fx)
             if _wb and live and not _is_throw:
                 _break_marker(daypart)   # a promised break is a KEPT break
             if lines:  # keep the tail fresh so any restart resumes mid-thought
                 _save_tail(daypart, lines)
+            active_now = _sstate().get("active_show") or {}
+            if active_now.get("key") == opened_key:
+                active_now["next_beat"] = (
+                    i // parts + 1 if beat.get("_part", 0) >= parts - 1
+                    else i // parts)
+                active_now["last_segment"] = str(beat.get("segment") or "")
+                st_progress = _sstate()
+                st_progress["active_show"] = active_now
+                _sstate_save(st_progress)
+            show_snapshot = _showstate.update(
+                daypart, show_snapshot, beat=beat, lines=lines,
+                next_beat=(i // parts + 1
+                           if beat.get("_part", 0) >= parts - 1 else i // parts),
+                next_part=((beat.get("_part", 0) + 1) % parts))
             parts_since_break += 1
             # host-announced ad break at a per-show, real-radio cadence
             # (ad_interval_min in schedule.yaml; ~2.2 min of air per part).
@@ -1145,6 +1564,26 @@ def run_show(daypart, config, schedule, live: bool):
                 except Exception as e:  # a failed throw must not stop the show
                     print(f"  (ad throw skipped: {e})")
                     daypart["_target_lines"] = target
+
+    if (daypart.get("id") == "static_hour" and chapter_complete
+            and _theory_n and outline.get("beats")):
+        try:
+            from . import watcherlore as _wl_close
+            _wl_close.close_chapter(
+                _bd, _theory_n, _watcher_frame, _watcher_payoff,
+                chapter_lines, loose_threads=_watcher_threads,
+                builds_on=_watcher_builds_on)
+            print(f"  (chapter closed: t{_theory_n} — "
+                  f"{_watcher_payoff[:60]!r})")
+        except Exception as e:
+            print(f"  (chapter ledger skipped: {e})")
+
+    st_end = _sstate()
+    if (st_end.get("active_show") or {}).get("key") == opened_key:
+        if chapter_complete:
+            st_end.pop("active_show", None)
+        _sstate_save(st_end)
+    _showstate.finish(daypart, show_snapshot, chapter_complete)
 
     if daypart.get("arc"):
         st = _sstate()

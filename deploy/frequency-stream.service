@@ -12,6 +12,7 @@ Type=simple
 User=kaos
 Group=kaos
 EnvironmentFile=/opt/kaos/stream.env
+ExecStartPre=/opt/kaos/app/deploy/check_assets.sh
 ExecStart=/opt/kaos/app/deploy/player.sh
 Restart=always
 RestartSec=10

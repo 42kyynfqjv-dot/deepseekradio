@@ -90,6 +90,13 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
                   "boundaries and throws are welcome. This outline is ONE STRETCH "
                   "of a show that keeps rolling: never write an outro, wrap-up, "
                   "sign-off, or cold-open beat — every beat is mid-show.")
+    if daypart.get("id") == "static_hour":
+        beat_shape = (
+            "Give the material for one connected chapter in about six creative "
+            "beats. Choose the evidence, callers, escalation, jokes, and landing; "
+            "do not label phases or design production bookkeeping — code will "
+            "shape and close the six-beat spine. "
+            f"{open_txt}{sponsor_txt}")
 
     system = (
         "You are the head writer for The Frequency, a 24/7 comedy radio station. "
@@ -115,12 +122,32 @@ def write_outline(daypart: dict, models: dict, lore_state: dict,
         arc_line += (f"\nIMPORTANT: the show was interrupted mid-theory. Tonight's "
                      f"theory is ALREADY: {continue_theory} — do NOT start a new "
                      "one. Resume it at the depth it had reached and keep "
-                     "descending/widening from there.\n")
+                     "descending/widening from there. The frame and any named "
+                     "organization are fixed; new evidence must come back to "
+                     "them, not replace them.\n")
+    theory_contract = ""
+    if daypart.get("id") == "static_hour":
+        theory_contract = """
+
+THEORY CHAPTER CONTRACT (hard for The Static Hour):
+- Write one complete chapter around one absurd theory, not a sampler of
+  unrelated theories. Choose the frame, evidence, callers, shadow organization,
+  escalation, jokes, and wording freely.
+- 'theory' is the durable frame; include the central subject and any recurring
+  organization or mechanism. 'payoff' is the final landing in one sentence.
+- Keep every new object or caller connected to that frame. The station code adds
+  the six-act spine, connective links, phase labels, and the final closure beat;
+  do not spend effort designing those production mechanics.
+- A closed chapter may be sequel material. If you choose to build on one, put
+  its exact id in 'builds_on' and do not reopen its solved question unchanged.
+"""
     pacing = daypart.get("pacing")
     pacing_line = f"\nPACING (hard rule for this show): {pacing}\n" if pacing else ""
     from .assignments import writer_block
     assign_block = writer_block(None, None, assigned.get("callback"),
                                 assigned.get("props") or [])
+    continuity_block = daypart.get("_continuity_desk") or ""
+    continuity_line = (f"\n{continuity_block}\n" if continuity_block else "")
     extra = daypart.get("_extra_context")
     extra_line = f"\nREAL-WORLD GROUNDING (use it, keep numbers roughly right):\n{extra}\n" if extra else ""
     user = f"""Write the outline for this show. Today is {weekday}.{extra_line}
@@ -135,19 +162,19 @@ RECURRING SEGMENTS TO HIT:
 
 {beat_shape}
 
-Per beat also supply:
-- "grounding": one mundane physical detail to anchor the beat. VARY these hard
-  across the outline — a fresh, specific object each time, never the same stock
-  prop show after show (not another toaster/cat/mug/clock). Nothing on the
-  worn-out list below.
-- "callback": normally null. For AT MOST 2 beats in the whole outline, name
-  one lore item to reference. Every other beat must not touch lore.
-- "no_bit": normally false. Set true for sincerely straight beats (a wind-down,
-  an ident, a quiet moment) — zero absurdity in those.
-- "monologue": normally false. Set true when one voice should run long (a
-  declared solo register, a rating defense, a guest performing their craft).
+Optional creative hints per beat:
+Focus on the creative core: segment, premise, and beat. The fields below are
+optional hints; do not spend effort balancing them. The assignment desk and
+code finalize guest, props, callback count, and pacing after you answer:
+- "grounding": an optional mundane physical detail for the beat.
+- "callback": an optional lore item to reference, normally null.
+- "no_bit" and "monologue": optional register hints; normally false.
 
 {guest_line}
+
+{theory_contract}
+{continuity_line}
+{daypart.get('_watcher_history') or ''}
 
 {assign_block}
 
@@ -167,11 +194,14 @@ Return STRICT JSON:
   "show": "{daypart['show']}",
   "guest": "<guest name or null>",
   "theory": "<for arc shows: one line naming this outline's single theory; else null>",
+  "payoff": "<for arc shows: the one-sentence final landing; else null>",
+  "builds_on": "<prior chapter id or null>",
+  "loose_threads": ["<optional future seed>", "..."],
   "beats": [
     {{"segment": "<segment name>",
       "premise": "<one-line setup>",
       "beat": "<what happens, the turn, the punchline target>",
-      "grounding": "<one mundane physical detail>",
+      "grounding": "<optional mundane physical detail>",
       "callback": null, "no_bit": false, "monologue": false}}
   ],
   "new_jokes": ["<any fresh running joke this show establishes>"],
@@ -191,7 +221,7 @@ Return STRICT JSON:
             # nothing may take the station down: outline from the segments
             print(f"  (backup writer failed too, segment fallback: {e2})")
             raw = ""
-    return _parse_json(raw, daypart)
+    return _normalize_outline_shape(_parse_json(raw, daypart), daypart)
 
 
 def _parse_json(raw: str, daypart: dict) -> dict:
@@ -204,9 +234,21 @@ def _parse_json(raw: str, daypart: dict) -> dict:
         beats = out.get("beats")
         if (isinstance(beats, list) and beats and
                 all(isinstance(b, dict) and b.get("beat") for b in beats)):
+            out["theory"] = (str(out.get("theory")).strip()
+                            if out.get("theory") else None)
+            out["payoff"] = (str(out.get("payoff")).strip()
+                             if out.get("payoff") else None)
+            out["builds_on"] = (str(out.get("builds_on")).strip()
+                                if out.get("builds_on") else None)
+            out["loose_threads"] = [
+                str(x).strip() for x in (out.get("loose_threads") or [])
+                if str(x).strip()
+            ][:4]
             out["beats"] = [{"segment": str(b.get("segment", "segment")),
                              "premise": str(b.get("premise", "")),
                              "beat": str(b.get("beat")),
+                             "link": str(b.get("link") or ""),
+                             "move": str(b.get("move") or ""),
                              "grounding": str(b.get("grounding") or ""),
                              "callback": (str(b["callback"]) if b.get("callback") else None),
                              "no_bit": bool(b.get("no_bit")),
@@ -219,8 +261,62 @@ def _parse_json(raw: str, daypart: dict) -> dict:
         return {
             "show": daypart["show"],
             "guest": None,
+            "theory": None,
+            "payoff": None,
+            "builds_on": None,
+            "loose_threads": [],
             "beats": [{"segment": s, "premise": s, "beat": s}
                       for s in daypart.get("segments", [])],
             "new_jokes": [],
             "callbacks_used": [],
         }
+
+
+def _normalize_outline_shape(out: dict, daypart: dict) -> dict:
+    """Let code own outline shape and assignments; let the model write content."""
+    if not isinstance(out, dict):
+        out = {}
+    beats = [dict(b) for b in (out.get("beats") or [])
+             if isinstance(b, dict) and str(b.get("beat") or "").strip()]
+    try:
+        lo, hi = (int(x) for x in daypart.get("outline_beats", [12, 16]))
+        lo, hi = max(1, lo), max(lo, hi)
+    except Exception:
+        lo, hi = 1, 16
+    segments = list(daypart.get("segments") or ["Segment"])
+    if len(beats) > hi:
+        beats = beats[:hi]
+    while len(beats) < lo:
+        idx = len(beats)
+        segment = segments[idx % len(segments)]
+        beats.append({
+            "segment": segment,
+            "premise": f"a fresh angle on {segment}",
+            "beat": f"play the next part of {segment} in this show's register",
+        })
+    assigned = daypart.get("_assign") or {}
+    props = list(assigned.get("props") or [])
+    if assigned.get("guest"):
+        out["guest"] = assigned["guest"]
+    elif str(daypart.get("guest", "never")).lower() not in ("always", "true", "wednesday"):
+        out["guest"] = None
+    keep_callback = assigned.get("callback")
+    callback_seen = 0
+    for idx, beat in enumerate(beats):
+        beat.setdefault("segment", segments[idx % len(segments)])
+        beat.setdefault("premise", beat["segment"])
+        beat.setdefault("beat", beat["premise"])
+        if props:
+            beat["grounding"] = props[idx % len(props)]
+        callback = str(beat.get("callback") or "").strip() or None
+        if keep_callback:
+            callback = callback if callback == keep_callback and not callback_seen else None
+        elif callback and callback_seen >= 2:
+            callback = None
+        if callback:
+            callback_seen += 1
+        beat["callback"] = callback
+        if "quiet part" in str(beat.get("segment", "")).lower():
+            beat["no_bit"] = True
+    out["beats"] = beats
+    return out

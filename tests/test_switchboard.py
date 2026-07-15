@@ -50,6 +50,18 @@ check(st["status"] == "wrapped" and st["name"] == "Darla",
       "wrap with silent caller ends the call")
 check(st["calls_done"] == 1, "one call on the meter")
 
+# --- the performer policy's generated close must close switchboard state ------
+generated_close = [
+    H("Line two, you're on the air."),
+    C("The pen has a second shadow."),
+    C("It follows the radio."),
+    C("The radio follows the pen."),
+    H("That's enough, Darla. The line is clear."),
+]
+outGC, stGC = SW.enforce(generated_close, None, host=HOST)
+check(stGC["status"] == "wrapped",
+      "the performer-generated close is recognized by switchboard")
+
 # --- a mid-call pleasantry must NOT amputate the conversation ----------------
 # (the Eugene incident: 'take care' matched, every later caller line dropped,
 #  the host kept counseling dead air)

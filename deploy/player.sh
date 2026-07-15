@@ -12,6 +12,7 @@ APP="${APP:-/opt/kaos/app}"
 FILLER="${FILLER:-/opt/kaos/roomtone.wav}"
 RESERVE="${RESERVE:-/opt/kaos/reserve}"
 BEDS="${BEDS:-/opt/kaos/beds}"
+WEB_DATA="${WEB_DATA:-/var/www/bestairadio/data}"
 MOUNT="${MOUNT:-live}"
 SPOT_EVERY="${SPOT_EVERY:-3600}"  # fallback only; breaks are host-announced
 : "${ICECAST_PW:?set ICECAST_PW (see /opt/kaos/stream.env)}"
@@ -50,6 +51,41 @@ show_of() {
     dawn-patrol*)      echo dawn-patrol ;;
     *) echo "" ;;      # news/spots/unknown: no transition
   esac
+}
+
+publish_transcript() {
+  # The generator can be far ahead of playback. Publish the sidecar only at
+  # the instant its WAV enters the air, so captions never get ahead of audio.
+  local meta="$1"
+  [ -f "$meta" ] || return 0
+  python3 - "$meta" "$WEB_DATA/live-transcript.json" <<'PY'
+import json, os, sys, time
+
+meta_path, out_path = sys.argv[1:3]
+try:
+    with open(meta_path, encoding="utf-8") as f:
+        meta = json.load(f)
+except Exception:
+    raise SystemExit(0)
+try:
+    with open(out_path, encoding="utf-8") as f:
+        entries = list(json.load(f).get("lines", []))
+except Exception:
+    entries = []
+aired = time.time()
+for line in meta.get("lines", []):
+    spoken = str(line.get("text") or "").strip()
+    if spoken:
+        entries.append({"ts": aired, "speaker": str(line.get("speaker") or "Radio"),
+                        "text": spoken, "phone": bool(line.get("phone")),
+                        "segment": str(meta.get("label") or "")})
+entries = entries[-120:]
+os.makedirs(os.path.dirname(out_path), exist_ok=True)
+tmp = out_path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump({"updated": aired, "lines": entries}, f, ensure_ascii=False)
+os.replace(tmp, out_path)
+PY
 }
 
 bed_for() {
@@ -163,14 +199,18 @@ feed() {
       # publish what's actually airing (show + segment) for the website
       seg=$(basename "$f" .wav | sed "s/^[0-9]*_//; s/-/ /g")
       printf '{"airing":"%s","ts":%s}\n' "$seg" "$(date +%s)" \
-        > /var/www/bestairadio/data/now.json.tmp 2>/dev/null \
-        && mv /var/www/bestairadio/data/now.json.tmp /var/www/bestairadio/data/now.json 2>/dev/null
+        > "$WEB_DATA/now.json.tmp" 2>/dev/null \
+        && mv "$WEB_DATA/now.json.tmp" "$WEB_DATA/now.json" 2>/dev/null
+      meta="${f%.wav}.json"
+      publish_transcript "$meta" || true
       play_file "$f"
       mv "$f" "$BUF/played/"
+      [ -f "$meta" ] && mv "$meta" "$BUF/played/"
       # keep the last 120 played segments — well over one podcast-harvest
       # interval of worst-case dense audio, so the harvester's hard links
       # always land before the prune (timing margin, not a handshake)
       ls -t "$BUF"/played/*.wav 2>/dev/null | tail -n +121 | xargs -r rm -f
+      ls -t "$BUF"/played/*.json 2>/dev/null | tail -n +121 | xargs -r rm -f
     else
       # buffer empty: no-repeat shuffled rotation through the reserve pool —
       # every piece airs once before anything repeats; atomic consumption

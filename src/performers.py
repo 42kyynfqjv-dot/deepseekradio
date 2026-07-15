@@ -73,7 +73,8 @@ def _time_context() -> str:
 
 
 def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
-                 rolling_summary: str, avoid_lines: list | None = None) -> list[dict]:
+                 rolling_summary: str, avoid_lines: list | None = None,
+                 caller_identity: str | None = None) -> list[dict]:
     """Generate the dialogue lines for a single beat. `avoid_lines` are
     already-aired texts; near-duplicates of them are dropped (echo guard)."""
     bible = _BIBLE.read_text()
@@ -107,6 +108,13 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                       "the guest's speaker label. The guest is MID-INTERVIEW and STAYS: "
                       "do NOT thank them for coming, wrap up, dismiss them, or say any "
                       "goodbye to the guest — the conversation continues past this beat.")
+    if beat.get("_guest_entry"):
+        guest_line += (
+            " GUEST ENTRANCE (hard): if the host invites the guest to compose, "
+            "perform, explain, or demonstrate something, the guest's very next "
+            "spoken line is the response. Do not put extra host commentary between "
+            "the invitation and the guest's answer. The guest must appear in this "
+            "part, not several beats later.")
     if beat.get("no_bit") or daypart.get("absurdity") == "none":
         absurdity_line = ("- NO BIT: zero impossible or absurd elements in this "
                           "beat — sincere, plain radio.")
@@ -146,6 +154,19 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                      "comedy here is petty human friction over mundane things. If "
                      "the beat or context contains such material, play it DOWN, "
                      "never build on it.")
+    night_register_line = ""
+    if daypart.get("id") == "night_shift":
+        night_register_line = (
+            "- NIGHT SHIFT SPOKEN-RADIO CONTRACT (hard): every line is spoken "
+            "aloud by the labeled person. Do not write a narrator, stage "
+            "direction, camera description, body-language report, inner thought, "
+            "or the host's private feelings. Never write 'Vivian feels', 'she "
+            "thinks', 'I feel', 'I wonder', or 'in her mind' for the host. "
+            "When Vivian interprets a Dream Court case, address the caller "
+            "directly ('you sound...', 'what you are carrying is...'); do not "
+            "describe Vivian's reaction. A caller may plainly say their own "
+            "feeling. The Quiet Part is a direct spoken address to the listener, "
+            "not an essay about the speaker's emotions.")
     pol = daypart.get("caller_policy") or {}
     policy_line = ""
     if pol:
@@ -155,6 +176,65 @@ def perform_beat(beat: dict, daypart: dict, models: dict, lore_state: dict,
                        "host wraps the call in his own words the caller is GONE — "
                        "write NO further dialogue with or about them, the host "
                        "monologues onward alone.")
+    if pol and daypart.get("id") == "static_hour":
+        policy_line += (
+            " This is a brief evidence interruption, not a co-hosting session. "
+            "Tie the caller's evidence to the chapter spine, then close the call "
+            "and return to the theory. Never carry a caller into a new outline "
+            "beat.")
+    conversation_line = (
+        "- STATIC HOUR CALLS are short evidence interruptions. The host accepts "
+        "the caller's one relevant observation, explicitly ties it back to the "
+        "theory, and ends the call. Do not follow a caller into a new subject."
+        if daypart.get("id") == "static_hour" else
+        "- Let scenes BREATHE: a caller or guest stays on the line for a long, "
+        "winding conversation — follow-ups, tangents. Never rush to the next caller."
+    )
+    watcher_line = ""
+    if daypart.get("id") == "static_hour":
+        watcher_line = (
+            f"{daypart.get('_watcher_spine') or ''}\n"
+            f"{beat.get('_watcher_plan') or ''}\n"
+            f"THIS BEAT'S CHAPTER JOB ({beat.get('_theory_phase') or 'ADVANCE'}): "
+            f"{beat.get('_theory_link') or 'Make the new observation evidence for the established frame.'}\n"
+            "The Watcher may invent freely, but he must name or clearly refer "
+            "back to the frame or its shadow organization before moving on. "
+            "UNHINGED IS DELIVERY, NOT TOPIC CONTROL: a new object is evidence "
+            "only after a spoken because, which means, or so that connection. "
+            "Never make a naked pivot to a new subject. Add at most one new clue "
+            "in an outline beat; continuation parts add no new clue. Keep the "
+            "chapter frame and named organization unchanged. The PAYOFF beat adds "
+            "no new clue; it closes the chapter."
+        )
+    continuity_parts = []
+    if daypart.get("_continuity_desk"):
+        continuity_parts.append(str(daypart["_continuity_desk"]))
+    if daypart.get("_show_continuity"):
+        continuity_parts.append(str(daypart["_show_continuity"]))
+    continuity_line = ("\n\n".join(continuity_parts) + "\n"
+                       if continuity_parts else "")
+    caller_identity_line = ""
+    if caller_identity:
+        caller_identity_line = (
+            "CALLER IDENTITY (code-authoritative): if a phone caller appears "
+            f"in this generated part, use exactly {caller_identity} as the "
+            "speaker label. Never use a bare Caller label or invent another caller name.\n")
+    unit_line = ""
+    if beat.get("_outline_beat"):
+        unit_line = (
+            f"GENERATION UNIT: outline beat {beat['_outline_beat']} of "
+            f"{beat.get('_outline_beats', '?')}, generated part "
+            f"{beat.get('_part_number', beat.get('_part', 0) + 1)} of "
+            f"{beat.get('_parts_total', '?')}. Parts continue one outline "
+            "beat; do not start a new subject between parts.\n")
+        if beat.get("_chapter_final_part"):
+            unit_line += (
+                "This is the final generated part of the final outline beat: "
+                "state the chapter landing and close it.\n")
+        elif beat.get("_theory_phase") == "PAYOFF":
+            unit_line += (
+                "This is an earlier part of the final outline beat: use only "
+                "already named clues and prepare the landing; do not close yet.\n")
     if beat.get("scheduled_handoff"):
         handoff_exception = (" (Sole exception: this beat IS a scheduled handoff "
                              "— wrap briefly and throw to the next show.)")
@@ -182,8 +262,12 @@ BEAT TO PLAY: {beat.get('beat')}
 {monologue_line}
 
 STORY SO FAR (this show): {rolling_summary or '(top of the show)'}
+{unit_line}
+{continuity_line}
+{caller_identity_line}
 
 Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
+{night_register_line}
 {absurdity_line}
 {register_line}
 {policy_line}
@@ -191,23 +275,21 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 {daypart.get('_show_clock') or ''}
 {daypart.get('_numbers') or ''}
 {daypart.get('_watcher_canon') or ''}
+{watcher_line}
 {daypart.get('_contest') or ''}
 - OUTSIDE WORLD (hard): never name real people, companies, brands, or
   products — this universe has its own celebrities, businesses, and
   conspiracies. Anonymize any real-world reference to a role ('a billionaire',
   'a streaming service', 'a very famous singer').
-- Call-in AND guest-interview segments are DUETS: the caller or guest carries
-  at least 40 percent of the lines. The host asks short, sincere questions;
-  the CALLER escalates, the host de-escalates. The host never invents
-  impossible facts. With co-hosts, the hosts' combined share stays under 60
-  percent, split roughly evenly. (If a persona explicitly defines a different
-  caller dynamic for a specific bit, the persona wins.)
+- STATIC HOUR calls are brief evidence interruptions: the caller gives the
+  relevant observation, the host ties it to the chapter spine, and the host
+  owns the remainder. For other call-in or guest segments, the caller or guest
+  carries at least 40 percent of the lines and the host asks short questions.
 - No speaker gets more than 2 consecutive lines. Host lines stay short
   (under ~25 words). Exception: when a persona or this beat explicitly
   declares a monologue register, BOTH the consecutive-line cap and the
   short-line guidance are waived for that speaker; callers still stay punchy.
-- Let scenes BREATHE: a caller or guest stays on the line for a long,
-  winding conversation — follow-ups, tangents. Never rush to the next caller.
+{conversation_line}
 - Caller listening-history VARIETY (hard): "long-time listener" is worn out
   and effectively banned. If a caller mentions how they listen at all, make
   it specific and varied — first-timer, just flipped over from the game,
@@ -251,15 +333,27 @@ Write ~{daypart.get('_target_lines', 8)} spoken lines. Rules:
 Return STRICT JSON:
 {{"lines": [{{"speaker": "<name>", "text": "<what they say out loud>"}}]}}"""
 
-    raw = chat(models["performer"],
+    performer_model = models["performer"]
+    if (daypart.get("id") == "static_hour"
+            and daypart.get("performer_temperature") is not None):
+        performer_model = dict(performer_model)
+        performer_model["temperature"] = float(daypart["performer_temperature"])
+    raw = chat(performer_model,
                [{"role": "system", "content": system},
                 {"role": "user", "content": user}])
     lines = _parse_lines(raw)
     if "polish" in models and lines:
         lines = _polish(lines, daypart, models, beat)
     lines = _echo_guard(lines, avoid_lines or [])
-    lines = _attach_voices(lines, daypart, guest=beat.get("_guest"))
-    return _enforce_caller_policy(lines, daypart)
+    from . import leakguard as _leak
+    lines = _leak.sanitize_speakers(
+        lines, cast_names=[_persona(n)[0] for n in daypart["cast"]])
+    lines = _attach_voices(lines, daypart, guest=beat.get("_guest"),
+                           caller_identity=caller_identity)
+    lines = _enforce_guest_handoff(lines, daypart, beat)
+    lines = _enforce_caller_policy(lines, daypart)
+    lines = _spoken_register_guard(lines, daypart, beat)
+    return _leak.sanitize_lines(lines)
 
 
 def _echo_guard(lines: list[dict], avoid: list) -> list[dict]:
@@ -287,16 +381,24 @@ def _echo_guard(lines: list[dict], avoid: list) -> list[dict]:
 
 _SELF_ID = re.compile(r"\b(hi|hey|hello|this is|calling|caller|first.?time|"
                       r"long.?time|line|you're on|am i on)\b", re.I)
+_GUEST_INVITE = re.compile(
+    r"\b(?:compose|write|create|perform|play|show(?: us)?|take it|"
+    r"go ahead|your turn|tell us|give us|what would you|how would you|"
+    r"can you)\b", re.I)
 
 _TAKE_LINES = ["We've got a caller. Go ahead, you're on.",
                "Line two. You're on the air.",
                "Hold that thought, there's a call. Go ahead.",
                "The lines are lit. Caller, you're on."]
 
-_CLOSE_LINES = ["Thank you, {name}. That's everything we need.",
-                "{name}, you've done your part. The line goes quiet.",
-                "That's enough, {name}. Some things shouldn't be said on an open line.",
-                "And {name} is gone. But what {name} saw stays with us."]
+_CLOSE_LINES = ["Thanks for the call, {name}. We'll let you go.",
+                "I appreciate the call, {name}. The line is clear.",
+                "Thank you for calling, {name}. We'll leave it there.",
+                "That's enough, {name}. The line is clear."]
+_CALL_CLOSE = re.compile(
+    r"\b(?:thanks?(?: for the call| for calling)?|appreciate the call|"
+    r"let you go|line (?:is|goes) (?:clear|quiet|dead)|leave it there|"
+    r"that's enough|take care)\b", re.I)
 
 
 def _enforce_caller_policy(lines, daypart):
@@ -310,6 +412,16 @@ def _enforce_caller_policy(lines, daypart):
     max_lines = int(pol.get("max_lines", 3))
     host_voice = next(((ln.get("voice"), ln.get("speed", 1.0), ln.get("speaker"))
                        for ln in lines if not ln.get("phone")), None)
+    if host_voice is None and daypart.get("cast"):
+        display, persona = _persona(daypart["cast"][0])
+        vm = re.search(r"^voice:\s*(.+)$", persona, re.M)
+        sm = re.search(r"^speed:\s*(.+)$", persona, re.M)
+        try:
+            host_speed = float(sm.group(1)) if sm else 1.0
+        except (TypeError, ValueError):
+            host_speed = 1.0
+        host_voice = (vm.group(1).strip() if vm else "am_adam",
+                      host_speed, display)
     out, seen, counts = [], [], {}
     # a take-line with no caller in the beat is an invitation to a ghost
     if not any(ln.get("phone") for ln in lines):
@@ -352,7 +464,58 @@ def _enforce_caller_policy(lines, daypart):
                             "text": tmpl.format(name=first)})
             break
         out.append(ln)
+    if seen and host_voice:
+        last_phone = max((j for j, ln in enumerate(out) if ln.get("phone")),
+                         default=-1)
+        if last_phone >= 0 and not any(
+                _CALL_CLOSE.search(str(ln.get("text", "")))
+                for ln in out[last_phone + 1:] if not ln.get("phone")):
+            spk = str(out[last_phone].get("speaker") or seen[-1] or "caller")
+            first = next((w for w in spk.split()
+                          if w.lower() not in ("the", "a", "an", "caller")),
+                         "caller").title()
+            v, s, hname = host_voice
+            tmpl = _CLOSE_LINES[_stable_hash(spk) % len(_CLOSE_LINES)]
+            out.append({"speaker": hname, "voice": v, "speed": s,
+                        "text": tmpl.format(name=first), "_enforced": True})
     return out
+
+
+def _enforce_guest_handoff(lines, daypart, beat):
+    """Keep an in-studio guest's answer attached to the host's invitation."""
+    if (not beat.get("_guest")
+            or daypart.get("guest_role") != "persistent"):
+        return lines
+    cast = []
+    for name in daypart.get("cast", []):
+        display, _ = _persona(name)
+        cast.extend((str(name).lower(), display.lower()))
+
+    def is_host(ln):
+        speaker = str(ln.get("speaker", "")).lower()
+        return any(re.search(r"\b" + re.escape(name) + r"\b", speaker)
+                   for name in cast if name)
+
+    guest_idxs = [i for i, ln in enumerate(lines)
+                  if not ln.get("phone") and not is_host(ln)]
+    if not guest_idxs:
+        return lines
+    invite_idx = next((i for i, ln in enumerate(lines)
+                       if is_host(ln)
+                       and _GUEST_INVITE.search(str(ln.get("text", "")))),
+                      None)
+    target = invite_idx + 1 if invite_idx is not None else None
+    if target is None and beat.get("_guest_entry"):
+        first_host = next((i for i, ln in enumerate(lines) if is_host(ln)), None)
+        target = first_host + 1 if first_host is not None else None
+    if target is None:
+        return lines
+    guest_idx = next((i for i in guest_idxs if i >= target), None)
+    if guest_idx is None or guest_idx == target:
+        return lines
+    guest_line = lines.pop(guest_idx)
+    lines.insert(target, guest_line)
+    return lines
 
 
 _NONSPEAKER = re.compile(r"sfx|sound|effect|narrator|stage|music|jingle|\bfx\b", re.I)
@@ -363,6 +526,69 @@ def _sanitize_text(t: str) -> str:
     t = re.sub(r"\*[^*]{1,80}\*", " ", t)
     t = re.sub(r"\[[^\]]*\]|\([^)]*\)", " ", t)
     return re.sub(r"\s{2,}", " ", t).strip()
+
+
+_NIGHT_HOST_NARRATION = re.compile(
+    r"\b(?:i\s+(?:feel|am feeling|wonder|think|think to myself|realize|"
+    r"notice|sense|can feel)|"
+    r"(?:vivian(?:\s+nightshade)?|she|he|the host)\s+(?:feels?|felt|"
+    r"is feeling|was feeling|thinks?|wondered?|realizes?|noticed?|"
+    r"senses?|pauses?|smiles?|sighs?|nods?|looks?|takes a breath))\b|"
+    r"\b(?:internally|inwardly|in my mind|in my heart|to herself|to himself)\b",
+    re.I)
+_NIGHT_META_NARRATION = re.compile(
+    r"^\s*(?:narrator|stage direction|camera)\s*[:—-]|"
+    r"\b(?:the narrator|the camera)\b", re.I)
+_NIGHT_HOST_REPAIRS = (
+    "I'm listening. Tell me what happened next.",
+    "Stay with that moment. What did you need right then?",
+    "Let's keep to what you heard and saw. What came after?",
+)
+_NIGHT_CALLER_REPAIRS = (
+    "I don't know how else to say it, but that's what stayed with me.",
+    "That's the part I keep coming back to.",
+    "I can tell you what happened next.",
+)
+
+
+def _spoken_register_guard(lines: list[dict], daypart: dict,
+                          beat: dict | None = None) -> list[dict]:
+    """Keep Night Shift output as dialogue, not screenplay narration.
+
+    Vivian may interpret a caller's feelings, but the model must not report
+    Vivian's private emotional state or body language as prose. Repair the
+    occasional leaked line in-register so a bad generation cannot turn the
+    whole beat into narrated fiction.
+    """
+    if daypart.get("id") != "night_shift":
+        return lines
+    cast = []
+    for name in daypart.get("cast", []):
+        display, _ = _persona(name)
+        cast.extend((str(name).lower(), display.lower()))
+
+    def is_host(line):
+        speaker = str(line.get("speaker", "")).lower()
+        return any(re.search(r"\b" + re.escape(name) + r"\b", speaker)
+                   for name in cast if name)
+    out = []
+    for line in lines:
+        text = str(line.get("text", ""))
+        host_line = is_host(line)
+        bad = bool(_NIGHT_META_NARRATION.search(text))
+        if host_line:
+            bad = bad or bool(_NIGHT_HOST_NARRATION.search(text))
+        if not bad:
+            out.append(line)
+            continue
+        repaired = dict(line)
+        pool = _NIGHT_HOST_REPAIRS if host_line else _NIGHT_CALLER_REPAIRS
+        repaired["text"] = pool[_stable_hash(text) % len(pool)]
+        repaired["_enforced"] = True
+        repaired["_register_guard"] = True
+        out.append(repaired)
+    return out
+
 
 
 def _parse_lines(raw: str) -> list[dict]:
@@ -396,6 +622,24 @@ def _polish(lines: list[dict], daypart: dict, models: dict,
     cast_names = [_persona(n)[0] for n in daypart["cast"]]
     monologue_show = (any("OWN THIS HOUR" in _persona(n)[1] for n in daypart["cast"])
                       or bool(daypart.get("solo")) or bool(beat.get("monologue")))
+    theory_edit = ""
+    if daypart.get("id") == "static_hour":
+        part_edit = (
+            " This is a continuation part inside the same outline beat: deepen "
+            "the current clue and introduce no new object, organization, or "
+            "subject."
+            if beat.get("_part", 0) > 0 else
+            " This is the first part of the outline beat: choose at most one new "
+            "clue, then make its connection to the frame explicit."
+        )
+        theory_edit = (
+            "8. STATIC HOUR CHAPTER: preserve the theory frame, any named shadow "
+            "organization, and the beat's required connection. If a line wanders "
+            "to an unrelated subject, rewrite it as evidence for the same frame. "
+            "The PAYOFF beat must contain the conclusion and no fresh clue.\n"
+            f"   Required link: {beat.get('_theory_link') or 'return to the established frame'}."
+            f"{part_edit}\n"
+        )
     user = (
         "You are a radio script editor. Edit ONLY mechanically — do not add "
         "jokes, do not change anyone's style. Apply exactly these rules:\n"
@@ -429,7 +673,8 @@ def _polish(lines: list[dict], daypart: dict, models: dict,
         "invented-absurd targets only.\n"
         + "7. Keep speaker labels consistent; the show's cast is: "
         + ", ".join(cast_names) + ". Leave caller names as they are.\n"
-        "Return the SAME JSON schema, edited:\n"
+        + theory_edit
+        + "Return the SAME JSON schema, edited:\n"
         + json.dumps({"lines": lines})
     )
     try:
@@ -524,7 +769,8 @@ def _spare_voice(speaker: str) -> str:
 
 
 def _attach_voices(lines: list[dict], daypart: dict,
-                   guest: str | None = None) -> list[dict]:
+                   guest: str | None = None,
+                   caller_identity: str | None = None) -> list[dict]:
     """Cast speakers get their persona voice; rotating-desk employees and pool
     guests get their bullet voices (full-band, in studio); callers get a
     stable spare voice + phone tag for the TTS treatment."""
@@ -563,7 +809,20 @@ def _attach_voices(lines: list[dict], daypart: dict,
                 v = _spare_voice(spk)
             ln["voice"] = v
             ln["speed"] = s
+        elif (guest and daypart.get("guest_role") == "persistent"
+              and not daypart.get("caller_policy")):
+            # Culture Vulture has one in-studio guest and no caller format. If
+            # the model invents a short alias ("Kosta", "Gary") instead of
+            # the assigned pool label, keep it a guest, never a phone caller.
+            guest_display = re.split(r"\s+[—-]\s+|,", str(guest), maxsplit=1)[0].strip()
+            ln["speaker"] = guest_display or str(guest)
+            ln["voice"] = _spare_voice(guest_display or str(guest))
+            ln["speed"] = 0.98
+            ln.pop("phone", None)
         else:  # caller: stable distinct voice (gender-pinned) + telephone treatment
+            if caller_identity:
+                ln["speaker"] = caller_identity
+                spk = caller_identity.lower()
             h = _stable_hash(spk)
             ln["voice"] = _spare_voice(spk)
             ln["speed"] = 0.94 + (h % 5) * 0.04  # 0.94-1.10 per caller
