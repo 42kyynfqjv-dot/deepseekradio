@@ -8,6 +8,7 @@ audio_buffer/
 *.wav
 *.mp3
 lore_state.json
+data/runtime/shows/
 kokoro/*.onnx
 kokoro/*.bin
 *.log

@@ -125,26 +125,22 @@ dayparts:
     cast: [watcher]
     ad_interval_min: 22       # overnight runs sparse — long, immersive rabbit holes
     lore_quarantine: true     # his theories never enter shared station lore
-    outline_beats: [6, 8]     # one rabbit hole = 33-50 min of air; 5-8 holes/night
+    outline_beats: [6, 8]     # 6-8 outline beats; each may expand into parts
     caller_policy:            # code-enforced, not prompt-suggested
       per_beat: 1             # one caller per beat, max
       max_lines: 3            # then they're gone — the Watcher takes the wheel
+    performer_temperature: 0.78  # inventive, but less free-association
     arc: >
       ONE theory per outline — never several. This outline is ONE RABBIT HOLE
-      and it must sustain at least 30 minutes of air: every beat stays on the
-      same subject. Pick a single absurd theory and
-      develop it across ALL beats. Beat 1 is a small, almost reasonable
-      observation. Every following beat makes exactly ONE move, and the moves
-      ALTERNATE: DEEPER (intensify an existing thread — stakes rise, the
-      evidence gets more damning, the implicated party more organized) or
-      WIDER (annex a new everyday phenomenon INTO the same theory — the
-      toasters connect to the crosswalk buttons connect to the geese; the
-      corkboard grows outward). Never two DEEPER moves in a row; a great
-      conspiracy expands its map while it raises its stakes. Callers phone
-      in sightings that feed whichever move the beat is making — always the
-      SAME theory. The final beats unify everything annexed so far into one
-      grand cosmic version of the same silly subject. Never change subjects
-      mid-outline. The Numbers punctuate the descent.
+      and it must sustain at least 30 minutes of air: every outline beat stays
+      on the same subject. Beat 1 is a small, almost reasonable observation.
+      Each later outline beat makes exactly ONE move: DEEPER (intensify an
+      existing thread) or WIDER (annex a new everyday phenomenon into the same
+      theory). Near the end, CONVERGENCE may gather the named threads; the last
+      outline beat is PAYOFF and adds no new clue. Parts are continuations of
+      their outline beat, not new theories. Callers feed the current move and
+      always return to the SAME theory. Never change subjects mid-outline.
+      The Numbers punctuate the descent.
     energy: "overnight conspiracy call-in; spooky-silly, points OUTWARD not at the station"
     segments:
       - "Tonight's Theory — an absurd outside-world conspiracy (birds, Tuesday, the moon)"

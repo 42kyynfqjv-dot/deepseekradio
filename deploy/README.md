@@ -62,6 +62,10 @@ See `deploy/frequency.service`. It runs the orchestrator loop, which keeps the b
 ```bash
 sudo cp deploy/frequency.service deploy/frequency-stream.service \
   deploy/frequency-nowplaying.service deploy/frequency-nowplaying.timer /etc/systemd/system/
+sudo cp deploy/check_assets.sh /opt/kaos/app/deploy/check_assets.sh
+sudo chmod +x /opt/kaos/app/deploy/check_assets.sh
+sudo FILLER=/opt/kaos/roomtone.wav RESERVE=/opt/kaos/reserve \
+  /opt/kaos/app/deploy/check_assets.sh
 sudo cp deploy/nowplaying.sh /opt/kaos/nowplaying.sh && sudo chmod +x /opt/kaos/nowplaying.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now icecast2 frequency frequency-stream frequency-nowplaying.timer
